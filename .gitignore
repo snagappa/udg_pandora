@@ -10,3 +10,4 @@ srv_gen/
 *~
 *.pyc
 src/udg_pandora
+matlab/
