@@ -1,0 +1,9 @@
+PHD SLAM node for the girona500.
+The g500slam.py node performs localisation and mapping. Use slamsim.py to simulate point targets.
+
+Dependencies:
+The simulator depends on gtk and glade libraries. The Python interface is required as well.
+The slam node depends on libgsl and python-scipy.
+
+BLAS DEBUG:
+Set lib.common.blas.DEBUG to False to disable basic checks on function arguments. This reduces function overhead, but can result in segfaults or *silent failures* if incorrect arguments are specified. Recommend that DEBUG be disabled only when all testing is complete.
