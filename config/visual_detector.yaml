@@ -8,8 +8,8 @@ visual_detector/image_y_size: 480
 # meters and radians
 visual_detector/visibility: 4.0
 visual_detector/camera_position: [0, 0, 0]
-visual_detector/camera_orientation: [0, 0, 0]
-visual_detector/panel_position: [3.1, 1.0, 5]
-visual_detector/valve_position: [5, 3, 0.5]
-visual_detector/chain_position: [6.2, 0, 2.0]
+visual_detector/camera_orientation: [0, 1.57, 0]
+visual_detector/panel_position: [-1.05, 1.0, 2.5]
+visual_detector/valve_position: [-1.05, 1.0, 2.5]
+visual_detector/chain_position: [3.1, 1.0, 5.0]
 

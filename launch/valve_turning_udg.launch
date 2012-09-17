@@ -1,14 +1,21 @@
 <launch>
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
+	<!-- Load G500 components -->
+ 	<include file="$(find udg_pandora)/launch/start_g500-sim-Pandora.launch" />
+
+	<!-- Run UWSim -->
+	<node name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile $(find udg_pandora)/data2/scenes2/cirsPandora.xml --dataPath $(find udg_pandora)/data2/" respawn="false"/>
+
 	<!-- Load meta-data -->
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/visual_detector_meta_data.yaml" />
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/acoustic_detector_meta_data.yaml" />
 	
 	<!-- Load config files -->
+	<rosparam command="load" file="$(find udg_pandora)/config/visual_detector.yaml" />
 
 	<!-- Load nodes -->
-	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py" output="screen"/>
+	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/>
 	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py" output="screen"/>
 </launch>
 
