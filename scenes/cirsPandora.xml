@@ -87,38 +87,22 @@
       <p>0</p>
       <y>0</y>
     </orientation>
-<!--    <virtualCamera>
+    <virtualCamera>
       <name>bowtech1</name>
       <relativeTo>base</relativeTo>
       <resw> 320 </resw>
       <resh> 240 </resh>
       <position>
-        <x>-0.2</x>
-        <y> -0.1 </y>
-        <z> 0 </z>
+        <x>0.3</x>
+        <y>0</y>
+        <z>0</z>
       </position>
       <orientation>
         <r>0</r>
-        <p>0</p>
-        <y>1.57 </y>
+        <p>-1.57</p>
+        <y>0.0</y>
       </orientation>
     </virtualCamera>
-    <virtualCamera>
-      <name>bowtech2</name>
-      <relativeTo>base</relativeTo>
-      <resw> 320</resw>
-      <resh> 240 </resh>
-      <position>
-        <x>-0.2</x>
-        <y> 0.1 </y>
-        <z> 0 </z>
-      </position>  
-      <orientation>
-        <r>0</r>
-        <p>0</p>
-        <y>1.57 </y>
-      </orientation>
-    </virtualCamera> -->
     <rangeSensor>
       <name>sonar</name>
       <relativeTo>base</relativeTo>
@@ -194,11 +178,11 @@
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
-<!--    <VirtualCameraToROSImage> 
+<VirtualCameraToROSImage>
       <cameraName>bowtech1</cameraName>
       <imageTopic> /uwsim/camera1 </imageTopic>
       <infoTopic> /uwsim/camera1_info </infoTopic>
-    </VirtualCameraToROSImage> -->
+    </VirtualCameraToROSImage>
     <RangeSensorToROSRange>
       <name>sonar</name>
       <topic> /uwsim/g500/range </topic>
