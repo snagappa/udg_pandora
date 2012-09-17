@@ -15,6 +15,12 @@
   <depend package="geometry_msgs"/>
   <depend package="hwu_meta_data"/>
   <depend package="auv_msgs"/>
+  <depend package="nav_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="tf"/>
+  <depend package="tf_conversions"/>
+  <depend package="cola2_navigation"/>
+  <depend package="kdl"/>
 </package>
 
 
