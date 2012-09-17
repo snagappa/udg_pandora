@@ -140,20 +140,26 @@ class GeometricDetector:
             cPu[1,i] = ret[1]/ret[2]
          
         # Check deyecyed points
+	print 'Check for objects...'
         for i in range(self.number_points): 
             if cPu[0,i] > 0 and cPu[0,i] < self.image_x_size and cPu[1,i] > 0 and cPu[1,i] < self.image_y_size:
-                print 'detected object: ', i
                 object_wrt_camera = extrinsics*self.wPw[:,i]
-                distance = sqrt(object_wrt_camera[0]**2 + object_wrt_camera[1]**2 + object_wrt_camera[2]**2)
-                if distance > self.visibility:
-                    print 'too far'
-                    self.detected_objects[i].detected = False
-                else:
-                    self.detected_objects[i].detected = True
+
+		# Minimum focus distance
+                if object_wrt_camera[2,0] > 0.25: 
+              	    print 'detected object: ', i
                     object_wrt_camera = extrinsics*self.wPw[:,i]
-                    self.detected_objects[i].position.position.x = object_wrt_camera[0,0]
-                    self.detected_objects[i].position.position.y = object_wrt_camera[1,0]
-                    self.detected_objects[i].position.position.z = object_wrt_camera[2,0]    
+                    distance = sqrt(object_wrt_camera[0]**2 + object_wrt_camera[1]**2 + object_wrt_camera[2]**2)
+                    if distance > self.visibility:
+                        print 'too far'
+                        self.detected_objects[i].detected = False
+                    else:
+                        self.detected_objects[i].detected = True
+                        self.detected_objects[i].position.position.x = object_wrt_camera[0,0]
+                        self.detected_objects[i].position.position.y = object_wrt_camera[1,0]
+                        self.detected_objects[i].position.position.z = object_wrt_camera[2,0]
+                else:
+                    print 'the object is just behind the camera or too close to it'    
             else:
                 self.detected_objects[i].detected = False
         

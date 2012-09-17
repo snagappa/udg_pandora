@@ -12,9 +12,10 @@
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/acoustic_detector_meta_data.yaml" />
 	
 	<!-- Load config files -->
+	<rosparam command="load" file="$(find udg_pandora)/config/visual_detector.yaml" />
 
 	<!-- Load nodes -->
-	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py" output="screen"/>
+	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/>
 	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py" output="screen"/>
 </launch>
 
