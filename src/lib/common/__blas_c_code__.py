@@ -22,11 +22,12 @@
 #       
 #      
 
-EXTRA_COMPILE_ARGS = ["-O1 -g -fopenmp"]
-lopenblas = ["openblas"]
+EXTRA_COMPILE_ARGS = ["-O2 -g -fopenmp"]
+#lopenblas = ["openblas"]
 lblas = ["blas"]
-lgsl = ["gsl", "gslcblas"]
 llapack = ["lapack"]
+lgsl = ["gsl", "gslcblas"]
+# Use this instead if a threaded blas library is available
 #lptf77blas = ["ptf77blas"]+llapack
 lptf77blas = lblas+llapack
 lgomp = ["gomp"]
@@ -1386,7 +1387,7 @@ class dtrtri:
     def __call__(self):
         return python_vars, code, support_code, libs
     support_code = omp_headers+gsl_blas_headers
-    libraries = lptf77blas+lgomp+llapack+lgsl + ["cblas", "lapack_atlas"] 
+    libraries = lptf77blas+lgomp+llapack+lgsl# + ["cblas", "lapack_atlas"] 
     extra_compile_args = []
     python_vars = ["A", "error_occurred"]
     code = """
