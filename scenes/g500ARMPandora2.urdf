@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<robot name="girona500">
+  <!-- base link is the body of the robot -->
+  <link name="base_link">
+      <visual>
+         <origin rpy="-1.57 0 3.14" xyz="-0.2 0 0.75"/>
+         <geometry>
+	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500Clean.osg"/> -->
+<!--           <mesh filename="package://UWSim/data/robot/GIRONA500/g500_March11.osg"/> -->
+           <mesh filename="package://control_g500/../data2/robot2/GIRONA500v2/g500Clean.osg"/>
+         </geometry>
+       </visual>
+   </link>
+
+
+</robot>

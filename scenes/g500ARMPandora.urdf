@@ -1,0 +1,135 @@
+<?xml version="1.0"?>
+<robot name="girona500">
+  <!-- base link is the body of the robot -->
+  <link name="base_link">
+      <visual>
+         <origin rpy="-1.57 0 3.14" xyz="-0.2 0 0.75"/>
+         <geometry>
+	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500Clean.osg"/> -->
+	   <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500Clean.osg"/>
+         </geometry>
+       </visual>
+   </link>
+
+
+   <link name="base">
+      <visual>
+	<!--   <origin rpy="0 3.14 1.57" xyz="0.55 0.04 0.77"/>  -->
+	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
+	 <geometry>
+	   <mesh filename="package://udg_pandora/data2/robot2/PANDORA_ARM/base.osg"/> 
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="baselink_to_base" type="fixed">
+      <parent link="base_link"/>
+      <child link="base"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.5 0.0 0.77"/>
+      <!-- <origin rpy="0 3.14 1.57" xyz="0.55 0.04 0.77"/> -->
+   </joint>
+
+
+   <link name="arm">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/PANDORA_ARM/brac.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="base_to_arm" type="continuous"> 
+<!--   in my opion this have to be revoluted because it have some limits-->
+      <parent link="base"/>
+      <child link="arm"/>
+      <axis xyz="0 1 0"/>
+      <origin rpy="0 0 0" xyz="0.11 0.0 0.0"/>
+   </joint>
+
+   <link name="hand">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/PANDORA_ARM/ma.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="arm_to_hand" type="continuous">
+ <!--   in my opion this have to be revoluted because it have some limits-->
+      <parent link="arm"/>
+      <child link="hand"/>
+      <axis xyz="0 1 0"/>
+      <origin rpy="0 0 0" xyz="0.48 0.0 0.0"/>
+   </joint>
+
+   <link name="support">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/PANDORA_ARM/suport_eina.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="hand_to_support" type="continuous">
+<!--   in my opion this have to be revoluted because it have some limits-->
+      <parent link="hand"/>
+      <child link="support"/>
+      <axis xyz="1 0 0"/>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+   </joint>
+
+<!-- This part is the representation of a hand -->
+
+  <link name="jaw1">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/ARM5E/ARM5E_part4_jaw1.osg"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/ARM5E/ARM5E_part4_jaw1.osg"/>
+      </geometry>
+
+    </collision>
+
+  </link>
+
+  <joint name="support_to_jaw1" type="fixed">
+    <parent link="support"/>
+    <child link="jaw1"/>
+    <axis xyz="0 -1 0"/>
+    <origin rpy="0 0 0" xyz="0.12 0 0.0"/>
+  </joint>
+
+
+  <link name="jaw2">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/ARM5E/ARM5E_part4_jaw2.osg"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/ARM5E/ARM5E_part4_jaw2.osg"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="support_to_jaw2" type="fixed">
+    <parent link="support"/>
+    <child link="jaw2"/>
+    <axis xyz="0 1 0"/>
+    <origin rpy="0 0 0" xyz="0.12 0 0.0"/>
+    <mimic joint="support_to_jaw1" multiplier="1" offset="0"/>
+  </joint>
+
+</robot>
