@@ -33,7 +33,7 @@ import matplotlib.nxutils as nxutils
 #pylab.hold(False) # This will avoid memory leak
 
 import roslib
-roslib.load_manifest("phdslam")
+roslib.load_manifest("udg_pandora")
 from nav_msgs.msg import Odometry
 from auv_msgs.msg import NavSts
 from cola2_control.srv import GotoSrv, GotoSrvRequest

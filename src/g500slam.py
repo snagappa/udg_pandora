@@ -24,7 +24,7 @@
 
 # ROS imports
 import roslib 
-roslib.load_manifest('phdslam')
+roslib.load_manifest('udg_pandora')
 import rospy
 import tf
 import PyKDL
@@ -43,7 +43,7 @@ from auv_msgs.msg import NavSts
 from std_srvs.srv import Empty, EmptyResponse
 from cola2_navigation.srv import SetNE, SetNEResponse #, SetNERequest
 
-import pyximport; pyximport.install()
+# import pyximport; pyximport.install()
 import lib.slam_worker
 #from lib.slam_worker import PHDSLAM
 PHDSLAM = lib.slam_worker.PHDSLAM
