@@ -18,6 +18,7 @@
 
 	<!-- Load nodes -->
 	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/>
-	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py" output="screen"/>
+	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/>
+	<node name="phdslam" pkg="udg_pandora" type="g500slam.py" />
 </launch>
 
