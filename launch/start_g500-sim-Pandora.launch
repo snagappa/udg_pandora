@@ -12,6 +12,8 @@
 	<rosparam command="load" file="$(find cola2_control)/config/pilot.yaml"/>	
 	<rosparam command="load" file="$(find cola2_navigation)/config/navigator.yaml" />
 	<rosparam command="load" file="$(find cola2_control)/../launch/mission.yaml" />
+
+	<rosparam param="urdf_root"> </rosparam>
 	
 	<!-- OVERRIDE BASIC MISSION PARAMETERS -->
 	<rosparam command="load" file="$(find cola2_safety)/../launch/basic_mission_parameters.yaml" />	
@@ -51,7 +53,9 @@
 		<node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
  	</group>
 
-	<node name="arm_controller" pkg="cola2_control" type="arm_controller" />
+	<node name="arm_controller" pkg="cola2_control" type="arm_controller">
+	      <param name="urdf_path" value="$(find udg_pandora)/scenes/g500ARMPandora.urdf"/>
+	</node>
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-a -x '(/camera/image_m(.)*)|(/camera/image_c(.)*)|(/camera/image_rect/(.)*)|(/camera/image_rect)|(/camera/image_raw)|(/camera/image_rect_color/compressed)|(/camera/image_raw/compressed)' --split --size 2048 -o /home/$(env LOGNAME)/g500" />
 
