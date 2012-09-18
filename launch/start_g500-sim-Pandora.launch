@@ -47,8 +47,11 @@
 	<node name="navigator" pkg="cola2_navigation" type="navigator.py" output="screen"/>
 
 	<group>
-		<node name="keyboard" pkg="cola2_control" type="keyboard" />
+		<!-- <node name="keyboard" pkg="cola2_control" type="keyboard" /> -->
+		<node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
  	</group>
+
+	<node name="arm_controller" pkg="cola2_control" type="arm_controller" />
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-a -x '(/camera/image_m(.)*)|(/camera/image_c(.)*)|(/camera/image_rect/(.)*)|(/camera/image_rect)|(/camera/image_raw)|(/camera/image_rect_color/compressed)|(/camera/image_raw/compressed)' --split --size 2048 -o /home/$(env LOGNAME)/g500" />
 
