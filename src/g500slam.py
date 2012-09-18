@@ -563,7 +563,7 @@ class G500_SLAM():
         nav_msg.position_variance.east = est_cov[1, 1]
         nav_msg.position_variance.depth = est_cov[2, 2]
         
-        nav_msg.status = np.uint8(np.log10(self.ros.NO_LOCK_ACQUIRE+1))
+        # nav_msg.status = np.uint8(np.log10(self.ros.NO_LOCK_ACQUIRE+1))
         
         #Publish topics
         self.ros.nav.publisher.publish(nav_msg)
@@ -600,7 +600,7 @@ class G500_SLAM():
         self.ros.map.publisher.publish(pcl_msg)
         #print "Landmarks at: "
         #print map_states
-        
+        """
         print "Tracking ", map_estimate.weight.shape[0], \
             " (", map_estimate.weight.sum(), ") targets."
         #print "Intensity = ", map_estimate.weight.sum()
@@ -608,7 +608,7 @@ class G500_SLAM():
             (rospy.Time.now()-self.config.last_time.init).to_sec()
         print "Dropped ", self.ros.NO_LOCK_ACQUIRE, " messages in ", \
             int(dropped_msg_time), " seconds."
-        
+        """
     def debug_print(self, *args, **kwargs):
         print "Weights: "
         #print self.slam_worker.states
