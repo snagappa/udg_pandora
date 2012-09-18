@@ -3,6 +3,8 @@
 	
 	<!-- Load G500 components -->
  	<include file="$(find udg_pandora)/launch/start_g500-sim-Pandora.launch" />
+	
+
 
 	<!-- Run UWSim -->
 	<node name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile $(find udg_pandora)/scenes/cirsPandora.xml --dataPath $(find udg_pandora)/" respawn="false"/>
