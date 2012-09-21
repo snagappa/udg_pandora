@@ -5,6 +5,7 @@
 
 	<!-- LOAD PARAMETERS -->
 	<rosparam command="load" file="$(find cola2_safety)/config/safety_g500.yaml" />	
+	<rosparam command="load" file="$(find cola2_safety)/config/fake_main_board.yaml" />
 	<rosparam command="load" file="$(find cola2_navigation)/config/dynamics_odin.yaml" />
 	<rosparam command="load" file="$(find cola2_control)/config/thruster_allocator_sim.yaml" />
 	<rosparam command="load" file="$(find cola2_control)/config/velocity_controller_sim.yaml" />		
