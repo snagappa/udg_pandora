@@ -76,28 +76,32 @@ class detector(object):
             print "object template is not set!"
             return None
         self._scene_ = copy.copy(im_scene)
+        
         (keypoints_scene, descriptors_scene) = (
             self._detector_.get_features(self._scene_))
-        
-        p1, p2, kp_pairs = self._detect_and_match_(self._object_.keypoints,
-                                                   self._object_.descriptors,
-                                                   keypoints_scene,
-                                                   descriptors_scene,
-                                                   self._flann_.r_threshold)
-        
-        if len(p1) >= 4:
-            H, status = cv2.findHomography(p1, p2, cv2.RANSAC, 5.0)
-            print '%d / %d  inliers/matched' % (np.sum(status), len(status))
-            
-            if H is not None:
-                corners = np.int32( cv2.perspectiveTransform(
-                    self._object_.corners.reshape(1, -1, 2), H).reshape(-1, 2))
-                    #+ (self._object_.template.shape[1], 0) )
-                cv2.polylines(self._scene_, [corners], True, (255, 255, 255), 4)
-        
+        if not keypoints_scene:
+            H = None
+            status = None
         else:
-            H, status = None, None
-            print '%d matches found, not enough for homography estimation' % len(p1)
+            p1, p2, kp_pairs = self._detect_and_match_(self._object_.keypoints,
+                                                       self._object_.descriptors,
+                                                       keypoints_scene,
+                                                       descriptors_scene,
+                                                       self._flann_.r_threshold)
+            
+            if len(p1) >= 30:
+                H, status = cv2.findHomography(p1, p2, cv2.RANSAC, 5.0)
+                print '%d / %d  inliers/matched' % (np.sum(status), len(status))
+                
+                if H is not None:
+                    corners = np.int32( cv2.perspectiveTransform(
+                        self._object_.corners.reshape(1, -1, 2), H).reshape(-1, 2))
+                        #+ (self._object_.template.shape[1], 0) )
+                    cv2.polylines(self._scene_, [corners], True, (255, 255, 255), 4)
+            
+            else:
+                H, status = None, None
+                #print '%d matches found, not enough for homography estimation' % len(p1)
         self._object_.H = H
         self._object_status = status
         #return H, status
@@ -107,6 +111,10 @@ class detector(object):
         
     def show(self):
         cv2.namedWindow("panel-detect")
+        if not self._object_.H is None:
+            print "Detected the panel!"
+        #else:
+        #    print "No detection."
         if not self._scene_ is None:
             cv2.imshow("panel-detect", self._scene_)
             

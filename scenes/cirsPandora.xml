@@ -147,8 +147,23 @@
   </object>
 
   <object>
+    <name> panel </name>
+	<file>data2/objects2/panel.osg</file>
+    <position>
+      <x> -1.0 </x>
+      <y> 1.0 </y>
+      <z> 2.5 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+  <object>
     <name> valve </name>
-    <file>data2/objects2/valve.osg  </file>
+	<file>data2/objects2/valve.osg</file>
     <position>
       <x> -1.05</x>
       <y> 1.0 </y>
@@ -160,6 +175,7 @@
       <y>0</y>
     </orientation>
   </object>
+
 
   <rosInterfaces>
     <ROSOdomToPAT>
