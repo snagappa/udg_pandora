@@ -6,7 +6,7 @@ Created on Mon Sep 10 13:33:17 2012
 """
 
 import roslib
-roslib.load_manifest('objdetect')
+roslib.load_manifest('udg_pandora')
 import cv2
 import collections
 

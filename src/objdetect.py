@@ -4,7 +4,8 @@ Created on Mon Sep 10 13:28:00 2012
 
 @author: snagappa
 """
-
+import roslib
+roslib.load_manifest('udg_pandora')
 import image_feature_extractor
 import cv2
 import numpy as np
