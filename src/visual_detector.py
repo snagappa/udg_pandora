@@ -52,14 +52,17 @@ class VisualDetector:
         try:
             self.panel.detector = objdetect.detector(detector=image_feature_extractor.orb)
             detector_init = True
-        except:
+        except AttributeError, ae:
+            print ae
             print "Could not initialise ORB detector, attempting fallback to SURF"
             rospy.loginfo("Could not initialise ORB detector, attempting fallback to SURF")
+        if not detector_init:
             try:
                 self.panel.detector = objdetect.detector(
                     detector=image_feature_extractor.surf)
                 detector_init = True
-            except:
+            except AttributeError, ae:
+                print ae
                 print "Failed to initialise SURF detector"
                 print "Please ensure that cv2.ORB() or cv2.SURF() are available."
                 rospy.loginfo("Failed to initialise SURF detector")

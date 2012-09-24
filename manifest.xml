@@ -22,7 +22,6 @@
   <depend package="cola2_navigation"/>
   <depend package="kdl"/>
   <depend package="cv_bridge"/>
-  <depend package="opencv2"/>
 </package>
 
 
