@@ -4,7 +4,11 @@
      udg_pandora
 
   </description>
-  <author>Narcís Palomeras</author>
+  <author>
+	Narcis Palomeras
+	Sharad Nagappa
+	Arnau Carrera
+  </author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/udg_pandora</url>
