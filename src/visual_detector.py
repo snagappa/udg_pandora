@@ -4,12 +4,21 @@
 import roslib 
 roslib.load_manifest('udg_pandora')
 import rospy
+import sensor_msgs.msg
 import std_msgs.msg
 import std_srvs.srv
 from auv_msgs.msg import NavSts
 from udg_pandora.msg import Detection
 import metaclient
 from detector import GeometricDetector
+import cv2
+import code
+#import feature_detector
+import objdetect
+from cvbridge_wrapper import image_converter
+import numpy as np
+
+class STRUCT(object): pass
 
 class VisualDetector:
     def __init__(self, name):
@@ -32,10 +41,27 @@ class VisualDetector:
         self.disable_panel_valve_detection = metaclient.Service('/visual_detector/disable_panel_valve_detection', std_srvs.srv.Empty, self.disablePanelValveDetectionSrv, {})
         self.disable_valve_detection = metaclient.Service('/visual_detector/disable_valve_detection', std_srvs.srv.Empty, self.disableValveDetectionSrv, {})
         self.disable_chain_detection = metaclient.Service('/visual_detector/disable_chain_detection', std_srvs.srv.Empty, self.disableChainDetectionSrv, {})
-
+        
+        # ROS image message to cvimage convertor
+        self.ros2cvimg = image_converter()
+        # Initialise panel detector
+        self.panel = STRUCT()
+        template_image = cv2.imread('panel_template.png', cv2.CV_8UC1)
+        self.panel.detector = objdetect.detector(template_image)
+        self.panel.DETECTED = False
+        self.panel.sub = None
+        # Initialise valve detector
+        #self.valve = STRUCT()
+        #self.valve.detector = objdetect.valve_detector()
+        
 
     def enablePanelValveDetectionSrv(self, req):
-        pass
+        #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
+        self.panel.sub = rospy.Subscriber("/uwsim/camera1", 
+                                          sensor_msgs.msg.Image, 
+                                          self.detect_panel)
+        print "Enabled panel detection"
+        return std_srvs.srv.EmptyResponse()
     
     
     def enableValveDetectionSrv(self, req):
@@ -47,7 +73,10 @@ class VisualDetector:
     
     
     def disablePanelValveDetectionSrv(self, req):
-        pass
+        if not self.panel.sub is None:
+            self.panel.sub.unregister()
+        print "Disabled panel detection"
+        return std_srvs.srv.EmptyResponse()
     
     
     def disableValveDetectionSrv(self, req):
@@ -59,6 +88,12 @@ class VisualDetector:
     
     
     def updateImage(self, img):
+        pass
+    
+    def detect_panel(self, img):
+        cvimage = self.ros2cvimg.cvimagegray(img)
+        self.panel.detector.detect(np.asarray(cvimage))
+        self.panel.detector.show()
         pass
     
     def updateNavigation(self, nav):
