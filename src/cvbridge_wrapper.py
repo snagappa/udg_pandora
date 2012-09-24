@@ -6,7 +6,7 @@ Created on Mon Sep 10 13:07:01 2012
 """
 
 import roslib
-roslib.load_manifest('objdetect')
+roslib.load_manifest('udg_pandora')
 import cv
 from cv_bridge import CvBridge, CvBridgeError
 

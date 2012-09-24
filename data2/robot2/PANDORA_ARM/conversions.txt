@@ -1,0 +1,48 @@
+Transformacions del Braç
+
+Base :
+
+orientar :
+
+osgconv -o 90-0,0,1 base.3ds base2.3ds
+
+traslladar:
+
+osgconv -t 0.06,-0.04,0 base2.3ds base3.3ds
+
+Braç:
+
+orientar:
+
+osgconv -o -53-1,0,0 brac.3ds brac3.3ds
+
+osgconv -o 90-0,0,1 brac3.3ds brac4.3ds
+
+traslladar:
+
+osgconv -t 0.23,0,0 brac4.3ds brac5.3ds
+
+Ma :
+
+orientar :
+
+osgconv -o 90-0,0,1 ma.3ds ma1.3ds
+
+traslladar :
+
+osgconv -t 0.04,0.015,0 ma1.3ds ma2.3ds
+
+
+Support D'Eine :
+
+
+orientar :
+
+osgconv -o 90-0,0,1 suport_eina.3ds suport_eina.3ds
+
+Translacio :
+
+osgconv -t 0.0,0.0,0.0 suport_eina.3ds suport_eina2.3ds
+
+
+

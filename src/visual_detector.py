@@ -17,6 +17,7 @@ import code
 import objdetect
 from cvbridge_wrapper import image_converter
 import numpy as np
+import image_feature_extractor
 
 class STRUCT(object): pass
 
@@ -47,7 +48,24 @@ class VisualDetector:
         # Initialise panel detector
         self.panel = STRUCT()
         template_image = cv2.imread('panel_template.png', cv2.CV_8UC1)
-        self.panel.detector = objdetect.detector(template_image)
+        detector_init = False
+        try:
+            self.panel.detector = objdetect.detector(detector=image_feature_extractor.orb)
+            detector_init = True
+        except:
+            print "Could not initialise ORB detector, attempting fallback to SURF"
+            rospy.loginfo("Could not initialise ORB detector, attempting fallback to SURF")
+            try:
+                self.panel.detector = objdetect.detector(
+                    detector=image_feature_extractor.surf)
+                detector_init = True
+            except:
+                print "Failed to initialise SURF detector"
+                print "Please ensure that cv2.ORB() or cv2.SURF() are available."
+                rospy.loginfo("Failed to initialise SURF detector")
+                rospy.logerr("Please ensure that cv2.ORB() or cv2.SURF() are available.")
+        if detector_init:
+            self.panel.detector.set_template(template_image)
         self.panel.DETECTED = False
         self.panel.sub = None
         # Initialise valve detector
@@ -94,7 +112,6 @@ class VisualDetector:
         cvimage = self.ros2cvimg.cvimagegray(img)
         self.panel.detector.detect(np.asarray(cvimage))
         self.panel.detector.show()
-        pass
     
     def updateNavigation(self, nav):
         vehicle_pose = [nav.position.north, nav.position.east, nav.position.depth]
