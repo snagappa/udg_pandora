@@ -83,7 +83,7 @@ class VisualDetector:
         self.panel.sub = rospy.Subscriber("/uwsim/camera1", 
                                           sensor_msgs.msg.Image, 
                                           self.detect_panel)
-        #print "Enabled panel detection"
+        print "Enabled panel detection"
         return std_srvs.srv.EmptyResponse()
     
     
@@ -114,11 +114,11 @@ class VisualDetector:
         pass
     
     def detect_panel(self, img):
-        self.panel.sub.unregister()
+        #self.panel.sub.unregister()
         cvimage = self.ros2cvimg.cvimagegray(img)
         self.panel.detector.detect(np.asarray(cvimage))
-        self.panel.detector.show()
-        self.enablePanelValveDetectionSrv(None)
+        #self.panel.detector.show()
+        #self.enablePanelValveDetectionSrv(None)
     
     def updateNavigation(self, nav):
         vehicle_pose = [nav.position.north, nav.position.east, nav.position.depth]

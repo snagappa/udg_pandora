@@ -93,10 +93,16 @@ class orb(object):
         self.DESCRIPTOR_IS_BINARY = True
         self._keypoints_ = None
         self._descriptors_ = None
-        self._detector_ = cv2.ORB(**PARAMS)
-        self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
-            useProvidedKeypoints = False)
-        
+        try:
+            self._detector_ = cv2.ORB(**PARAMS)
+            self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
+                useProvidedKeypoints = False)
+        except AttributeError, ae:
+            print ae
+            print "Attempting to use fallback ORB detector"
+            self._detector_ = cv2.FeatureDetector_create("ORB")
+            self._descriptor_extractor_ = cv2.DescriptorExtractor_create("ORB")
+            self._detect_ = lambda im, mask: self._descriptor_extractor_.compute(im, self._detector_.detect(im, mask))
     def reinit(self):
         self._detector_ = cv2.SURF(**self.PARAMS)
     
