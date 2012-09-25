@@ -90,17 +90,17 @@
     <virtualCamera>
       <name>bowtech1</name>
       <relativeTo>base</relativeTo>
-      <resw> 320 </resw>
-      <resh> 240 </resh>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
       <position>
         <x>0.3</x>
         <y>0</y>
         <z>0</z>
       </position>
       <orientation>
-        <r>0</r>
-        <p>-1.57</p>
-        <y>0.0</y>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>1.57</y>
       </orientation>
     </virtualCamera>
     <rangeSensor>
