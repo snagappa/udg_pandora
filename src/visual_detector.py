@@ -28,7 +28,7 @@ class VisualDetector:
         
         # Create Subscriber
         sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
-        nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
+        #nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
         
         # Create publisher
         self.pub_valve_panel = metaclient.Publisher('/visual_detector/valve_panel', Detection,{})
@@ -47,14 +47,18 @@ class VisualDetector:
         self.ros2cvimg = image_converter()
         # Initialise panel detector
         self.panel = STRUCT()
-        template_image = cv2.imread('panel_template.png', cv2.CV_8UC1)
+        template_image_file = roslib.packages.find_resource("udg_pandora", "uwsim_panel_template.png")
+        if len(template_image_file):
+            template_image_file = template_image_file[0]
+            template_image = cv2.imread(template_image_file, cv2.CV_8UC1)
+        else:
+            rospy.logerr("Could not locate panel template")
         detector_init = False
         try:
-            self.panel.detector = objdetect.detector(detector=image_feature_extractor.orb)
+            self.panel.detector = objdetect.detector(feat_detector=image_feature_extractor.orb)
             detector_init = True
         except AttributeError, ae:
-            print ae
-            print "Could not initialise ORB detector, attempting fallback to SURF"
+            rospy.loginfo(ae)
             rospy.loginfo("Could not initialise ORB detector, attempting fallback to SURF")
         if not detector_init:
             try:
@@ -62,9 +66,7 @@ class VisualDetector:
                     detector=image_feature_extractor.surf)
                 detector_init = True
             except AttributeError, ae:
-                print ae
-                print "Failed to initialise SURF detector"
-                print "Please ensure that cv2.ORB() or cv2.SURF() are available."
+                rospy.loginfo(ae)
                 rospy.loginfo("Failed to initialise SURF detector")
                 rospy.logerr("Please ensure that cv2.ORB() or cv2.SURF() are available.")
         if detector_init:
@@ -112,9 +114,11 @@ class VisualDetector:
         pass
     
     def detect_panel(self, img):
+        #self.panel.sub.unregister()
         cvimage = self.ros2cvimg.cvimagegray(img)
         self.panel.detector.detect(np.asarray(cvimage))
-        self.panel.detector.show()
+        #self.panel.detector.show()
+        #self.enablePanelValveDetectionSrv(None)
     
     def updateNavigation(self, nav):
         vehicle_pose = [nav.position.north, nav.position.east, nav.position.depth]
