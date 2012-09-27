@@ -57,11 +57,14 @@ function(find_python_module module)
 	find_package_handle_standard_args(PY_${module} DEFAULT_MSG PY_${module_upper})
 endfunction(find_python_module)
 
-
+find_package(OpenCV REQUIRED)
 find_package(GSL REQUIRED)
 find_python_module(numpy REQUIRED)
 find_python_module(scipy REQUIRED)
 find_python_module(pygtk)
 find_python_module(gtk)
 find_python_module(gtk.glade)
+
+
+rosbuild_add_executable(cv2_test_cpp src/cv2_tests/cv2_test_cpp.cpp)
 
