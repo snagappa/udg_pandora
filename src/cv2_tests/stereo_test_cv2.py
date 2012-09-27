@@ -9,7 +9,16 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
-
+class PointFeature:
+    def __init__(self, pose_image, descriptor):
+        self.pose_image = pose_image
+        self.descriptor = descriptor
+        self.stereo_match_index = None
+        self.epipolar_filter = False
+        self.last_image_match_index = None
+        self.pose_3d = None
+        
+        
 class StereoTestCV2:
     def __init__(self, name):
         self.name = name
@@ -30,6 +39,10 @@ class StereoTestCV2:
         self.right_key = None
         self.right_desc = None
         self.right_img = None
+        self.last_right_key = None
+        self.last_right_desc = None
+        self.last_right_img = None
+        self.last_right_3d_points = None
         
         
     def callbackLeft(self, data):
@@ -50,12 +63,34 @@ class StereoTestCV2:
             print e
 
         self.right_img, self.right_key, self.right_desc = self.featuresAndDescriptors(self.right_img)
-        mtchs = self.match(self.left_key, self.right_key, self.left_desc, self.right_desc)
-        if mtchs != None:
-            p0, p1 = self.epipolarFilter(mtchs[0], mtchs[1])
+        
+        features = []
+        for i, j in zip(self.right_key, self.right_desc):
+            f = PointFeature(i.pt, j)
+            features.append(f)
+        
+        
+        match_stereo = self.match(self.left_key, self.right_key, self.left_desc, self.right_desc, features, 'stereo')
+        print 'pose_image: ', features[10].pose_image
+        print 'desc: ', features[10].descriptor
+        print 'stereo_match: ', features[10].stereo_match_index
+        print 'epipolar_filter: ', features[10].epipolar_filter
+        
+        
+        if match_stereo != None:
+            points_3d = self.obtain3DPoints(match_stereo[0].T, match_stereo[1].T)
+        
+        # If 3D points in current and last images
+        if points_3d != None and self.last_right_3d_points != None:
+            match_previous = self.match(self.last_right_key, self.right_key, self.last_right_desc, self.right_desc, features, 'last_image')
+            if match_previous != None:
+                pass
             
-            # TODO: How to compute these features position wrt the stereo_camera???
-            
+        # Save current keys, features and 3D points
+        self.last_right_key = self.right_key
+        self.last_right_desc = self.right_desc
+        self.last_right_img = self.right_img
+        self.last_right_3d_points = points_3d
         
     def featuresAndDescriptors(self, img):
         img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -65,20 +100,21 @@ class StereoTestCV2:
         
         
     def epipolarFilter(self, p0, p1):
-        ret_p0 = []
-        ret_p1 = []
-        for i in range(len(p0)):
-            if abs(p0[i][1] - p1[i][1]) < 2:
-                ret_p0.append(p0[i])
-                ret_p1.append(p1[i])
-        # Print features matched in both images
-        for i, j in zip(ret_p0, ret_p1):
-            # cv2.circle(self.right_img, (p[0], p[1]), 10, (0, 255, 0))
-            cv2.line(self.right_img, (i[0], i[1]), (j[0], j[1]), (255,255,255))
+        p0_temp = p0.tolist()
+        p1_temp = p1.tolist()
+        
+        filter_p0 = [i for i, j in zip(p0_temp, p1_temp) if (i[1] - j[1]) < 1.5]
+        filter_p1 = [j for i, j in zip(p0_temp, p1_temp) if (i[1] - j[1]) < 1.5]
+      
+         # Print features matched in both images
+        for i, j in zip(filter_p0, filter_p1):
+            cv2.line(self.right_img, (int(i[0]), int(i[1])), (int(j[0]), int(j[1])), (255,255,255))
+            
         cv2.imshow("Image window", self.right_img)
         cv2.cv.WaitKey(3)
+
+        return np.array(filter_p0), np.array(filter_p1)
         
-        return ret_p0, ret_p1
         
     def computeDisparity(self):
         window_size = 6
@@ -102,20 +138,43 @@ class StereoTestCV2:
         cv2.waitKey(3)
         
         
-    def match(self, old_key, key, old_desc, desc):
+    def match(self, old_key, key, old_desc, desc, features, match_mode):
         raw_matches = self.matcher.knnMatch(desc, old_desc, 2)
         threshold = 0.7
         eps = 1e-5
         matches = [(m1.trainIdx, m1.queryIdx) for m1, m2 in raw_matches if (m1.distance+eps) / (m2.distance+eps) < threshold]
-        # print matches 
         
+        if match_mode == 'stereo':
+            for i, j in matches:
+                features[j].stereo_match_index = i
+                if abs(old_key[i].pt[1] - key[j].pt[1]) < 1.5:
+                    features[j].epipolar_filter = True
+        elif match_mode == 'last_image':
+            for i, j in matches:
+                features[j].last_image_match_index = i
+        else:
+            print 'invalid match mode'
+            
         if len(matches) > 10:
             p0 = np.float32( [old_key[i].pt for i, j in matches] )
             p1 = np.float32( [key[j].pt for i, j in matches] )
-            return [p0, p1]
+            return [p0, p1, matches]
         
         return None
         
+        
+    def obtain3DPoints(self, p0, p1):
+        proj_left = np.matrix([724.2 ,    0.  ,  520.08,    0., 0.  ,  722.33,  385.77,    0.  , 0.  ,    0.  ,    1.  ,    0.]).reshape(3,4)
+        proj_right = np.matrix([724.2 ,    0.  ,  520.08,    -82.25, 0.  ,  722.33,  385.77,    0.  , 0.  ,    0.  ,    1.  ,    0.]).reshape(3,4)
+        points_3d = cv2.triangulatePoints(proj_left, proj_right, p0, p1)
+        
+        # TODO: Check--> cv2.convertPointsFromHomogeneous(points_3d)
+        ret = []
+        for i in points_3d.T:
+            a = i / i[3]
+            ret.append(a)
+        return ret
+    
         
     def computeHomography(self, p0, p1, img):
         green, red = (0, 255, 0), (0, 0, 255)
