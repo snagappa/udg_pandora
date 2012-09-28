@@ -36,6 +36,7 @@ class ImageConverter
 	cv::Mat descriptors_right_;
 	bool img_right_ready_;
 	bool img_left_ready_;
+	bool last_ready_;
 	pcl::visualization::CloudViewer *viewer_;
 	
 	struct Feature{
@@ -43,18 +44,19 @@ class ImageConverter
 		cv::Point3f pose;
 	};
 	
-	std::vector< Feature > last_features_;
 	cv::Mat last_descriptors_left_;
-	std::vector<cv::KeyPoint> last_keypoints_left_;
+	std::vector< cv::Point3f > last_points_3d_;
+	std::vector< int > last_points_3d_status_;
 		
 public:
 	  ImageConverter()
 		: it_(nh_),
 		  img_right_ready_(false),
-		  img_left_ready_(false)
+		  img_left_ready_(false),
+		  last_ready_(false)
 	  {
-		image_sub_left_ = it_.subscribe("/stereo_down/left/image_rect_color", 1, &ImageConverter::imageCbLeft, this);
-		image_sub_right_ = it_.subscribe("/stereo_down/right/image_rect_color", 1, &ImageConverter::imageCbRight, this);
+		image_sub_left_ = it_.subscribe("/stereo_camera/left/image_rect_color", 1, &ImageConverter::imageCbLeft, this);
+		image_sub_right_ = it_.subscribe("/stereo_camera/right/image_rect_color", 1, &ImageConverter::imageCbRight, this);
 		cv::namedWindow(WINDOW);
 		viewer_ = new pcl::visualization::CloudViewer("Viewer");
 	  }
@@ -113,24 +115,79 @@ public:
 	 {
 		 img_left_ready_ = false;
 		 img_right_ready_ = false;
-		 std::vector< cv::DMatch > matches;
 		
+		 // Check stereo matches
+		 std::vector< cv::DMatch > matches;
 		 matcher(descriptors_left_, descriptors_right_, matches);
 		 std::cout << "matches size before triangulation: " << matches.size() << std::endl;
 		 
-		 cv::Mat_<float> points = cv::Mat_<float>(3, matches.size());
-		 triangulation(matches, points);
-		 
-		 //Create point cloud
-		 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-		 
-		 for(size_t i = 0; i < matches.size(); i++){
-			 if(points[2][i] > 0.75 &&  points[2][i] < 1.5){
-				 cloud->points.push_back(pcl::PointXYZ(points[0][i], points[1][i], points[2][i]));
+		 // Compute 3D points
+		 if(matches.size() > 10) {
+			 cv::Mat_<float> points = cv::Mat_<float>(3, matches.size());
+			 triangulation(matches, points);
+			 
+			 // Create point cloud and visualize
+			 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+		
+			 for(size_t i = 0; i < matches.size(); i++){
+				 if(points[2][i] > 0.75 &&  points[2][i] < 1.5){
+					 cloud->points.push_back(pcl::PointXYZ(points[0][i], points[1][i], points[2][i]));		 
+				 }
 			 }
+			 if(cloud->points.size() > 10) viewer_->showCloud(cloud);
+			
+			 // Create structure to relate descriptors and 3D points
+			 std::vector< cv::Point3f > points_3d;
+			 std::vector< int > points_3d_status;
+			 points_3d.resize(keypoints_left_.size());
+			 points_3d_status.resize(keypoints_left_.size());
+					 
+			 for(size_t i = 0; i < matches.size(); i++){
+				 if(points[2][i] > 0.75 &&  points[2][i] < 4.5){
+					 // If points_3d_status.at(i) == 1, then feature i has the 3D point points_3d.at(i)
+					 points_3d.at(matches[i].queryIdx) = cv::Point3f(points[0][i], points[1][i], points[2][i]);
+					 points_3d_status.at(matches[i].queryIdx) = 1;
+				 }
+			 }
+					
+			 // Compute Transformation wrt last image
+			 if (last_ready_){
+				 
+				 // Check matches with last image
+				 std::vector< cv::DMatch > matches2;
+				 matcher(last_descriptors_left_, descriptors_left_, matches2);
+				 
+				 // Prepare two sets of 3D points
+				 std::vector< cv::Point3f > points_1;
+				 std::vector< cv::Point3f > points_2;
+				 for(size_t i = 0; i < matches2.size(); i++){
+					 if((last_points_3d_status_.at(matches2[i].queryIdx) == 1) && (points_3d_status.at(matches2[i].trainIdx) == 1)){
+						 points_1.push_back(last_points_3d_.at(matches2[i].queryIdx));
+						 points_2.push_back(points_3d.at(matches2[i].trainIdx));
+					 }
+				 }			 
+				 
+				 // Compute 3D Affine transformation
+				 if(points_1.size() > 10) {
+					 std::cout << points_1.size() << " <--> " << points_2.size() << std::endl;
+					 std::cout << points_1.at(9) << " -- " << points_2.at(9) << std::endl;
+								 
+					 cv::Mat aff(3,4,CV_64F);
+					 if(computeAffine3dTransformation(points_1, points_2, aff))
+					 {
+						 std::cout << aff << std::endl;
+					 }
+				 }
+			 }
+			 
+			 // Save current values as previous
+			 descriptors_left_.copyTo(last_descriptors_left_);
+			 last_points_3d_.resize(points_3d.size());
+			 std::copy(points_3d.begin(), points_3d.end(), last_points_3d_.begin());
+			 last_points_3d_status_.resize(points_3d_status.size());
+			 std::copy(points_3d_status.begin(), points_3d_status.end(), last_points_3d_status_.begin());
+			 last_ready_=true;
 		 }
-		 std::cout << "Number of points: " << cloud->points.size() << std::endl;
-		 if(cloud->points.size() > 20) viewer_->showCloud(cloud);
 	 }
 	 
 	 
@@ -214,23 +271,21 @@ public:
 		}
  	}
  	 
- 	void computeAffine3dTransformation(){
- 		std::vector<cv::Point3f> first, second;
+ 	int computeAffine3dTransformation(const std::vector<cv::Point3f>& first, const std::vector<cv::Point3f>& second, cv::Mat& aff){
  		std::vector<uchar> inliers;
- 		cv::Mat aff(3,4,CV_64F);
-
- 		first.push_back(cv::Point3f(0,0,0));
- 		first.push_back(cv::Point3f(1,0,0));
- 		first.push_back(cv::Point3f(0,1,0));
- 		first.push_back(cv::Point3f(0,0,1));
- 		second.push_back(cv::Point3f(1,0,0));
- 		second.push_back(cv::Point3f(2,0,0));
- 		second.push_back(cv::Point3f(1,1,0));
- 		second.push_back(cv::Point3f(1,0,1));
+ 		
+//		cv::Mat aff(3,4,CV_64F);
+// 		std::vector<cv::Point3f> first, second;	
+// 		first.push_back(cv::Point3f(0,0,0));
+// 		first.push_back(cv::Point3f(1,0,0));
+// 		first.push_back(cv::Point3f(0,1,0));
+// 		first.push_back(cv::Point3f(0,0,1));
+// 		second.push_back(cv::Point3f(1,0,0));
+// 		second.push_back(cv::Point3f(2,0,0));
+// 		second.push_back(cv::Point3f(1,1,0));
+// 		second.push_back(cv::Point3f(1,0,1));
  		 		
- 		int ret = cv::estimateAffine3D(first, second, aff, inliers);
- 		std::cout << "MAT: " << aff << std::endl;
- 		std::cout << "ret: " << ret << std::endl;
+ 		return cv::estimateAffine3D(first, second, aff, inliers);
  		 		
  	}
 };
