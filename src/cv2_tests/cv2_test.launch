@@ -1,0 +1,13 @@
+<launch>
+	<node name="bag_play" pkg="rosbag" type="play" args="$(find udg_pandora)/src/cv2_tests/cirs.bag"/>
+
+	<node name="image_proc" pkg="stereo_image_proc" type="stereo_image_proc">
+    		<env name="ROS_NAMESPACE" value="/stereo_down"/>
+  	</node>
+
+	<!-- <node name="image_view_disparity" pkg="image_view" type="disparity_view" args="image:=/stereo_down/disparity"/> -->
+
+	<node name="cv2_test_cpp" pkg="udg_pandora" type="cv2_test_cpp" output="screen"/>
+
+</launch>
+

@@ -27,7 +27,9 @@
   <depend package="kdl"/>
   <depend package="cv_bridge"/>
   <depend package="opencv2"/>
+  <depend package="pcl"/>
   <depend package="image_transport"/>
+
 </package>
 
 

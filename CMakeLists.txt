@@ -65,6 +65,7 @@ find_python_module(pygtk)
 find_python_module(gtk)
 find_python_module(gtk.glade)
 
+include_directories(/usr/include/vtk-5.8)
 
 rosbuild_add_executable(cv2_test_cpp src/cv2_tests/cv2_test_cpp.cpp)
-
+target_link_libraries(cv2_test_cpp ${PCL_LIBRARIES} libvtkCommon.so libvtkFiltering.so libvtkRendering.so)
