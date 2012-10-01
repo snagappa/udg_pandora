@@ -30,7 +30,14 @@ class _feature_detector_(object):
         self._detector_.detectAndCompute = lambda im, mask, *args, **kwargs: (None, None)
         self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
             useProvidedKeypoints = False)
-        
+        self._detector_init_()
+    
+    def _detector_init_(self):
+        pass
+    
+    def reinit(self):
+        self._detector_init_()
+    
     def get_features(self, im, mask=None):
         (self._keypoints_, self._descriptors_) = \
             self._detect_(im, mask)
@@ -62,7 +69,7 @@ class surf(object):
         self.DESCRIPTOR_IS_BINARY = False
         self._keypoints_ = None
         self._descriptors_ = None
-        self._detector_ = cv2.SURF(*PARAMS)
+        self._detector_ = cv2.SURF(**PARAMS)
         self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
             useProvidedKeypoints = False)
         
@@ -78,23 +85,38 @@ class surf(object):
 class orb(object):
     def __init__(self, PRESET=DETECTOR_PRESET.MED):
         if PRESET == DETECTOR_PRESET.FINE:
-            nfeatures = 1000
+            nfeatures = 4000
+            scaleFactor = 1.2
             nlevels = 16
         elif PRESET == DETECTOR_PRESET.MED:
             nfeatures = 1000
+            scaleFactor = 1.2
             nlevels = 12
         else:
             nfeatures = 500
+            scaleFactor = 1.2
             nlevels = 8
         #PARAMS = ORB_PARAMS(threshold)
-        PARAMS = dict(nfeatures=nfeatures, nlevels=nlevels)
+        PARAMS = dict(nfeatures=nfeatures, scaleFactor=scaleFactor, nlevels=nlevels)
         self.PARAMS = PARAMS
         self.NORM = cv2.NORM_HAMMING
         self.DESCRIPTOR_IS_BINARY = True
         self._keypoints_ = None
         self._descriptors_ = None
+        # Dummy variables
+        self._detector_ = lambda: 0
+        self._detector_.detectAndCompute = lambda im, mask, *args, **kwargs: (None, None)
+        self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
+            useProvidedKeypoints = False)
+        # Overwrite dummy variables from _detector_init_
+        self._detector_init_()
+        
+    def reinit(self):
+        self._detector_init_()
+    
+    def _detector_init_(self):
         try:
-            self._detector_ = cv2.ORB(**PARAMS)
+            self._detector_ = cv2.ORB(**self.PARAMS)
             self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
                 useProvidedKeypoints = False)
         except AttributeError, ae:
@@ -103,8 +125,6 @@ class orb(object):
             self._detector_ = cv2.FeatureDetector_create("ORB")
             self._descriptor_extractor_ = cv2.DescriptorExtractor_create("ORB")
             self._detect_ = lambda im, mask: self._descriptor_extractor_.compute(im, self._detector_.detect(im, mask))
-    def reinit(self):
-        self._detector_ = cv2.SURF(**self.PARAMS)
     
     def get_features(self, im, mask=None):
         (self._keypoints_, self._descriptors_) = \
@@ -112,6 +132,37 @@ class orb(object):
         return (self._keypoints_, self._descriptors_)
     
     
+class freak(object):
+    def __init__(self, PRESET=DETECTOR_PRESET.MED):
+        self.PARAMS = dict()
+        self.NORM = cv2.NORM_HAMMING
+        self.DESCRIPTOR_IS_BINARY = True
+        self._keypoints_ = None
+        self._descriptors_ = None
+        # Dummy variables
+        self._detector_ = lambda: 0
+        self._detector_.detectAndCompute = lambda im, mask, *args, **kwargs: (None, None)
+        self._detect_ = lambda im, mask: self._detector_.detectAndCompute(im, mask, 
+            useProvidedKeypoints = False)
+        # Initialise detector
+        self._detector_init_()
+        
+    def reinit(self):
+        self._detector_init_()
+        
+    def _detector_init_(self):
+        try:
+            self._detector_ = cv2.FeatureDetector_create("FREAK")
+            self._descriptor_extractor_ = cv2.DescriptorExtractor_create("FREAK")
+            self._detect_ = lambda im, mask: self._descriptor_extractor_.compute(im, self._detector_.detect(im, mask))
+        except AttributeError, ae:
+            print ae
+            print "Could not initialise FREAK detector."
+    
+    def get_features(self, im, mask=None):
+        (self._keypoints_, self._descriptors_) = \
+            self._detect_(im, mask)
+        return (self._keypoints_, self._descriptors_)
 #img = cv2.imread('messi4.jpg')
 
 # Convert them to grayscale
