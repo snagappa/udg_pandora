@@ -61,6 +61,8 @@
 	      <param name="urdf_path" value="$(find udg_pandora)/scenes/g500ARMPandora.urdf"/>
 	</node>
 
+	<node name="arm_manipulator" pkg="cola2_control" type="arm_manipulator.py" output="screen" />
+
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-a -x '(/camera/image_m(.)*)|(/camera/image_c(.)*)|(/camera/image_rect/(.)*)|(/camera/image_rect)|(/camera/image_raw)|(/camera/image_rect_color/compressed)|(/camera/image_raw/compressed)' --split --size 2048 -o /home/$(env LOGNAME)/g500" />
 
 </launch>
