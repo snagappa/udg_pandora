@@ -66,7 +66,7 @@ class VisualDetector:
         if not detector_init:
             try:
                 self.panel.detector = objdetect.Detector(
-                    detector=image_feature_extractor.surf)
+                    feat_detector=image_feature_extractor.surf)
                 detector_init = True
             except AttributeError, ae:
                 rospy.loginfo(ae)
