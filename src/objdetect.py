@@ -31,6 +31,21 @@ def uwsim_cam_calib(res_x=640, res_y=480):
     camera_matrix[1, 2] = 0.5*res_y
     return camera_matrix.astype(np.float)
 
+def uwsim_stereo_cam_calib(res_x=640, res_y=480):
+    camera_matrix = uwsim_cam_calib(res_x, res_y)
+    camera_matrix = np.repeat(camera_matrix[np.newaxis], 2, 0)
+    return camera_matrix
+
+def uwsim_stereo_projection(res_x=640, res_y=480):
+    stereo_camera_matrix = uwsim_stereo_cam_calib(res_x, res_y)
+    r_t_matrix = np.repeat(np.eye(3, 4)[np.newaxis], 2, 0)
+    r_t_matrix[1, 0, -1] = 0.1438
+    projection_matrix = np.zeros((2, 3, 4))
+    projection_matrix[0] = np.dot(stereo_camera_matrix[0], r_t_matrix[0])
+    projection_matrix[1] = np.dot(stereo_camera_matrix[1], r_t_matrix[1])
+    return projection_matrix
+    
+    
 class STRUCT(object): pass
 
 class FlannMatcher(object):
@@ -119,8 +134,13 @@ class Detector(object):
         self._object_.status = None
         # Specify a threshold to binarise the test scene
         self._object_.scene_intensity_threshold = None
+        # Minimum required correspondences to validate localisation
+        self._object_.min_correspondences = 10
         # Camera matrix
         self.camera_matrix = camera_matrix.astype(np.float)
+        # Rotation matrix and translation vector from solvePnP
+        self.r_mat = None
+        self.t_vec = None
         # Image of the current scene
         self._scene_ = None
         # Create the feature detector
@@ -177,21 +197,25 @@ class Detector(object):
             
     def _detect_and_match_(self, obj_kp, obj_desc, scene_kp, scene_desc, 
                            ratio=0.75):
+        """
+        _detect_and_match_(obj_kp, obj_desc, scene_kp, scene_desc, ratio)
+        Returns pt1, pt2, valid_idx1, valid_idx2
+        """
         idx1, idx2, distance = self._flann_.matcher.knnMatch(obj_desc, 
                                                              scene_desc, 2)
         # Use only good matches
         mask = distance[:, 0] < (distance[:, 1] * ratio)
-        mask[idx2[:,1] == -1] = False
+        mask[idx2[:, 1] == -1] = False
         valid_idx1 = idx1[mask]
         valid_idx2 = idx2[mask, 0]
         match_kp1, match_kp2 = [], []
         for (_idx1_, _idx2_) in zip(valid_idx1, valid_idx2):
             match_kp1.append(obj_kp[_idx1_])
             match_kp2.append(scene_kp[_idx2_])
-        p1 = np.float32([kp.pt for kp in match_kp1])
-        p2 = np.float32([kp.pt for kp in match_kp2])
-        kp_pairs = zip(match_kp1, match_kp2)
-        return p1, p2, kp_pairs
+        pts_1 = np.float32([kp.pt for kp in match_kp1])
+        pts_2 = np.float32([kp.pt for kp in match_kp2])
+        #kp_pairs = zip(match_kp1, match_kp2)
+        return pts_1, pts_2, valid_idx1, valid_idx2 #, kp_pairs
     
     def detect(self, im_scene):
         """
@@ -209,24 +233,29 @@ class Detector(object):
             self._detector_.get_features(self._scene_))
         if not keypoints_scene:
             h_mat = None
-            status = None
+            status = False
         else:
-            (p1, p2, 
-             kp_pairs) = self._detect_and_match_(self._object_.keypoints,
+            dam_result = self._detect_and_match_(self._object_.keypoints,
                                                  self._object_.descriptors,
                                                  keypoints_scene,
                                                  descriptors_scene,
                                                  self._flann_.r_threshold)
-            # Compute homography only if we have at least 10 matches
-            if len(p1) >= 10:
-                h_mat, status = cv2.findHomography(p1, p2, cv2.RANSAC, 5.0)
+            pts_1, pts_2 = dam_result[0:2]
+            # Compute homography only if we have at least minimum required 
+            # matches
+            if len(pts_1) >= self._object_.min_correspondences:
+                h_mat, status = cv2.findHomography(pts_1, pts_2, cv2.RANSAC, 5.0)
                 inliers = np.sum(status)
                 print '%d / %d  inliers/matched' % (inliers, len(status))
-                # Homography is valid only if we have at least 10 inliers
-                if (h_mat is None) or (inliers < 10):
-                    h_mat, status = None, None
+                # Homography is valid only if we have at least 
+                # min_correspondences number of inliers
+                if ((h_mat is None) or 
+                    (inliers < self._object_.min_correspondences)):
+                    h_mat, status = None, False
+                else:
+                    status = True
             else:
-                h_mat, status = None, None
+                h_mat, status = None, False
                 #print '%d matches found,\
                 #   not enough for homography estimation' % len(p1)
         self._object_.h_mat = h_mat
@@ -246,7 +275,7 @@ class Detector(object):
         detected = False
         position = np.zeros(3)
         # Evaluate the location only if the homography is valid
-        if not self._object_.h_mat is None:
+        if self._object_.status:
             # Compute the location if the object corners are known in world
             # co-ordinates
             if not self._object_.corners_3d is None:
@@ -262,6 +291,16 @@ class Detector(object):
                                                   corners_float, 
                                                   self.camera_matrix, 
                                                   np.empty(0))
+                self.r_mat = cv2.Rodrigues(rvec)[0]
+                self.t_vec = tvec
+                # From http://en.wikipedia.org/wiki/Camera_resectioning#Extrinsic_parameters
+                # "T is not the position of the camera. It is the position of 
+                # the origin of the world coordinate system expressed in 
+                # coordinates of the camera-centered coordinate system. The 
+                # position, C, of the camera expressed in world coordinates is 
+                # C = -R^{-1}T = -R^T T (since R is a rotation matrix)."
+                #camera_centre = np.dot(-(cv2.Rodrigues(rvec)[0].T), tvec)
+                
                 #sph_tvec = (c2s(tvec).T*[1, 180/np.pi, 180/np.pi])[0]
                 obj_range = np.linalg.norm(tvec)
                 if not retval or (not 0.25 < obj_range < 5):
@@ -282,3 +321,127 @@ class Detector(object):
     #    if not self._scene_ is None:
     #        cv2.imshow("panel-detect", self._scene_)
             
+
+class Stereo_detector(Detector):
+    def __init__(self, template=None, corners_3d=None, 
+                 camera_matrix=uwsim_stereo_cam_calib(),
+                 camera_projection_matrix=uwsim_stereo_projection(),
+                 feat_detector=image_feature_extractor.orb):
+        assert ((type(camera_matrix) == np.ndarray) and
+                (camera_matrix.shape == (2, 3, 3))), (
+            "camera matrix must be a 2x3x3 ndarray")
+        assert ((type(camera_projection_matrix) == np.ndarray) and
+                (camera_projection_matrix.shape == (2, 3, 4))), (
+            "camera matrix must be a 2x3x4 ndarray")
+        # Initialise the detector using the parent class constructor
+        super(Stereo_detector, self).__init__(None, None, 
+            camera_matrix, feat_detector)
+        # Additional parameters for the stereo detection
+        self.camera_projection_matrix = (
+            camera_projection_matrix.astype(np.float))
+        self.template_z_offset = 0
+        self._object_.keypoints_2d = None
+        self._object_.keypoints_3d = None
+        self._object_.affine_3d = None
+        self.set_template(template, corners_3d)
+        
+    def set_template(self, template_im=None, corners_3d=None):
+        super(Stereo_detector, self).set_template(template_im, corners_3d)
+        if corners_3d:
+            # Perform the homography and monocular localisation to obtain the
+            # projection matrix as r_mat and t_vec
+            super(Stereo_detector, self).detect(template_im)
+            (detected, panel_centre) = super(Stereo_detector, self).location()
+            # Save template z offset if required later
+            self.template_z_offset = panel_centre[2, 0]
+            # Obtain pixel coordinates of the keypoints
+            self._object_.keypoints_2d = np.array([_kp_.pt 
+                for _kp_ in self._object_.keypoints])
+            # Append pixel coordinates with 1: (x, y) -> (x, y, 1)
+            keypoints_2d_1 = np.hstack((self._object_.keypoints_2d, 
+                np.ones((self._object_.keypoints_2d.shape[0], 1))))
+            # Inverse mapping from pixel points to 3D world coordinates for
+            # all the template keypoints
+            self._object_.keypoints_3d = np.dot(
+                np.dot(-self.r_mat.T, self.t_vec), keypoints_2d_1)
+        
+    
+    def detect(self, im_scene_l, im_scene_r):
+        if self._object_.template is None:
+            print "object template is not set!"
+            return None
+        self._scene_ = [copy.copy(im_scene_l), copy.copy(im_scene_r)]
+        # Threshold the image
+        #intensity_threshold = self._object_.scene_intensity_threshold
+        #self._scene_[self._scene_ > intensity_threshold] = 255
+        #self._scene_[self._scene_ <= intensity_threshold] = 0
+        
+        # Set affine transformation and status to false
+        self._object_.affine_3d = None
+        self._object_.status = False
+        
+        # Get keypoints and descriptors from the stereo image
+        kp_l, desc_l = self._detector_.get_features(im_scene_l)
+        kp_r, desc_r = self._detector_.get_features(im_scene_r)
+        # Check if keypoints in both images, otherwise cannot do the matching
+        if kp_l and kp_r:
+            # Match keypoints in the images
+            dam_result = self._detect_and_match_(kp_l, desc_l,
+                                                 kp_r, desc_r,
+                                                 self._flann_.r_threshold)
+            pt_l, pt_r, idx_l, idx_r = dam_result[0:4]
+            # Valid matches are those where y co-ordinate of p1 and p2 are
+            # almost equal
+            y_diff = np.abs(pt_l[:, 1] - pt_r[:, 1])
+            valid_pts_mask = y_diff < 3
+            pt_l = pt_l[valid_pts_mask]
+            pt_r = pt_r[valid_pts_mask]
+            idx_l = idx_l[valid_pts_mask]
+            idx_r = idx_r[valid_pts_mask]
+            # Triangulate the points
+            points4d = cv2.triangulatePoints(self.camera_projection_matrix[0],
+                                             self.camera_projection_matrix[1],
+                                             pt_l, pt_r)
+            points4d /= points4d[3]  #(wx,wy,wz,w) -> (x,y,z,1)
+            
+            # Match template descriptors with valid points from left image
+            selected_keypoints = kp_l[idx_l]
+            selected_descriptors = desc_l[idx_l]
+            dam_result = self._detect_and_match_(self._object_.keypoints,
+                                                 self._object_.descriptors,
+                                                 selected_keypoints,
+                                                 selected_descriptors)
+            # Select the subset of triangulated points using the valid matches
+            # of the template
+            template_idx, scene_idx = dam_result[2:4]
+            scene_points = points4d[scene_idx, 0:3]
+            template_points = self._object_.keypoints_3d[template_idx]
+            
+            # Use the point correspondences to obtain the 3D affine 
+            # transformation
+            (retval, affine_3d, 
+             inliers) = cv2.estimateAffine3D(template_points, scene_points)
+            # Find the transformation of [0, 0, 0, 1] using the transformation
+            if retval and len(inliers) >= self._object_.min_correspondences:
+                self._object_.affine_3d = affine_3d
+                self._object_.status = True
+        
+    def affine_3d(self):
+        """
+        Return the estimated 3D affine transformation
+        """
+        return self._object_.affine_3d
+        
+    def location(self):
+        """
+        Return detected (bool) and relative position (x, y, z) of the object.
+        """
+        detected = False
+        position = np.zeros(3)
+        # Evaluate the location only if the homography is valid
+        if self._object_.status:
+            detected = True
+            position = np.dot(self._object_.affine_3d, 
+                              np.array([[0, 0, 0, 1]]).T)
+        return detected, position
+    
