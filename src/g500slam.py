@@ -90,11 +90,12 @@ class G500_SLAM():
         # Altitude from dvl
         self.vehicle.altitude = 0.0
         
+        self.__LOCK__ = threading.Lock()
         # Initialise ROS stuff
         self.init_config()
-        self.ros = self.init_ros(name)
+        self.ros = STRUCT()
+        self.init_ros(name)
         
-        self.__LOCK__ = threading.Lock()
         # Set as true to run without gps/imu initialisation
         self.config.init.init = False
         
@@ -169,7 +170,7 @@ class G500_SLAM():
         config.savitzky_golay_coeffs = SAVITZKY_GOLAY_COEFFS
         
     def init_ros(self, name):
-        ros = STRUCT()
+        ros = self.ros
         ros.name = name
         ros.last_update_time = rospy.Time.now()
         ros.NO_LOCK_ACQUIRE = 0

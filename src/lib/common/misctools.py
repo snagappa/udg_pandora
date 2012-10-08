@@ -208,7 +208,7 @@ def sample_mn_cv(x, wt=None, SYMMETRISE=False):
 # Module docstring.
 """Module for transforming between different coordinate systems."""
 
-def cartesian_to_spherical(vector):
+def cartesian_to_spherical(cart_vect, spherical_vect=None):
     """Convert the Cartesian vector [x; y; z] to spherical coordinates [r; theta; phi].
 
     The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
@@ -219,25 +219,28 @@ def cartesian_to_spherical(vector):
     @return:        The spherical coordinate vector [r, theta, phi].
     @rtype:         numpy rank-1, 3D array
     """
-
+    
+    if spherical_vect is None:
+        spherical_vect = np.empty(cart_vect.shape)
+    
     # The radial distance.
     #r = norm(vector)
-    r = np.sqrt((vector**2).sum(axis=0))
-
+    spherical_vect[0] = np.sqrt((cart_vect**2).sum(axis=0))
+    r = spherical_vect[0]
     # Unit vector.
-    unit = vector / r
+    unit = cart_vect / r
 
     # The polar angle.
-    theta = np.arccos(unit[2])
+    spherical_vect[1] = np.arccos(unit[2])
 
     # The azimuth.
-    phi = np.arctan2(unit[1], unit[0])
+    spherical_vect[2] = np.arctan2(unit[1], unit[0])
 
     # Return the spherical coordinate vector.
-    return np.vstack((r, theta, phi))
+    return spherical_vect
 
 
-def spherical_to_cartesian(spherical_vect, cart_vect):
+def spherical_to_cartesian(spherical_vect, cart_vect=None):
     """Convert the spherical coordinate vector [r, theta, phi] to the Cartesian vector [x, y, z].
 
     The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
@@ -248,7 +251,9 @@ def spherical_to_cartesian(spherical_vect, cart_vect):
     @param cart_vect:       The Cartesian vector [x, y, z].
     @type cart_vect:        3D array or list
     """
-
+    
+    if cart_vect is None:
+        cart_vect = np.empty(spherical_vect.shape)
     # Trig alias.
     sin_theta = np.sin(spherical_vect[1])
 
@@ -256,3 +261,5 @@ def spherical_to_cartesian(spherical_vect, cart_vect):
     cart_vect[0] = spherical_vect[0] * np.cos(spherical_vect[2]) * sin_theta
     cart_vect[1] = spherical_vect[0] * np.sin(spherical_vect[2]) * sin_theta
     cart_vect[2] = spherical_vect[0] * np.cos(spherical_vect[1])
+    
+    return cart_vect

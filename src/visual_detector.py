@@ -21,6 +21,7 @@ import image_feature_extractor
 
 class STRUCT(object): pass
 
+
 class VisualDetector:
     def __init__(self, name):
         self.name = name
@@ -28,7 +29,7 @@ class VisualDetector:
         
         # Create Subscriber
         sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
-        #nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
+        nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
         
         # Create publisher
         self.pub_valve_panel = metaclient.Publisher('/visual_detector/valve_panel', Detection,{})
@@ -54,25 +55,29 @@ class VisualDetector:
         else:
             rospy.logerr("Could not locate panel template")
         detector_init = False
+        
+        panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], [0.8, -0.5, 0], [-0.8, -0.5, 0]])
         try:
-            self.panel.detector = objdetect.detector(feat_detector=image_feature_extractor.orb)
+            self.panel.detector = objdetect.Detector(feat_detector=image_feature_extractor.orb)
             detector_init = True
         except AttributeError, ae:
             rospy.loginfo(ae)
             rospy.loginfo("Could not initialise ORB detector, attempting fallback to SURF")
         if not detector_init:
             try:
-                self.panel.detector = objdetect.detector(
-                    detector=image_feature_extractor.surf)
+                self.panel.detector = objdetect.Detector(
+                    feat_detector=image_feature_extractor.surf)
                 detector_init = True
             except AttributeError, ae:
                 rospy.loginfo(ae)
                 rospy.loginfo("Failed to initialise SURF detector")
                 rospy.logerr("Please ensure that cv2.ORB() or cv2.SURF() are available.")
         if detector_init:
-            self.panel.detector.set_template(template_image)
+            self.panel.detector.set_template(template_image, panel_corners)
         self.panel.DETECTED = False
         self.panel.sub = None
+        self.panel.pub = metaclient.Publisher('/visual_detector2/valve_panel', Detection,{})
+        self.panel.detection_msg = Detection()
         # Initialise valve detector
         #self.valve = STRUCT()
         #self.valve.detector = objdetect.valve_detector()
@@ -80,13 +85,15 @@ class VisualDetector:
 
     def enablePanelValveDetectionSrv(self, req):
         #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
-        self.panel.sub = rospy.Subscriber("/uwsim/camera1", 
-                                          sensor_msgs.msg.Image, 
-                                          self.detect_panel)
+        self._enablePanelValveDetectionSrv_()
         print "Enabled panel detection"
         return std_srvs.srv.EmptyResponse()
     
-    
+    def _enablePanelValveDetectionSrv_(self):
+        self.panel.sub = rospy.Subscriber("/uwsim/camera1", 
+                                          sensor_msgs.msg.Image, 
+                                          self.detect_panel)
+        
     def enableValveDetectionSrv(self, req):
         pass
     
@@ -114,11 +121,18 @@ class VisualDetector:
         pass
     
     def detect_panel(self, img):
-        #self.panel.sub.unregister()
+        self.panel.sub.unregister()
         cvimage = self.ros2cvimg.cvimagegray(img)
         self.panel.detector.detect(np.asarray(cvimage))
         #self.panel.detector.show()
-        #self.enablePanelValveDetectionSrv(None)
+        panel_detected, panel_position = self.panel.detector.location()
+        self.panel.detection_msg.detected = panel_detected
+        (self.panel.detection_msg.position.position.x, 
+         self.panel.detection_msg.position.position.y,
+         self.panel.detection_msg.position.position.z) = panel_position
+        self.panel.pub.publish(self.panel.detection_msg)
+        print "Detected = ", self.panel.detection_msg.detected
+        self._enablePanelValveDetectionSrv_()
     
     def updateNavigation(self, nav):
         vehicle_pose = [nav.position.north, nav.position.east, nav.position.depth]
