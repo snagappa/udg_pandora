@@ -88,22 +88,42 @@
       <y>0</y>
     </orientation>
     <virtualCamera>
-      <name>bowtech1</name>
+      <name>left</name>
       <relativeTo>base</relativeTo>
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
         <x>0.3</x>
-        <y>0</y>
-        <z>0</z>
+        <y>-0.06</y>
+        <z>0.3</z>
       </position>
       <orientation>
-        <r>-1.57</r>
+        <r>-3.14159</r>
         <p>0</p>
         <y>1.57</y>
       </orientation>
+      <baseline> 0.0 </baseline>
+      <frameId> stereo_camera </frameId>
     </virtualCamera>
-    <rangeSensor>
+    <virtualCamera>
+      <name>right</name>
+      <relativeTo>base</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.3</x>
+        <y>0.06</y>
+        <z>0.3</z>
+      </position>
+      <orientation>
+        <r>-3.14159</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+    <baseline>0.12</baseline>
+    <frameId> stereo_camera </frameId>
+    </virtualCamera>    
+<rangeSensor>
       <name>sonar</name>
       <relativeTo>base</relativeTo>
       <range>10</range>
@@ -194,10 +214,15 @@
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
-<VirtualCameraToROSImage>
-      <cameraName>bowtech1</cameraName>
-      <imageTopic> /uwsim/camera1 </imageTopic>
-      <infoTopic> /uwsim/camera1_info </infoTopic>
+    <VirtualCameraToROSImage>
+      <cameraName>right</cameraName>
+      <imageTopic> /stereo_camera/right/image_raw </imageTopic>
+      <infoTopic> /stereo_camera/right/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+    <VirtualCameraToROSImage>
+      <cameraName>left</cameraName>
+      <imageTopic>/stereo_camera/left/image_raw  </imageTopic>
+      <infoTopic>/stereo_camera/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
     <RangeSensorToROSRange>
       <name>sonar</name>

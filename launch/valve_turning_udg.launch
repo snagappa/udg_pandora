@@ -21,5 +21,11 @@
 	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/>
 	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/>
 	<node name="phdslam" pkg="udg_pandora" type="g500slam.py" />
+
+	<!-- stereo image proc -->	
+	<node name="image_proc" pkg="stereo_image_proc" type="stereo_image_proc">
+    		<env name="ROS_NAMESPACE" value="/stereo_camera"/>
+  	</node>
+	
 </launch>
 
