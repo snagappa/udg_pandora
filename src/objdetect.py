@@ -133,7 +133,7 @@ class Detector(object):
         # Return status of the FindHomography function
         self._object_.status = None
         # Specify a threshold to binarise the test scene
-        self._object_.scene_intensity_threshold = None
+        self._object_.intensity_threshold = None
         # Minimum required correspondences to validate localisation
         self._object_.min_correspondences = 10
         # Camera matrix
@@ -177,6 +177,8 @@ class Detector(object):
         """
         # Detect features using the FINE preset
         if not template_im is None:
+            template_im = self._binarise_(template_im, 
+                                          self._object_.intensity_threshold)
             self._object_.template = template_im
             template_detector = self._detector_.__class__(
                 image_feature_extractor.DETECTOR_PRESET.FINE)
@@ -194,7 +196,14 @@ class Detector(object):
                    (corners_3d.shape[1]==3) and \
                    (corners_3d.shape[0]>3), assert_err_msg
             self._object_.corners_3d = corners_3d
-            
+        
+    def _binarise_(self, im, intensity_threshold):
+        bin_im = im.copy()
+        if not intensity_threshold is None:
+            bin_im[bin_im > intensity_threshold] = 255
+            bin_im[bin_im <= intensity_threshold] = 0
+        return bin_im
+    
     def _detect_and_match_(self, obj_kp, obj_desc, scene_kp, scene_desc, 
                            ratio=0.75):
         """
@@ -226,9 +235,8 @@ class Detector(object):
             return None
         self._scene_ = copy.copy(im_scene)
         # Threshold the image
-        #intensity_threshold = self._object_.scene_intensity_threshold
-        #self._scene_[self._scene_ > intensity_threshold] = 255
-        #self._scene_[self._scene_ <= intensity_threshold] = 0
+        self._scene_ = self._binarise_(self._scene_, 
+                                       self._object_.intensity_threshold)
         (keypoints_scene, descriptors_scene) = (
             self._detector_.get_features(self._scene_))
         if not keypoints_scene:

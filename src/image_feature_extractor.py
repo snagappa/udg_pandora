@@ -101,6 +101,10 @@ class _feature_detector_(object):
             self._detector_.setDouble("hessianThreshold", hessian_threshold)
 
 
+class Sift(_feature_detector_):
+    def __init__(self, *args, **kwargs):
+        super(Sift, self).__init__("SIFT", "SIFT")
+    
 class Surf(_feature_detector_):
     def __init__(self, *args, **kwargs):
         super(Surf, self).__init__("SURF", "SURF")
@@ -118,7 +122,7 @@ class Freak(_feature_detector_):
     def __init__(self, *args, **kwargs):
         super(Freak, self).__init__("FAST", "FREAK")
 
-
+sift  = Sift
 surf  = Surf
 mser  = Mser
 orb   = Orb
