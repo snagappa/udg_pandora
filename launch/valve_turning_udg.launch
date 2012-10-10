@@ -7,8 +7,8 @@
  	<include file="$(find udg_pandora)/launch/start_g500-sim-Pandora.launch" />
 	
 	<!-- Run UWSim -->
-	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find udg_pandora)/scenes/cirsPandora.xml --dataPath $(find udg_pandora)/" respawn="false"/>
-	<node unless="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile $(find udg_pandora)/scenes/cirsPandora.xml --dataPath $(find udg_pandora)/" respawn="false"/>
+	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/" respawn="false"/>
+	<node unless="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile $(find udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/" respawn="false"/>
 
 	<!-- Load meta-data -->
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/visual_detector_meta_data.yaml" />

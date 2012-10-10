@@ -1,0 +1,364 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE UWSimScene SYSTEM "UWSimScene.dtd" >
+
+<UWSimScene>
+  <oceanState>
+    <windx> 0.04 </windx>
+    <windy> 0.04 </windy>
+    <windSpeed> 12 </windSpeed>
+    <depth> 1000 </depth>
+    <reflectionDamping> 0.35 </reflectionDamping>
+    <waveScale> 1e-7 </waveScale>
+    <isNotChoppy> 0 </isNotChoppy>
+    <choppyFactor> 2.5 </choppyFactor>
+    <crestFoamHeight> 2.2 </crestFoamHeight>
+    <oceanSurfaceHeight> 0 </oceanSurfaceHeight>
+    <fog>
+      <density> 0.1 </density>
+      <color>
+	<r>0</r>
+	<g>0.05</g>
+	<b>0.3</b>
+      </color>
+    </fog>
+    <color>
+      <r>0.0</r>
+      <g>0.05</g>
+      <b>0.3</b>
+    </color>
+    <attenuation>
+      <r>0.015</r>
+      <g>0.0075 </g>
+      <b> 0.005 </b>
+    </attenuation>
+  </oceanState>
+  <simParams>
+    <disableShaders> 0 </disableShaders>
+    <resw> 800 </resw>
+    <resh> 600 </resh>
+    <offsetp>
+      <x>0</x>
+      <y>0</y>
+      <z>0</z>
+    </offsetp>
+    <offsetr>
+      <x> 3.14</x>
+      <y> 0</y>
+      <z> -1.57 </z>
+    </offsetr>
+  </simParams>
+  <camera>
+    <freeMotion> 1 </freeMotion>
+    <objectToTrack>girona500/base_link</objectToTrack>
+    <fov> 60 </fov>
+    <aspectRatio> 1.33 </aspectRatio>
+    <near> 1 </near>
+    <far> 10000 </far>
+    <position>
+      <x>-5</x>
+      <y>-5 </y>
+      <z>8 </z>
+    </position> 
+    <lookAt>
+      <x>0</x>
+      <y>0 </y>
+      <z>0 </z>
+    </lookAt>
+  </camera>
+
+  <vehicle>
+    <name>girona500</name>
+    <file>scenes/g500ARMPandora.urdf</file>
+    <jointValues>
+      <joint> -0.6 </joint> <!--Brac -0.75-->
+      <joint> 0.4</joint>  <!--Ma 0.75-->
+      <joint> 0.0 </joint>  <!-- Support -->
+      <joint> 0.0 </joint>  <!-- Mou la pinsa -->
+      <!-- Son 4 por cojones -->
+    </jointValues>
+    <position>
+      <x> 0</x>
+      <y> 0 </y>
+      <z> 0 </z>
+    </position>
+    <orientation>
+      <r>0</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+
+    <virtualCamera>
+      <name>left_down</name>
+      <relativeTo>base</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.0</x>
+        <y>-0.06</y>
+        <z>0.0</z>
+      </position>
+      <orientation>
+        <r>-3.14159</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+      <baseline> 0.0 </baseline>
+      <frameId> stereo_down </frameId>
+    </virtualCamera>
+    <virtualCamera>
+      <name>right_down</name>
+      <relativeTo>base</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.0</x>
+        <y>0.06</y>
+        <z>0.0</z>
+      </position>
+      <orientation>
+        <r>-3.14159</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+    <baseline>0.12</baseline>
+    <frameId> stereo_down </frameId>
+    </virtualCamera>
+
+    <virtualCamera>
+      <name>left_front</name>
+      <relativeTo>base</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.0</x>
+        <y>-0.06</y>
+        <z>-0.7</z>
+      </position>
+      <orientation>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+      <baseline> 0.0 </baseline>
+      <frameId> stereo_front </frameId>
+    </virtualCamera>
+    <virtualCamera>
+      <name>right_front</name>
+      <relativeTo>base</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.0</x>
+        <y>0.06</y>
+        <z>-0.7</z>
+      </position>
+      <orientation>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+    <baseline>0.12</baseline>
+    <frameId> stereo_front </frameId>
+    </virtualCamera>  
+
+<rangeSensor>
+      <name>sonar</name>
+      <relativeTo>base</relativeTo>
+      <range>10</range>
+      <visible>1</visible>
+      <position>
+        <x>-0.3</x>
+        <y>0</y>
+        <z>0</z>
+      </position>  
+      <orientation>
+        <r>0</r>
+        <p>-1.6</p>
+        <y>0</y>
+      </orientation>
+    </rangeSensor>
+  </vehicle>
+
+  <object>
+    <name>terrain</name>
+    <file>data2/terrain2/land.osg</file>
+    <position>
+      <x> 0</x>
+      <y> 0 </y>
+      <z> 6.0 </z>
+    </position>
+    <orientation>
+      <r>0</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+    <offsetp>
+      <x>-1.5</x>
+      <y>-3.0</y>
+      <z>0</z>
+    </offsetp>
+    <offsetr>
+      <x> 3.1415</x>
+      <y> 0</y>
+      <z> -1.57 </z>
+    </offsetr>
+  </object>
+
+  <object>
+    <name> panel </name>
+	<file>data2/objects2/panel2.osg</file>
+    <position>
+      <x> -1.0 </x>
+      <y> 1.0 </y>
+      <z> 5 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+
+ <object>
+    <name> chain </name>
+	<file>data2/objects2/chain.osg</file>
+    <position>
+      <x> 6.0 </x>
+      <y> 8.0 </y>
+      <z> 5.75 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+
+  <object>
+    <name> panel2 </name>
+	<file>data2/objects2/panel2.osg</file>
+    <position>
+      <x> -8.0 </x>
+      <y> 7.0 </y>
+      <z> 5 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>1.57</y>
+    </orientation>
+  </object>
+
+
+  <object>
+    <name> stone1 </name>
+	<file>data2/objects2/stone1.osg</file>
+    <position>
+      <x> -11.05</x>
+      <y> 2.0 </y>
+      <z> 5.5 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+  <object>
+    <name> stone2 </name>
+	<file>data2/objects2/stone2.osg</file>
+    <position>
+      <x> -8.05</x>
+      <y> 2.0 </y>
+      <z> 6 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+<object>
+    <name> stone3 </name>
+	<file>data2/objects2/stone1.osg</file>
+    <position>
+      <x> 12.05</x>
+      <y> -2.0 </y>
+      <z> 5.5 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+  <object>
+    <name> stone4 </name>
+	<file>data2/objects2/stone2.osg</file>
+    <position>
+      <x> -6.05</x>
+      <y> 2.0 </y>
+      <z> 6 </z>
+    </position>
+    <orientation>
+      <r>3.14</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+  <rosInterfaces>
+    <ROSOdomToPAT>
+      <topic> /dataNavigator </topic>
+      <vehicleName> girona500 </vehicleName>
+    </ROSOdomToPAT>
+    <PATToROSOdom>
+      <topic> /uwsim/girona500_odom </topic>
+      <vehicleName> girona500 </vehicleName>
+    </PATToROSOdom>
+    <ArmToROSJointState> 
+	<topic>/uwsim/joint_state</topic>
+	<vehicleName> girona500 </vehicleName>
+    </ArmToROSJointState>
+    <ROSJointStateToArm> 
+	<topic>/uwsim/joint_state_command</topic>
+	<vehicleName> girona500 </vehicleName>
+    </ROSJointStateToArm>
+
+
+    <VirtualCameraToROSImage>
+      <cameraName>right_down</cameraName>
+      <imageTopic> /stereo_down/right/image_raw </imageTopic>
+      <infoTopic> /stereo_down/right/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+    <VirtualCameraToROSImage>
+      <cameraName>left_down</cameraName>
+      <imageTopic>/stereo_down/left/image_raw  </imageTopic>
+      <infoTopic>/stereo_down/left/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+    
+
+    <VirtualCameraToROSImage>
+      <cameraName>right_front</cameraName>
+      <imageTopic> /stereo_front/right/image_raw </imageTopic>
+      <infoTopic> /stereo_front/right/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+    <VirtualCameraToROSImage>
+      <cameraName>left_front</cameraName>
+      <imageTopic>/stereo_front/left/image_raw  </imageTopic>
+      <infoTopic>/stereo_front/left/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+    
+    <RangeSensorToROSRange>
+      <name>sonar</name>
+      <topic> /uwsim/g500/range </topic>
+      <rate>5</rate>
+    </RangeSensorToROSRange>
+  </rosInterfaces>
+</UWSimScene>
+
