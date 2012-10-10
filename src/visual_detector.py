@@ -30,7 +30,7 @@ class VisualDetector:
         
         # Create Subscriber
         sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
-        #nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
+        nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
         
         # Create publisher
         self.pub_valve_panel = metaclient.Publisher('/visual_detector/valve_panel', Detection,{})
@@ -50,8 +50,8 @@ class VisualDetector:
         
         # Initialise panel detector
         template_image_file = "uwsim_panel_template.png"
-        rostopic_cam_root = "/stereo_camera/left"
-        IS_STEREO = False
+        rostopic_cam_root = "/stereo_front"
+        IS_STEREO = True
         panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], 
                                   [0.8, -0.5, 0], [-0.8, -0.5, 0]])
         self.panel = STRUCT()
@@ -116,7 +116,7 @@ class VisualDetector:
         func_args = (template_image, panel_corners, camera_matrix)
         if IS_STEREO:
             _detector_ = objdetect.Stereo_detector
-            func_args += projection_matrix
+            func_args += (projection_matrix,)
         
         try:
             panel.detector = _detector_(*(func_args+(image_feature_extractor.orb,)))
