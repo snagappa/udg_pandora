@@ -1,0 +1,148 @@
+Group {
+  name "panel.obj"
+  nodeMask 0xffffffff
+  cullingActive TRUE
+  num_children 2
+  Geode {
+    name "Cube"
+    nodeMask 0xffffffff
+    cullingActive TRUE
+    num_drawables 1
+    Geometry {
+      DataVariance STATIC
+      StateSet {
+        DataVariance STATIC
+        rendering_hint DEFAULT_BIN
+        renderBinMode INHERIT
+        Material {
+          UniqueID Material_0
+          name "Material"
+          ColorMode OFF
+          ambientColor 0 0 0 1
+          diffuseColor 0.64 0.64 0.64 1
+          specularColor 0.5 0.5 0.5 1
+          emissionColor 0 0 0 1
+          shininess 12.288
+        }
+      }
+      useDisplayList TRUE
+      useVertexBufferObjects FALSE
+      PrimitiveSets 3
+      {
+        DrawElementsUShort TRIANGLE_STRIP 9
+        {
+          0 1 2 6 5 4 3 0 2 
+        }
+        DrawElementsUShort TRIANGLE_STRIP 4
+        {
+          4 6 7 1 
+        }
+        DrawElementsUShort TRIANGLES 3
+        {
+          2 5 3 
+        }
+      }
+      VertexArray Vec3Array 8
+      {
+        0.04 0.8 -0.5
+        0.04 -0.8 -0.5
+        -0 -0.8 -0.5
+        0 0.8 -0.5
+        0.04 0.8 0.5
+        0 0.8 0.5
+        -0 -0.8 0.5
+        0.04 -0.8 0.5
+      }
+      NormalBinding PER_VERTEX
+      NormalArray Vec3Array 8
+      {
+        0 0.298275 -0.95448
+        0 -0.780869 -0.624695
+        -0.999123 -0.012489 -0.0399649
+        -0.997956 0.0498978 -0.0399183
+        0 0.529999 0.847998
+        -0.999722 0.0124965 0.0199944
+        -0.995579 -0.049779 0.0796464
+        0 -0.529999 0.847998
+      }
+      TexCoordArray 0 Vec2Array 8
+      {
+        0 0
+        0 0
+        0 0
+        0 0
+        0 0
+        0 0
+        0 0
+        0 0
+      }
+    }
+  }
+  Geode {
+    name "Cube"
+    nodeMask 0xffffffff
+    cullingActive TRUE
+    num_drawables 1
+    Geometry {
+      DataVariance STATIC
+      StateSet {
+        DataVariance STATIC
+        rendering_hint DEFAULT_BIN
+        renderBinMode INHERIT
+        Use Material_0
+        textureUnit 0 {
+          GL_TEXTURE_2D ON
+          Texture2D {
+            file "panel_template.png"
+            wrap_s REPEAT
+            wrap_t REPEAT
+            wrap_r REPEAT
+            min_filter LINEAR_MIPMAP_LINEAR
+            mag_filter LINEAR
+            maxAnisotropy 1
+            borderColor 0 0 0 0
+            borderWidth 0
+            useHardwareMipMapGeneration TRUE
+            unRefImageDataAfterApply TRUE
+            internalFormatMode USE_IMAGE_DATA_FORMAT
+            resizeNonPowerOfTwo TRUE
+            shadowComparison FALSE
+            shadowCompareFunc GL_LEQUAL
+            shadowTextureMode GL_LUMINANCE
+          }
+        }
+      }
+      useDisplayList TRUE
+      useVertexBufferObjects FALSE
+      PrimitiveSets 1
+      {
+        DrawElementsUShort TRIANGLE_STRIP 4
+        {
+          1 2 0 3 
+        }
+      }
+      VertexArray Vec3Array 4
+      {
+        0.04 0.8 -0.5
+        0.04 0.8 0.5
+        0.04 -0.8 0.5
+        0.04 -0.8 -0.5
+      }
+      NormalBinding PER_VERTEX
+      NormalArray Vec3Array 4
+      {
+        1 0 0
+        1 0 0
+        1 0 0
+        1 0 0
+      }
+      TexCoordArray 0 Vec2Array 4
+      {
+        1 0
+        1 1
+        0 1
+        0 0
+      }
+    }
+  }
+}

@@ -5,8 +5,8 @@
       <visual>
          <origin rpy="-1.57 0 3.14" xyz="-0.2 0 0.75"/>
          <geometry>
-	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500Clean.osg"/> -->
-	   <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500Clean.osg"/>
+	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500.osg"/> -->
+	   <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500.osg"/>
          </geometry>
        </visual>
    </link>
