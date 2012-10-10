@@ -1,5 +1,5 @@
 Group {
-  name "land.obj"
+  name "land_obj.obj"
   nodeMask 0xffffffff
   cullingActive TRUE
   num_children 1
@@ -15,13 +15,34 @@ Group {
         rendering_hint DEFAULT_BIN
         renderBinMode INHERIT
         Material {
-          name "sand5.jpg"
+          name "_sand5.jpg"
           ColorMode OFF
           ambientColor 0 0 0 1
           diffuseColor 0.8 0.8 0.8 1
           specularColor 0.8 0.8 0.8 1
           emissionColor 0 0 0 1
           shininess 0
+        }
+        textureUnit 0 {
+          GL_TEXTURE_2D ON
+          Texture2D {
+            file "workspace/underwater_simulation/UWSim/data/textures/sand5.jpg"
+            wrap_s REPEAT
+            wrap_t REPEAT
+            wrap_r REPEAT
+            min_filter LINEAR_MIPMAP_LINEAR
+            mag_filter LINEAR
+            maxAnisotropy 1
+            borderColor 0 0 0 0
+            borderWidth 0
+            useHardwareMipMapGeneration TRUE
+            unRefImageDataAfterApply TRUE
+            internalFormatMode USE_IMAGE_DATA_FORMAT
+            resizeNonPowerOfTwo TRUE
+            shadowComparison FALSE
+            shadowCompareFunc GL_LEQUAL
+            shadowTextureMode GL_LUMINANCE
+          }
         }
       }
       useDisplayList TRUE

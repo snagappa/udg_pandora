@@ -182,7 +182,8 @@
 
   <object>
     <name>terrain</name>
-    <file>data2/terrain2/land.osg</file>
+    <file>data2/objects2/land_obj.osg</file>
+
     <position>
       <x> 0</x>
       <y> 0 </y>
