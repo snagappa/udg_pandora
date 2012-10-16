@@ -62,6 +62,8 @@ def blas_weaver(subroutine_string):
     compile_args += getattr(subroutine, "extra_compile_args", [])
     include_dirs = getattr(__c_code__, "INCLUDE_DIRS", [])
     include_dirs += getattr(subroutine, "include_dirs", [])
+    library_dirs = getattr(__c_code__, "LIBRARY_DIRS", [])
+    library_dirs += getattr(__c_code__, "library_dirs", [])
     
     fn_string = "__c_code__."+subroutine_string
     exec_string = ("weave.inline(" + 
@@ -71,6 +73,7 @@ def blas_weaver(subroutine_string):
         ", support_code=" + fn_string+".support_code" + 
         ", extra_compile_args=" + str(compile_args) + 
         ", include_dirs=" + str(include_dirs) +
+        ", library_dirs=" + str(include_dirs) +
         ", verbose=1" + ")" )
     return exec_string
 

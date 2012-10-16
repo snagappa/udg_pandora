@@ -24,6 +24,7 @@
 
 EXTRA_COMPILE_ARGS = ["-O2 -g -fopenmp"]
 INCLUDE_DIRS = ["/usr/include/atlas"]
+LIBRARY_DIRS = ["/usr/lib/atlas-base"]
 #lopenblas = ["openblas"]
 lblas = ["blas"]
 llapack = ["lapack_atlas"]
