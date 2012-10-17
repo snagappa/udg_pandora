@@ -14,7 +14,7 @@
 	<rosparam command="load" file="$(find cola2_navigation)/config/navigator.yaml" />
 	<rosparam command="load" file="$(find cola2_control)/../launch/mission.yaml" />
 
-	<rosparam command="load" file="$(find cola2_control)/config/arm_controller_3DoF.yaml" />
+	<rosparam command="load" file="$(find cola2_control)/config/arm_controller_5DoF.yaml" />
 
 	<rosparam param="urdf_root"> </rosparam>
 	
