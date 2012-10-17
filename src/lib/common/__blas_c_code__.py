@@ -23,9 +23,11 @@
 #      
 
 EXTRA_COMPILE_ARGS = ["-O2 -g -fopenmp"]
+INCLUDE_DIRS = ["/usr/include/atlas"]
+LIBRARY_DIRS = ["/usr/lib/atlas-base"]
 #lopenblas = ["openblas"]
 lblas = ["blas"]
-llapack = ["lapack"]
+llapack = ["lapack_atlas"]
 lgsl = ["gsl", "gslcblas"]
 # Use this instead if a threaded blas library is available
 #lptf77blas = ["ptf77blas"]+llapack
