@@ -9,7 +9,7 @@ import std_msgs.msg
 import std_srvs.srv
 from auv_msgs.msg import NavSts
 from udg_pandora.msg import Detection
-import metaclient
+import hwu_meta_data.metaclient as metaclient
 from detector import GeometricDetector
 import cv2
 import code
@@ -136,7 +136,7 @@ class VisualDetector:
         panel.img_sub = [
             message_filters.Subscriber(_sub_image_raw_, sensor_msgs.msg.Image)
             for _sub_image_raw_ in self.panel.subscriptions.image_raw]
-        panel.ts = message_filters.TimeSynchronizer(panel.img_sub, 3)
+        panel.ts = message_filters.TimeSynchronizer(panel.img_sub, 5)
         
         panel.pub = metaclient.Publisher('/visual_detector2/valve_panel', Detection,{})
         panel.detection_msg = Detection()

@@ -7,7 +7,7 @@ import rospy
 import std_msgs.msg
 import std_srvs.srv
 from udg_pandora.msg import Detection
-import metaclient
+import hwu_meta_data.metaclient as metaclient
 
 class AcousticDetector:
     def __init__(self, name):
