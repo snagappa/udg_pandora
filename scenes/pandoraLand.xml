@@ -50,15 +50,16 @@
   </simParams>
   <camera>
     <freeMotion> 1 </freeMotion>
-    <objectToTrack>girona500/base_link</objectToTrack>
+    <objectToTrack>girona500/base_link</objectToTrack> 
+<!--    <objectToTrack>brac</objectToTrack> -->
     <fov> 60 </fov>
     <aspectRatio> 1.33 </aspectRatio>
     <near> 1 </near>
     <far> 10000 </far>
     <position>
       <x>-5</x>
-      <y>-5 </y>
-      <z>8 </z>
+      <y>-5</y>
+      <z>8</z>
     </position> 
     <lookAt>
       <x>0</x>
@@ -71,12 +72,13 @@
     <name>girona500</name>
     <file>scenes/g500ARMPandora.urdf</file>
     <jointValues>
-      <joint> -0.6 </joint> <!--Brac -0.75-->
-      <joint> 0.4</joint>  <!--Ma 0.75-->
-      <joint> 0.0 </joint>  <!-- Support -->
-      <joint> 0.0 </joint>  <!-- Mou la pinsa -->
-      <!-- Son 4 por cojones -->
+      <joint> 0.0 </joint>
+      <joint> 1.5 </joint>  
+      <joint> -2.5 </joint> 
+      <joint> 0.0 </joint> 
+      <joint> 0.0 </joint> 
     </jointValues>
+
     <position>
       <x> 0</x>
       <y> 0 </y>
@@ -166,7 +168,7 @@
       <name>sonar</name>
       <relativeTo>base</relativeTo>
       <range>10</range>
-      <visible>1</visible>
+      <visible>0</visible>
       <position>
         <x>-0.3</x>
         <y>0</y>
