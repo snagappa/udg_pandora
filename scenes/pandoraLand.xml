@@ -78,11 +78,10 @@
       <joint> 0.0 </joint> 
       <joint> 0.0 </joint> 
     </jointValues>
-
     <position>
-      <x> 0</x>
-      <y> 0 </y>
-      <z> 0 </z>
+      <x> 0.0 </x>
+      <y> 0.0 </y>
+      <z> 0.0 </z>
     </position>
     <orientation>
       <r>0</r>
