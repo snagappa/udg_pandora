@@ -36,7 +36,7 @@ import roslib
 roslib.load_manifest("udg_pandora")
 from nav_msgs.msg import Odometry
 from auv_msgs.msg import NavSts
-from cola2_control.srv import GotoSrv, GotoSrvRequest
+from cola2_control.srv import Goto, GotoRequest
 import rospy
 import tf
 from sensor_msgs.msg import PointCloud2
@@ -323,7 +323,7 @@ class gtk_slam_sim:
             print "Could not execute path"
             return
         try:
-            goto_wp = rospy.ServiceProxy("/cola2_control/goto", GotoSrv)
+            goto_wp = rospy.ServiceProxy("/cola2_control/goto", Goto)
             waypoints = self.scene.waypoints
             waypoint_index = 0
             
@@ -333,7 +333,7 @@ class gtk_slam_sim:
                     self.simulator.RUNNING = False
                     self.simulator.ABORT = False
                     return
-                goto_wp_req = GotoSrvRequest()
+                goto_wp_req = GotoRequest()
                 goto_wp_req.north = this_wp[0]
                 goto_wp_req.east = this_wp[1]
                 response = goto_wp(goto_wp_req)
