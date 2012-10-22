@@ -182,6 +182,7 @@ class Detector(object):
         if not template_im is None:
             template_im = self._binarise_(template_im, 
                                           self._object_.intensity_threshold)
+            #template_im = self._sharpen_(template_im)
             self._object_.template = template_im
             template_detector = self._detector_.__class__(
                 image_feature_extractor.DETECTOR_PRESET.FINE)
@@ -207,6 +208,10 @@ class Detector(object):
             bin_im[bin_im <= intensity_threshold] = 0
         return bin_im
     
+    def _sharpen_(self, im, filter_size=(5, 5), alpha=1.5, beta=-0.5):
+        sm_im = cv2.GaussianBlur(im, filter_size, 0)
+        return cv2.addWeighted(im, alpha, sm_im, beta, 1.0)
+        
     def _detect_and_match_(self, obj_kp, obj_desc, scene_kp, scene_desc, 
                            ratio=0.75):
         """
@@ -357,6 +362,8 @@ class Stereo_detector(Detector):
         # Additional parameters for the stereo detection
         self.camera_projection_matrix = (
             camera_projection_matrix.astype(np.float))
+        self.camera_half_baseline = np.abs(self.camera_projection_matrix[1, 0, 3]/
+            self.camera_projection_matrix[1, 0, 0])/2
         # Additional homography for second camera
         self.template_z_offset = 0
         self._object_.keypoints_2d = None
@@ -405,11 +412,11 @@ class Stereo_detector(Detector):
         if self._object_.template is None:
             print "object template is not set!"
             return None
-        self._scene_ = [copy.copy(im_scene_l), copy.copy(im_scene_r)]
         # Threshold the image
-        #intensity_threshold = self._object_.scene_intensity_threshold
-        #self._scene_[self._scene_ > intensity_threshold] = 255
-        #self._scene_[self._scene_ <= intensity_threshold] = 0
+        self._scene_ = [
+            self._binarise_(im_scene_l, self._object_.intensity_threshold),
+            self._binarise_(im_scene_r, self._object_.intensity_threshold)]
+        #self._scene_ = [self._sharpen_(im_scene_l), self._sharpen_(im_scene_r)]
         
         # Set affine transformation and status to false
         self._object_.h_mat = [None, None]
@@ -564,7 +571,10 @@ class Stereo_detector(Detector):
                 if ((_retval_) and (0.25 < obj_range < 5) and 
                     (self._object_.status[count])):
                     detected += 1
-                    position += _t_vec_
+                    _t_vec_offset_ = _t_vec_.copy()
+                    _t_vec_offset_[0] += (0.5-count)*self.camera_half_baseline
+                    position += _t_vec_offset_
+                    
                 else:
                     print "Too close/far for reliable estimation"
             else:
