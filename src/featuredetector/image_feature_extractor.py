@@ -94,11 +94,11 @@ class _feature_detector_(object):
         if self.type.feature_detector == "ORB":
             num_features = self._detector_.getInt("nFeatures")
             num_features *= parameter_scale_factor
-            self._detector_.setInt("nFeatures", num_features)
+            self._detector_.setInt("nFeatures", int(num_features))
         elif self.type.feature_detector == "SURF":
             hessian_threshold = self._detector_.getDouble("hessianThreshold")
             hessian_threshold /= parameter_scale_factor
-            self._detector_.setDouble("hessianThreshold", hessian_threshold)
+            self._detector_.setDouble("hessianThreshold", float(hessian_threshold))
 
 
 class Sift(_feature_detector_):

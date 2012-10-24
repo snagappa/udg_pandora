@@ -7,11 +7,12 @@ Created on Mon Sep 10 13:28:00 2012
 import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
-import image_feature_extractor
+from featuredetector import image_feature_extractor
+import phasecorr
 import cv2
 import numpy as np
 import code
-import copy
+#import copy
 from scipy import weave
 
 #from matplotlib import pyplot
@@ -170,9 +171,18 @@ class Detector(object):
                                        trees = 5)
         # Initialise the flann matcher
         self._flann_.matcher = FlannMatcher(self._flann_.PARAMS)
+        
+        # Filter for the template and scene
+        self.filter_kernel = phasecorr.log_filter_kernel(13)
         # Initialise the template
         self.set_template(template, corners_3d)
         
+    def process_images(self, images=()):
+        assert type(images) is tuple, "Images must be a tuple"
+        #return [self._binarise_(cv2.filter2D(_im_, -1, self.log_kernel), 
+        #                        self._object_.intensity_threshold) 
+        #        for _im_ in images]
+        return list(images)
     
     def set_template(self, template_im=None, corners_3d=None):
         """
@@ -180,9 +190,7 @@ class Detector(object):
         """
         # Detect features using the FINE preset
         if not template_im is None:
-            template_im = self._binarise_(template_im, 
-                                          self._object_.intensity_threshold)
-            #template_im = self._sharpen_(template_im)
+            template_im = self.process_images((template_im,))[0]
             self._object_.template = template_im
             template_detector = self._detector_.__class__(
                 image_feature_extractor.DETECTOR_PRESET.FINE)
@@ -202,11 +210,10 @@ class Detector(object):
             self._object_.corners_3d = corners_3d
         
     def _binarise_(self, im, intensity_threshold):
-        bin_im = im.copy()
         if not intensity_threshold is None:
-            bin_im[bin_im > intensity_threshold] = 255
-            bin_im[bin_im <= intensity_threshold] = 0
-        return bin_im
+            im[im > intensity_threshold] = 255
+            im[im <= intensity_threshold] = 0
+        return im
     
     def _sharpen_(self, im, filter_size=(5, 5), alpha=1.5, beta=-0.5):
         sm_im = cv2.GaussianBlur(im, filter_size, 0)
@@ -241,10 +248,9 @@ class Detector(object):
         if self._object_.template is None:
             print "object template is not set!"
             return None
-        self._scene_ = copy.copy(im_scene)
-        # Threshold the image
-        self._scene_ = self._binarise_(self._scene_, 
-                                       self._object_.intensity_threshold)
+        #self._scene_ = copy.copy(im_scene)
+        # Filter the scene
+        self._scene_ = self.process_images((im_scene,))[0]
         (keypoints_scene, descriptors_scene) = (
             self._detector_.get_features(self._scene_))
         if not keypoints_scene:
@@ -398,8 +404,12 @@ class Stereo_detector(Detector):
             self._object_.keypoints_3d = np.dot(
                 np.dot(-self.r_mat.T, self.t_vec), keypoints_2d_1)
             """
-            keypoints_3d = np.hstack((self._object_.keypoints_2d, 
+            try:
+                keypoints_3d = np.hstack((self._object_.keypoints_2d, 
                 np.ones((self._object_.keypoints_2d.shape[0], 1))))
+            except:
+                print "error occurred"
+                code.interact(local=locals())
             kp_offset = np.array(self._object_.template.shape)/2
             keypoints_3d[:, 2] = self.template_z_offset
             keypoints_3d[:, 0:2] -= kp_offset
@@ -413,10 +423,7 @@ class Stereo_detector(Detector):
             print "object template is not set!"
             return None
         # Threshold the image
-        self._scene_ = [
-            self._binarise_(im_scene_l, self._object_.intensity_threshold),
-            self._binarise_(im_scene_r, self._object_.intensity_threshold)]
-        #self._scene_ = [self._sharpen_(im_scene_l), self._sharpen_(im_scene_r)]
+        self._scene_ = self.process_images((im_scene_l, im_scene_r))
         
         # Set affine transformation and status to false
         self._object_.h_mat = [None, None]

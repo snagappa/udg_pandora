@@ -42,7 +42,7 @@ class camera_fov(object):
         test_distances = point_xyz[:, 0].copy()
         xy_limits = self.get_rect__half_width_height(test_distances)
         is_inside_rect = self.__inside_rect__(xy_limits, point_xyz[:,1:3])
-        return (is_inside_rect*((0 < test_distances)*(test_distances<self.fov_far_m)))
+        return (is_inside_rect*((0 < test_distances)*np.logical_and(1.0<test_distances, test_distances<self.fov_far_m)))
         
     def __inside_rect__(self, half_rect__width_height, xy):
         bool_is_inside = ((-half_rect__width_height<xy)*(xy<half_rect__width_height)).all(axis=1)
@@ -73,7 +73,7 @@ class camera_fov(object):
         return np.exp(-dist_from_ref*0.005)*0.99*visible_features_idx
         
     def pdf_clutter(self, z_rel):
-        self.z_prob(z_rel[:,0])
+        return self.z_prob(z_rel[:,0])
         
     def rel_to_abs(self, ref_ned, ref_rpy, features_rel):
         return tf.absolute(ref_ned, ref_rpy, features_rel)

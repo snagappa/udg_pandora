@@ -278,12 +278,13 @@ class PhaseCorrelator(object):
             do_phase_correlate(self.dft.logpolar.scene,
                                self.dft.logpolar.template))
         scalefac = self.lpc.vars.base**(col_val/self.lpc.vars.hscale)
+        rotation = -row_val/self.lpc.vars.vscale
         self.scalerot.row = row_val
         self.scalerot.col = col_val
         self.scalerot.peak = peak_val
         self.scalerot.goodness = goodness
         self.scalerot.scale = scalefac
-        self.scalerot.rot = 0
+        self.scalerot.rot = rotation
         print str((scalefac, 0))
     
     def _get_translation_(self):

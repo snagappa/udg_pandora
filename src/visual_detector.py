@@ -17,7 +17,7 @@ import code
 import objdetect
 from cvbridge_wrapper import image_converter
 import numpy as np
-import image_feature_extractor
+from featuredetector import image_feature_extractor
 import message_filters
 
 class STRUCT(object): pass

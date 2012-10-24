@@ -108,8 +108,10 @@ class gtk_slam_sim:
         self.viewer.NED_spinbutton = STRUCT()
         self.viewer.NED_spinbutton.east = 0.0
         self.viewer.NED_spinbutton.north = 0.0
-        self.viewer.NED_spinbutton.depth = 0.0
+        self.viewer.NED_spinbutton.depth = 1.0
         self.viewer.NED_spinbutton.noise = 0.03
+        
+        self.viewer.spinbutton_numlandmarks = 40
         
         self.viewer.size.width = 10
         self.viewer.size.height = 10
@@ -127,10 +129,12 @@ class gtk_slam_sim:
         
         self.viewer.textview.vehicle_xyz = self.glade.get_object("vehicle_xyz")
         self.viewer.textview.vehicle_rpy = self.glade.get_object("vehicle_rpy")
+        self.viewer.textview.landmark_count = self.glade.get_object("landmark_count")
         fontdesc = pango.FontDescription("monospace 10")
         self.viewer.textview.vehicle_xyz.modify_font(fontdesc)
         self.viewer.textview.vehicle_rpy.modify_font(fontdesc)
-
+        self.viewer.textview.landmark_count.modify_font(fontdesc)
+        
         self.glade.connect_signals(self)
         
         self.ros = STRUCT()
@@ -158,7 +162,7 @@ class gtk_slam_sim:
         self.timers.update_visible_landmarks.add_callback(self.update_visible_landmarks)
         self.timers.update_visible_landmarks.start()
         # ROS publisher
-        self.timers.publisher = self.viewer.figure.canvas.new_timer(interval=1000)
+        self.timers.publisher = self.viewer.figure.canvas.new_timer(interval=500)
         self.timers.publisher.add_callback(self.publish_visible_landmarks)
         self.timers.publisher.start()
         
@@ -308,6 +312,21 @@ class gtk_slam_sim:
         point = [north, east, depth]
         self.scene.__current_list__.append(point)
     
+    def set_spinbutton_numlandmarks(self, widget):
+        self.viewer.spinbutton_numlandmarks = widget.get_value()
+        print "Set number of landmarks to ", str(self.viewer.spinbutton_numlandmarks)
+    
+    def create_landmarks(self, widget):
+        landmarks = np.random.random((self.viewer.spinbutton_numlandmarks, 3))
+        north_lim = np.round(self.viewer.size.height*np.array([-1, 1]) + self.vehicle.north_east_depth[0])
+        east_lim = np.round(self.viewer.size.width*np.array([-1, 1]) + self.vehicle.north_east_depth[1])
+        
+        landmarks *= [2*self.viewer.size.height, 2*self.viewer.size.width, 0.2]
+        landmarks += [north_lim[0], east_lim[0], self.viewer.NED_spinbutton.depth]
+        self.scene.landmarks = landmarks.tolist()
+        if self.scene.mode == LANDMARKS:
+            self.scene.__current_list__ = self.scene.landmarks
+    
     def start_sim(self, widget):
         if self.simulator.RUNNING:
             print "simulator already running..."
@@ -336,6 +355,8 @@ class gtk_slam_sim:
                 goto_wp_req = GotoRequest()
                 goto_wp_req.north = this_wp[0]
                 goto_wp_req.east = this_wp[1]
+                goto_wp_req.z = this_wp[2]
+                goto_wp_req.tolerance = 1.0
                 response = goto_wp(goto_wp_req)
                 print response
                 waypoint_index += 1
@@ -367,6 +388,7 @@ class gtk_slam_sim:
         finally:
             self.vehicle.LOCK.release()
         self.print_position()
+        self.print_numlandmarks()
         self.update_visible_landmarks()
         
     def estimator_update_position(self, nav):
@@ -418,10 +440,21 @@ class gtk_slam_sim:
         
         self.viewer.textview.vehicle_xyz.get_buffer().set_text(text_xyz)
         self.viewer.textview.vehicle_rpy.get_buffer().set_text(text_rpy)
+        
+    def print_numlandmarks(self):
+        north, east, depth = np.round(self.vehicle.north_east_depth, 2)
+        e_north, e_east, e_depth = np.round(self.estimator.north_east_depth, 2)
+        numlandmarks_true = str(len(self.scene.landmarks))
+        numlandmarks_est = str(self.estimator.landmarks.shape[0])
+        text_numlandmarks = ("Detected Landmarks: " + 
+            numlandmarks_est + "/" + numlandmarks_true +
+            ",  Position error (x, y): " + str(np.abs(e_north-north)) + ", " +
+            str(np.abs(e_east-east)))
+        self.viewer.textview.landmark_count.get_buffer().set_text(text_numlandmarks)
     
     def update_visible_landmarks(self, *args, **kwargs):
-        if self.vehicle.LOCK.locked():
-            return
+        #if self.vehicle.LOCK.locked():
+        #    return
         self.vehicle.LOCK.acquire()
         try:
             landmarks = np.array(self.scene.landmarks)
@@ -508,13 +541,19 @@ class gtk_slam_sim:
         
     def publish_visible_landmarks(self, *args, **kwargs):
         self.update_visible_landmarks()
-        rel_landmarks = self.vehicle.visible_landmarks.rel
+        self.vehicle.LOCK.acquire()
+        try:
+            rel_landmarks = self.vehicle.visible_landmarks.rel.copy()
+            abs_landmarks = self.vehicle.visible_landmarks.abs.copy()
+            noise_landmarks = self.vehicle.visible_landmarks.noise.copy()
+        finally:
+            self.vehicle.LOCK.release()
         clutter_pts = self.scene.clutter #np.random.poisson(self.scene.clutter)
         if clutter_pts:
             # Draw uniform samples for r, theta, phi
             clutter_r_theta_phi = np.random.rand(3, clutter_pts)
-            clutter_r_theta_phi[0] *= (self.vehicle.fov.far_m - 0.3)
-            clutter_r_theta_phi[0] += 0.3
+            clutter_r_theta_phi[0] *= (self.vehicle.fov.far_m - 1.3)
+            clutter_r_theta_phi[0] += 1.3
             clutter_r_theta_phi[1:3] -= 0.5
             #clutter_r_theta_phi[2,:] = 0
             clutter_r_theta_phi[1:3] *= (np.array([[self.vehicle.fov.x_deg-4], [self.vehicle.fov.y_deg-4]])*np.pi/180)
@@ -531,7 +570,7 @@ class gtk_slam_sim:
         else:
             clutter_landmarks = np.empty(0)
         
-        detected = np.random.rand(rel_landmarks.shape[0])<0.99
+        detected = np.random.rand(rel_landmarks.shape[0])<0.95
         if detected.shape[0]:
             rel_landmarks = rel_landmarks[detected]
         else:
@@ -540,7 +579,12 @@ class gtk_slam_sim:
             # Convert xyz to PointCloud message
             #pcl_msg = pointclouds.xyz_array_to_pointcloud2(rel_landmarks, rospy.Time.now(), "slamsim")
             # Convert xyz to PointCloud message with (diagonal) covariance
-            noise = self.vehicle.visible_landmarks.noise[detected]
+            try:
+                noise = noise_landmarks[detected]
+            except:
+                print "Error occurred!"
+                noise = np.ones((1, 1))
+                code.interact(local=locals())
             std_dev = np.sqrt(noise)
             #awgn = std_dev[:,np.newaxis]*np.random.normal(size=rel_landmarks.shape)
             awgn = self.viewer.NED_spinbutton.noise*np.random.normal(size=rel_landmarks.shape)
@@ -560,7 +604,7 @@ class gtk_slam_sim:
         # and publish visible landmarks
         self.ros.pcl_publisher.publish(pcl_msg)
         print "Visible Landmarks (abs):"
-        print self.vehicle.visible_landmarks.abs
+        print abs_landmarks
         print "Publishing:"
         print rel_landmarks #self.vehicle.visible_landmarks.rel
     
@@ -630,7 +674,7 @@ class gtk_slam_sim:
         
         points = np.array(self.scene.landmarks)
         if points.shape[0]:
-            axis.scatter(points[:,1], points[:,0], c='r', s=16, marker='o')
+            axis.scatter(points[:,1], points[:,0], c='r', s=30, marker='o')
         
         self.draw_vehicle()
         self.draw_visible_landmarks()

@@ -179,16 +179,21 @@ class G500_SLAM():
             featuredetector.msgs.msgs(featuredetector.msgs.MSG_XYZ_COV)
         
         if not __PROFILE__:
+            self.ros.subs = STRUCT()
             print "Creating ROS subscriptions..."
             # Create Subscriber
-            rospy.Subscriber("/cola2_navigation/teledyne_explorer_dvl", 
+            self.ros.subs.dvl = rospy.Subscriber(
+                "/cola2_navigation/teledyne_explorer_dvl", 
                 TeledyneExplorerDvl, self.update_dvl)
-            rospy.Subscriber("/cola2_navigation/valeport_sound_velocity", 
-                             ValeportSoundVelocity, self.update_svs)
-            rospy.Subscriber("/cola2_navigation/imu", Imu, self.update_imu)
+            self.ros.subs.svs = rospy.Subscriber(
+                "/cola2_navigation/valeport_sound_velocity", 
+                ValeportSoundVelocity, self.update_svs)
+            self.ros.subs.imu = rospy.Subscriber("/cola2_navigation/imu", 
+                                                 Imu, self.update_imu)
             if self.config.gps_update :
-                rospy.Subscriber("/cola2_navigation/fastrax_it_500_gps", 
-                                 FastraxIt500Gps, self.update_gps)
+                self.ros.subs.gps = rospy.Subscriber(
+                    "/cola2_navigation/fastrax_it_500_gps", 
+                    FastraxIt500Gps, self.update_gps)
             ## Subscribe to visiona slam-features node
             rospy.Subscriber("/slamsim/features", PointCloud2, 
                              self.update_features)
@@ -216,6 +221,7 @@ class G500_SLAM():
             
             # Publish data every 500 ms
             rospy.timer.Timer(rospy.Duration(0.2), self.publish_data)
+            rospy.timer.Timer(rospy.Duration(8), self.slam_housekeeping)
             # Callback to print vehicle state and weight
             #rospy.timer.Timer(rospy.Duration(10), self.debug_print)
         else:
@@ -300,10 +306,12 @@ class G500_SLAM():
                             self.slam_worker.update_gps(z)
                             self.ros.last_update_time = config.last_time.gps
                             self.slam_worker.resample()
+                            print "Updated with GPS"
                     finally:
                         self.__LOCK__.release()
                     #self.publish_data()
-                
+                print "Unregistering GPS subscription"
+                self.ros.subs.gps.unregister()
         
     def update_dvl(self, dvl):
         #print os.getpid()
@@ -490,11 +498,26 @@ class G500_SLAM():
             slam_features = self.ros.pcl_helper.from_pcl(pcl_msg)
             # We can now access the points as slam_features[i]
             self.slam_worker.update_features(slam_features)
+            # Shift the states so that the central state is equal to the mean
+            state_est = self.slam_worker.estimate()
+            state_delta = (self.slam_worker.vehicle.states[0, 0:3] - 
+                           state_est.vehicle.ned.state)
+            self.slam_worker.vehicle.states[:, 0:3] += state_delta
+            # All particles now have equal weight
+            nparticles = self.slam_worker.vars.nparticles
+            self.slam_worker.vehicle.weights = (
+                1.0/nparticles*np.ones(nparticles))
             self.ros.last_update_time = pcl_msg.header.stamp
         finally:
             self.__LOCK__.release()
         
-    
+    def slam_housekeeping(self, *args, **kwargs):
+        self.__LOCK__.acquire()
+        try:
+            self.slam_worker.compress_maps()
+        finally:
+            self.__LOCK__.release()
+        
     def predict(self, predict_to_time):
         config = self.config
         if not config.init.init:

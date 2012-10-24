@@ -50,9 +50,9 @@ class GMPHD(object):
         
         self.vars = STRUCT()
         self.vars.prune_threshold = 1e-3
-        self.vars.merge_threshold = 1.5
-        self.vars.birth_intensity = 1e-2
-        self.vars.clutter_intensity = 2.5
+        self.vars.merge_threshold = 1.0
+        self.vars.birth_intensity = 1e-1
+        self.vars.clutter_intensity = 2
         
         self.flags = STRUCT()
         self.flags.ESTIMATE_IS_VALID = False
@@ -279,7 +279,7 @@ class GMPHD(object):
         finally:
             self.flags.LOCK.release()
     
-    def merge_fov(self):
+    def merge_fov(self, detection_threshold=0.5):
         self.flags.LOCK.acquire()
         try:
             if (self.vars.merge_threshold < 0) or (self.weights.shape[0] < 2):
@@ -287,8 +287,8 @@ class GMPHD(object):
             sensor = self.sensors.dummy_camera
             detected_idx = sensor.pdf_detection(self.parent_ned, self.parent_rpy,
                                                 self.states)
-            undetected_idx = np.where(detected_idx <= 0.5)[0]
-            detected_idx = np.where(detected_idx > 0.5)[0]
+            undetected_idx = np.where(detected_idx < detection_threshold)[0]
+            detected_idx = np.where(detected_idx >= detection_threshold)[0]
             #undetected_idx = misctools.gen_retain_idx(self.weights.shape[0], 
             #                                          detected_idx)
             
@@ -385,6 +385,12 @@ class GMPHD(object):
         finally:
             self.flags.LOCK.release()
         
+    def compute_distances(self):
+        distance_matrix = np.array(
+            [misctools.mahalanobis(_x_, _P_[np.newaxis], self.states) 
+            for (_x_, _P_) in zip(self.states, self.covs)])
+        return distance_matrix
+        
     def append(self, weights, states, covs):
         self.flags.LOCK.acquire()
         try:
@@ -403,7 +409,7 @@ class GMPHD(object):
     ## Default iteration of PHD filter ##
     #####################################
     def iterate(self, observations, obs_noise):
-        self.predict()
+        #self.predict()
         slam_info = self.update(observations, obs_noise)
         if observations.shape[0]:
             self.birth(observations, obs_noise, APPEND=True)
@@ -435,7 +441,7 @@ class GMPHD(object):
         
     def camera_pd(self, parent_ned, parent_rpy, features_abs):
         return self.sensors.camera.pdf_detection(parent_ned, 
-                                                 parent_rpy, features_abs)
+                                                 parent_rpy, features_abs)*0.9
     
     def camera_clutter(self, observations):
         return self.sensors.camera.z_prob(observations[:, 0])
@@ -631,6 +637,9 @@ class PHDSLAM(object):
         slam_weight_update = np.array([slam_info[i].likelihood])
         self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
         
+    def compress_maps(self, *args, **kwargs):
+        [_map_.merge_fov(-1) for _map_ in self.vehicle.maps]
+    
     def estimate(self):
         if not self.flags.ESTIMATE_IS_VALID:
             state, cov = misctools.sample_mn_cv(self.vehicle.states, 

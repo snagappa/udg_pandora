@@ -44,9 +44,9 @@ def mahalanobis(x, P, y):
         p_times_residual = np.linalg.solve(P[0], residual.T).T
     else:
         p_times_residual, _ = blas.dposv(P, residual, OVERWRITE_A=False)
-    
+    distance = (residual*p_times_residual).sum(1)**0.5
     #blas_result = np.power(blas.ddot(residual, p_times_residual), 0.5)
-    return (residual*p_times_residual).sum(1)**0.5
+    return distance
     
 def approximate_mahalanobis(x, P, y):
     # Compute the mahalanobis distance using the diagonal of the matrix P
@@ -55,7 +55,8 @@ def approximate_mahalanobis(x, P, y):
     residual = x-y
     diag_P = P[:, select_diag_idx, select_diag_idx]
     p_times_residual = (1.0/diag_P)*residual
-    return (residual*p_times_residual).sum(1)**0.5
+    distance = (residual*p_times_residual).sum(1)**0.5
+    return distance
 
 def merge_states(wt, x, P):
     """
