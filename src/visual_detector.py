@@ -19,9 +19,9 @@ from cvbridge_wrapper import image_converter
 import numpy as np
 from featuredetector import image_feature_extractor
 import message_filters
-
-class STRUCT(object): pass
-
+from lib.common.misctools import STRUCT
+import tf
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
 class VisualDetector:
     def __init__(self, name):
@@ -50,11 +50,12 @@ class VisualDetector:
         
         # Initialise panel detector
         template_image_file = "uwsim_panel_template.png"
-        rostopic_cam_root = "/stereo_front"
-        IS_STEREO = True
+        rostopic_cam_root = "/stereo_front/left"
+        IS_STEREO = False
         panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], 
                                   [0.8, -0.5, 0], [-0.8, -0.5, 0]])
         self.panel = STRUCT()
+        self.panel.br = tf.TransformBroadcaster()
         self.init_panel_detector( 
             template_image_file, panel_corners, rostopic_cam_root, IS_STEREO)
         
@@ -138,8 +139,11 @@ class VisualDetector:
             for _sub_image_raw_ in self.panel.subscriptions.image_raw]
         panel.ts = message_filters.TimeSynchronizer(panel.img_sub, 5)
         
-        panel.pub = metaclient.Publisher('/visual_detector2/valve_panel', Detection,{})
+        panel.pub = metaclient.Publisher('/visual_detector2/valve_panel', Detection, {})
         panel.detection_msg = Detection()
+        panel.pose_msg = PoseWithCovarianceStamped()
+        panel.pose_msg.header.frame_id = "panel_position"
+        panel.pose_msg_pub = metaclient.Publisher('/slam_landmarks/panel_position', PoseWithCovarianceStamped, {})
         
     
     def enablePanelValveDetectionSrv(self, req):
@@ -183,6 +187,7 @@ class VisualDetector:
     
     def detect_panel(self, *args):
         #self.panel.sub.unregister()
+        time_now = rospy.Time.now()
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in args]
         self.panel.detector.detect(*cvimage)
         #self.panel.detector.show()
@@ -191,7 +196,14 @@ class VisualDetector:
         (self.panel.detection_msg.position.position.x, 
          self.panel.detection_msg.position.position.y,
          self.panel.detection_msg.position.position.z) = panel_position
+        self.panel.detection_msg.header.stamp = time_now
         self.panel.pub.publish(self.panel.detection_msg)
+        if panel_detected:
+            self.panel.pose_msg.header.stamp = time_now
+            self.panel.pose_msg_pub.publish(self.panel.pose_msg)
+            self.panel.br.sendTransform(tuple(panel_position),
+            tf.transformations.quaternion_from_euler(0, 0, 0), time_now,
+            "panel_position", "stereo_front")
         print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
     

@@ -8,8 +8,7 @@ Created on Tue Aug  7 18:44:09 2012
 import rospy
 import numpy as np
 
-class STRUCT(object):
-    pass
+from lib.common.misctools import STRUCT
 
 ##############################################################################
 # Start ROS related functions

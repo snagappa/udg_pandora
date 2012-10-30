@@ -8,12 +8,12 @@ Created on Mon Sep 10 13:33:17 2012
 import roslib
 roslib.load_manifest('udg_pandora')
 import cv2
+from lib.common.misctools import STRUCT
 #import collections
 
 class DETECTOR_PRESET:
     FINE, MED, COARSE = range(3)
 
-class STRUCT(object): pass
 
 DETECTORS = ("SIFT", "SURF", "FAST", "MSER", "ORB")
 BINARY_DESCRIPTORS = ("ORB", "FREAK")

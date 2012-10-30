@@ -19,6 +19,7 @@ from collections import namedtuple
 import copy
 import code
 import threading
+from lib.common.misctools import STRUCT
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -32,13 +33,19 @@ if USE_CYTHON:
     @cython.boundscheck(False)
     @cython.wraparound(False)"""
 
-class STRUCT(object):
-    pass
 
 SAMPLE = namedtuple("SAMPLE", "weight state covariance")
     
 class GMPHD(object):
     def __init__(self):
+        """GMPHD() -> phd
+        
+        Backend class for the Gaussian Mixture PHD SLAM algorithm.
+        This is based on formulation of SLAM as a single cluster process. The
+        cluster centre is the parent's (vehicle's) pose and the daughter
+        process represents the landmarks.
+        
+        """
         self.weights = np.zeros(0)
         self.states = np.zeros((0, 3))
         self.covs = np.zeros((0, 3, 3))
@@ -68,6 +75,8 @@ class GMPHD(object):
         self.sensors.dummy_camera = dummy_camera
     
     def copy(self):
+        """phd.copy() -> phd_copy
+        Create a new copy of the GMPHD object"""
         new_object = GMPHD()
         self.flags.LOCK.acquire()
         try:
@@ -86,6 +95,11 @@ class GMPHD(object):
         return new_object
     
     def set_states(self, ptr_weights, ptr_states, ptr_covs):
+        """phd.set_states(ptr_weights, ptr_states, ptr_covs)
+        Assign new weights, states and covariances to the object. A copy of the
+        arguments is not made - changes to the contents of the original
+        variables in-place will be visible inside the object.
+        """
         self.flags.LOCK.acquire()
         try:
             self.flags.ESTIMATE_IS_VALID = False
@@ -96,6 +110,11 @@ class GMPHD(object):
             self.flags.LOCK.release()
     
     def set_parent(self, parent_ned, parent_rpy):
+        """phd.set_parent(parend_ned, parent_rpy)
+        Set new values of the parent state
+        parent_ned - numpy array indicating position as (north, east, down)
+        parent_rpy - numpy array indicating orientation as (roll, pitch, yaw)
+        """
         self.flags.LOCK.acquire()
         try:
             self.parent_ned = parent_ned.copy()
@@ -104,6 +123,14 @@ class GMPHD(object):
             self.flags.LOCK.release()
     
     def birth(self, features_rel, features_cv=None, APPEND=False):
+        """phd.birth(features_rel, features_cv=None, APPEND=False) 
+        -> birth_wt, birth_st, birth_cv
+        Generate a Gaussian mixture for the birth of new targets.
+        features_rel -  numpy array of size Nx3 indicating relative position
+        of features/landmarks with respect to the parent state
+        features_cv - numpy array of size (Nx3x3)
+        APPEND - will append the birth components to the current state if True
+        """
         b_wt, b_st, b_cv = self.camera_birth(self.parent_ned, self.parent_rpy, 
                                              features_rel, features_cv)
         if APPEND and b_wt.shape[0]:
@@ -112,14 +139,24 @@ class GMPHD(object):
         return (b_wt, b_st, b_cv)
     
     def predict(self, *args, **kwargs):
-        self.flags.ESTIMATE_IS_VALID = False
-        if self.covs.shape[0]:
+        """phd.predict(*args, **kwargs)
+        Perform a prediction on the current landmarks. Since the landmarks are
+        stationary, this does not do anything. 
+        """
+        pass
+        #self.flags.ESTIMATE_IS_VALID = False
+        #if self.covs.shape[0]:
             #extra_cov = 0.005*np.eye(3)
             #self.covs += extra_cov[np.newaxis, :, :]
-            self.covs += np.eye(3)*self.covs*0.1
-        pass
+            #self.covs += np.eye(3)*self.covs*0.1
+        #pass
     
     def update(self, observations, observation_noise):
+        """phd.update(observations, observation_noise)
+        Update the current landmarks using the new observations
+        observations - numpy array of size Nx3
+        observation_noise - numpy array of size Nx3x3
+        """
         self.flags.ESTIMATE_IS_VALID = False
         # Container for slam parent update
         slam_info = STRUCT()
@@ -227,6 +264,10 @@ class GMPHD(object):
         return slam_info
     
     def estimate(self):
+        """phd.estimate -> (weights, states, covariances)
+        Estimate the number of landmarks in the map and return as a tuple of
+        the weights, states and covariances of the landmarks.
+        """
         if not self.flags.ESTIMATE_IS_VALID:
             self.flags.LOCK.acquire()
             try:
@@ -266,6 +307,9 @@ class GMPHD(object):
         #              self._estimate_.covariance.copy())
     
     def prune(self):
+        """phd.prune()
+        Remove landmarks in the map with low weights.
+        """
         self.flags.LOCK.acquire()
         try:
             if self.vars.prune_threshold <= 0 or (not self.weights.shape[0]):
@@ -280,6 +324,11 @@ class GMPHD(object):
             self.flags.LOCK.release()
     
     def merge_fov(self, detection_threshold=0.5):
+        """phd.merge_fov(detection_threshold=0.5)
+        Merge Gaussian components which are in the field of view or which
+        satisfy a probability of detection given by detection_threshold.
+        Set detection_threshold to 0 to merge landmarks everywhere in the map.
+        """
         self.flags.LOCK.acquire()
         try:
             if (self.vars.merge_threshold < 0) or (self.weights.shape[0] < 2):
@@ -343,6 +392,9 @@ class GMPHD(object):
             self.flags.LOCK.release()
         
     def merge(self):
+        """phd.merge()
+        Merge similar Gaussian components.
+        """
         self.flags.LOCK.acquire()
         try:
             if (self.vars.merge_threshold < 0) or (self.weights.shape[0] < 2):
@@ -386,12 +438,18 @@ class GMPHD(object):
             self.flags.LOCK.release()
         
     def compute_distances(self):
+        """phd.compute_distances() -> distance_matrix
+        Calculate the Mahalanobis distance between the landmarks.
+        """
         distance_matrix = np.array(
             [misctools.mahalanobis(_x_, _P_[np.newaxis], self.states) 
             for (_x_, _P_) in zip(self.states, self.covs)])
         return distance_matrix
         
     def append(self, weights, states, covs):
+        """phd.append(weights, states, covs)
+        Add new weights, states and covariances to the Gaussian mixture.
+        """
         self.flags.LOCK.acquire()
         try:
             self.flags.ESTIMATE_IS_VALID = False
@@ -409,7 +467,14 @@ class GMPHD(object):
     ## Default iteration of PHD filter ##
     #####################################
     def iterate(self, observations, obs_noise):
-        #self.predict()
+        """phd.iterate(observations, obs_noise)
+        Perform a single iteration of the filter:
+            predict()
+            update()
+            merge()
+            prune()
+        """
+        self.predict()
         slam_info = self.update(observations, obs_noise)
         if observations.shape[0]:
             self.birth(observations, obs_noise, APPEND=True)
@@ -419,10 +484,22 @@ class GMPHD(object):
         return slam_info
     
     def intensity(self):
+        """phd.intensity() -> intensity
+        Compute the intensity of the PHD. This is a measure of the number of
+        targets being tracked by the filter.
+        """
         return self.weights.sum()
     
     def camera_birth(self, parent_ned, parent_rpy, features_rel, 
                      features_cv=None):
+        """phd.camera_birth(parent_ned, parent_rpy, features_rel, 
+            features_cv=None) -> birth_weights, birth_states, birth_covariances
+        Create birth components using features visible from the camera.
+        parent_ned - numpy array of parent position (north, east, down)
+        parent_rpy - numpy array of parent orientation (roll, pitch, yaw)
+        features_rel - Nx3 numpy array of feature positions relative to parent
+        features_cv - Nx3x3 numpy array of covariance of the features
+        """
         if not features_rel.shape[0]:
             birth_wt = np.empty(0)
             birth_st = np.empty((0, 3))
@@ -440,10 +517,20 @@ class GMPHD(object):
         return (birth_wt, birth_st, birth_cv)
         
     def camera_pd(self, parent_ned, parent_rpy, features_abs):
+        """phd.camera_pd(parent_ned, parent_rpy, features_abs) -> pd
+        Returns the probability of detection (pd) of all landmarks in the map.
+        parent_ned - numpy array of parent position (north, east, down)
+        parent_rpy - numpy array of parent orientation (roll, pitch, yaw)
+        features_abs - Nx3 numpy array of absolute position of features
+        """
         return self.sensors.camera.pdf_detection(parent_ned, 
                                                  parent_rpy, features_abs)*0.9
     
     def camera_clutter(self, observations):
+        """phd.camera_clutter(observations) -> clutter_intensity
+        Returns the clutter intensity evaluated for the observations
+        observations - Nx3 numpy array indicating observations from landmarks
+        """
         return self.sensors.camera.z_prob(observations[:, 0])
         
     
@@ -453,6 +540,11 @@ class GMPHD(object):
 
 class PHDSLAM(object):
     def __init__(self):
+        """PHDSLAM() -> phdslam
+        Creates an object that performs PHD SLAM in addition to updates from 
+        odometry.
+        This object is specific to the Girona500.
+        """
         self.map_instance = GMPHD
         
         self.flags = STRUCT()
@@ -497,6 +589,12 @@ class PHDSLAM(object):
                                      np.zeros((0, 3)), np.zeros((0, 3, 3)))
     
     def set_parameters(self, Q, gpsH, gpsR, dvlH, dvl_b_R, dvl_w_R):
+        """set_parameters(self, Q, gpsH, gpsR, dvlH, dvl_b_R, dvl_w_R)
+        where Q is the model covariance, H is the observation matrix and R
+        is the noise covariance matrix.
+        dvl_b_R is the covariance for bottom lock and dvl_w_R is the covariance
+        for water lock
+        """
         self.vars.Q = Q
         self.vars.gpsH = gpsH
         self.vars.dvlH = dvlH
@@ -505,6 +603,9 @@ class PHDSLAM(object):
         self.vars.dvl_w_R = dvl_w_R
         
     def set_states(self, weights=None, states=None):
+        """set_states(self, weights=None, states=None)
+        Set new weights and states
+        """
         if (weights is None) and (states is None):
             return
         new_weights = self.vehicle.weights if weights is None else weights
@@ -517,11 +618,19 @@ class PHDSLAM(object):
         self.vehicle.weights = new_weights
     
     def reset_states(self):
+        """reset_states(self)
+        Reset states to zero
+        """
         self.vehicle.states[:] = 0
         self.vehicle.weights = 1.0/float(self.vars.nparticles)* \
             np.ones(self.vars.nparticles)
     
     def trans_matrices(self, ctrl_input, delta_t):
+        """trans_matrices(self, ctrl_input, delta_t)
+        -> transition_matrix, scaled_process_noise
+        Generate the transition and process noise matrices given the control
+        input (roll, pitch, yaw) and the delta time
+        """
         # Get process noise
         trans_mat = self.vars.F
         process_noise = self.vars.Q
@@ -536,6 +645,10 @@ class PHDSLAM(object):
         return trans_mat, sc_process_noise
     
     def predict(self, ctrl_input, predict_to_time):
+        """predict(self, ctrl_input, predict_to_time)
+        Predict the state to the specified time given the control input
+        (roll, pitch, yaw)
+        """
         if self.last_time.predict == 0:
             self.last_time.predict = predict_to_time
             return
@@ -568,6 +681,9 @@ class PHDSLAM(object):
             # self.vehicle.maps.predict()  # Not needed
     
     def _kf_update_(self, weights, states, covs, h_mat, r_mat, z):
+        """_kf_update_(self, weights, states, covs, h_mat, r_mat, z)
+        Kalman filter update
+        """
         # predicted observations
         #pred_z = blas.dgemv(h_mat, states)
         pred_z = np.array(np.dot(h_mat, states.T).T, order='C')
@@ -594,6 +710,9 @@ class PHDSLAM(object):
         return upd_weights, upd_states, upd_covs
     
     def update_gps(self, gps):
+        """update_gps(self, gps)
+        Update the state using the gps measurement
+        """
         self.flags.ESTIMATE_IS_VALID = False
         h_mat = self.vars.gpsH #np.array([self.vars.gpsH])
         r_mat = self.vars.gpsR #np.array([self.vars.gpsR])
@@ -605,6 +724,10 @@ class PHDSLAM(object):
         self.vehicle.covs = upd_covs
     
     def update_dvl(self, dvl, mode):
+        """update_dvl(self, dvl, mode)
+        Update the vehicle state using the dvl measurement.
+        mode = 'b' or 'w' for bottom or water lock
+        """
         self.flags.ESTIMATE_IS_VALID = False
         assert mode in ['b', 'w'], "Specify (b)ottom or (w)ater for dvl update"
         if mode == 'b':
@@ -620,10 +743,19 @@ class PHDSLAM(object):
         self.vehicle.covs = upd_covs
     
     def update_svs(self, svs):
+        """update_svs(self, svs)
+        Update the state using the depth reading
+        """
         self.flags.ESTIMATE_IS_VALID = False
         self.vehicle.states[:, 2] = svs
     
     def update_features(self, features):
+        """update_features(self, features)
+        Update the map using the features. Features are specified as a Nx6
+        numpy array where the first 3 columns are x, y, z positions and the
+        last 3 columns are the diagonal of the covariance matrix for that
+        measurement
+        """
         self.flags.ESTIMATE_IS_VALID = False
         if features.shape[0]:
             features_pos = features[:, 0:3].copy()
@@ -638,9 +770,15 @@ class PHDSLAM(object):
         self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
         
     def compress_maps(self, *args, **kwargs):
+        """compress_maps(self, *args, **kwargs)
+        Merge all possible landmarks in the maps
+        """
         [_map_.merge_fov(-1) for _map_ in self.vehicle.maps]
     
     def estimate(self):
+        """estimate(self) -> estimate
+        Generate the state and map estimates
+        """
         if not self.flags.ESTIMATE_IS_VALID:
             state, cov = misctools.sample_mn_cv(self.vehicle.states, 
                                                 self.vehicle.weights)
@@ -663,6 +801,9 @@ class PHDSLAM(object):
         return self._estimate_
     
     def resample(self):
+        """resample(self)
+        Resample the particles according to self.vars.resample_threshold
+        """
         # Effective number of particles
         nparticles = self.vars.nparticles
         eff_nparticles = 1/np.power(self.vehicle.weights, 2).sum()

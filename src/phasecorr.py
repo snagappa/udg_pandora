@@ -2,6 +2,7 @@
 
 import numpy as np
 import cv2
+from lib.common.misctools import STRUCT
 FFT_MOD_FFTW = "fftw3"
 FFT_MOD_ANFFT = "anfft"
 try:
@@ -27,8 +28,6 @@ except ImportError:
 FLOAT_LIMITS = np.finfo(np.float)
 DEBUG = True
 
-class STRUCT(object):
-    pass
 
 class LogPolar(object):
     def __init__(self, n_rows, n_cols, wdim, rdim, tdim, threshold=600):

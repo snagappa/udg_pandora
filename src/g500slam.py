@@ -51,6 +51,7 @@ import numpy as np
 from lib.common.ros_helper import get_g500_config
 from lib.common.kalmanfilter import sigma_pts
 import featuredetector
+from lib.common.misctools import STRUCT
 
 INVALID_ALTITUDE = -32665
 SAVITZKY_GOLAY_COEFFS = [0.2,  0.1,  0. , -0.1, -0.2]
@@ -67,8 +68,6 @@ __PROFILE_NUM_LOOPS__ = 100
 def normalize_angle(np_array):
     return (np_array + (2.0*np.pi*np.floor((np.pi - np_array)/(2.0*np.pi))))
 
-class STRUCT(object):
-    pass
     
 class G500_SLAM():
     def __init__(self, name):
@@ -214,6 +213,7 @@ class G500_SLAM():
             # Publish landmarks
             ros.map = STRUCT()
             ros.map.msg = PointCloud2()
+            ros.map.msg.header.frame_id = "world"
             ros.map.publisher = \
                 rospy.Publisher("/phdslam/features", PointCloud2)
             ros.map.helper = \
@@ -565,7 +565,7 @@ class G500_SLAM():
         # Create header
         nav_msg.header.stamp = self.ros.last_update_time
         nav_msg.header.frame_id = self.ros.name
-        child_frame_id = "world"
+        parent_frame_id = "world"
                    
         #Fill Nav status topic
         nav_msg.position.north = est_state[0]
@@ -604,7 +604,7 @@ class G500_SLAM():
                 nav_msg.orientation.yaw),
             nav_msg.header.stamp, 
             nav_msg.header.frame_id, 
-            child_frame_id)
+            parent_frame_id)
             
         ##
         # Publish landmarks now
@@ -614,13 +614,11 @@ class G500_SLAM():
         if map_states.shape[0]:
             diag_cov = np.array([np.diag(map_covs[i]) 
                 for i in range(map_covs.shape[0])])
-            pcl_msg = self.ros.map.helper.to_pcl(rospy.Time.now(), 
+            pcl_msg = self.ros.map.helper.to_pcl(self.ros.last_update_time, 
                 np.hstack((map_states, diag_cov)))
         else:
-            pcl_msg = self.ros.map.helper.to_pcl(rospy.Time.now(), 
+            pcl_msg = self.ros.map.helper.to_pcl(self.ros.last_update_time, 
                                                  np.zeros(0))
-        pcl_msg.header.frame_id = self.ros.name
-        # and publish visible landmarks
         self.ros.map.publisher.publish(pcl_msg)
         #print "Landmarks at: "
         #print map_states
@@ -649,7 +647,7 @@ def main():
         else:
             import time
             try:
-                imu_msg = rospy.wait_for_message("/navigation_g500/imu", 
+                imu_msg = rospy.wait_for_message("/cola2_navigation/imu", 
                                                  Imu, 1)
                 last_time = imu_msg.header.stamp
                 TEST_IMU = True
@@ -660,7 +658,7 @@ def main():
             
             try:
                 gps_msg = rospy.wait_for_message(
-                        "/navigation_g500/fastrax_it_500_gps", 
+                        "/cola2_navigation/fastrax_it_500_gps", 
                         FastraxIt500Gps, 1)
                 last_time = gps_msg.header.stamp
                 TEST_GPS = True
@@ -671,7 +669,7 @@ def main():
             
             try:
                 svs_msg = rospy.wait_for_message(
-                    "/navigation_g500/valeport_sound_velocity", 
+                    "/cola2_navigation/valeport_sound_velocity", 
                     ValeportSoundVelocity)
                 last_time = svs_msg.header.stamp
                 TEST_SVS = True
@@ -682,7 +680,7 @@ def main():
                 
             try:
                 dvl_msg = rospy.wait_for_message(
-                    "/navigation_g500/teledyne_explorer_dvl",
+                    "/cola2_navigation/teledyne_explorer_dvl",
                     TeledyneExplorerDvl)
                 last_time = dvl_msg.header.stamp
                 TEST_DVL = True

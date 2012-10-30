@@ -27,7 +27,27 @@ import numpy as np
 from scipy import weave
 from operator import mul, add
 import code
+import numpy as np
 
+class STRUCT(object):
+    def __init__(self):
+        self.__objvars__ = dir(self)
+        self.__objvars__ += ["__objvars__", "__dtype__"]
+    def __repr__(self):
+        lines = []
+        allvars = dir(self)
+        [lines.append(
+            _var_ + " = " + str(getattr(self, _var_)) + self.__dtype__(getattr(self, _var_)))
+            for _var_ in allvars if not _var_ in self.__objvars__]
+        return "\n".join(lines)
+    def __dtype__(self, var):
+        dtype = ", " + str(type(var))
+        if type(var) is np.ndarray:
+            dtype += ", " + str(var.dtype)
+        return dtype
+        
+
+    
 def gen_retain_idx(array_len, del_idx):
     if del_idx is None or len(del_idx) == 0:
         return range(array_len)
@@ -89,7 +109,6 @@ def merge_states(wt, x, P):
     #merged_P = np.array([(wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt], order='C')
     merged_P = (wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt
     return merged_wt, merged_x, merged_P
-    
     
 def get_resample_index(weights, nparticles=-1):
     weights = weights/weights.sum()
@@ -182,7 +201,35 @@ def sample_mn_cv(x, wt=None, SYMMETRISE=False):
     return mean_x, cov_x[0]
 
 
-
+def estimate_rigid_transform_3d(pts1, pts2):
+    """
+    estimate_3d_transform(pts1, pts2) -> [R|t]
+    Estimate 3D transformation using SVD.
+    D.W. Eggert, A. Lorusso, R.B. Fisher, "Estimating 3-D rigid body 
+    transformations: a comparison of four major algorithms", Machine Vision 
+    and Applications (1997) 9: 272–290 Machine Vision and Applications, 
+    Springer-Verlag 1997
+    """
+    assert ((pts1.shape == pts2.shape) and (pts1.ndim == 2) and
+            (pts1.shape[1] == 3)), "pts1 and pts2 must be Nx3 ndarrays"
+    # Compute the centroids
+    centroid_p1 = pts1.mean(axis=0)
+    centroid_p2 = pts2.mean(axis=0)
+    # Subtract the centroid from the points
+    pts1_centred = np.asanyarray(pts1 - centroid_p1, order='C')
+    pts2_centred = np.asanyarray(pts2 - centroid_p2, order='C')
+    # Compute the correlation
+    correlation_matrix = blas.dger(pts1_centred, pts2_centred).sum(axis=0)
+    U, S, Vt = np.linalg.svd(correlation_matrix)
+    est_rot = np.dot(Vt.T, U.T)
+    # Check if we estimated a reflection rather than a rotation
+    if np.linalg.det(est_rot) < 0:
+        Vt[-1] *= -1
+        est_rot = np.dot(Vt.T, U.T)
+    # Obtain the translation
+    est_trans = centroid_p2 - np.dot(est_rot, centroid_p1[:, np.newaxis]).T
+    return np.hstack((est_rot, est_trans.T))
+    
 
 ###############################################################################
 ###############################################################################

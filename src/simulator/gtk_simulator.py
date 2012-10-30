@@ -46,9 +46,8 @@ import threading
 import numpy as np
 import copy
 import code
+from lib.common.misctools import STRUCT
 
-
-class STRUCT(object): pass
 
 LANDMARKS = "landmarks"
 WAYPOINTS = "waypoints"
@@ -81,6 +80,10 @@ class gtk_slam_sim:
         self.estimator.roll_pitch_yaw = np.zeros(3)
         self.estimator.fov_poly_vertices = np.empty(0)
         self.estimator.landmarks = np.empty(0)
+        
+        # Container for estimated vehicle position and landmarks from navigator
+        self.simple_estimator = STRUCT()
+        self.simple_estimator.north_east_depth = np.zeros(3)
         
         # List of landmarks and waypoints
         self.scene = STRUCT()
@@ -186,7 +189,7 @@ class gtk_slam_sim:
         # Subscribe to vehicle NavSts as well as the published estimated landmarks
         rospy.Subscriber("/phdslam/nav_sts", NavSts, self.estimator_update_position)
         rospy.Subscriber("/phdslam/features", PointCloud2, self.estimator_update_landmarks)
-        
+        rospy.Subscriber("/cola2_navigation/nav_sts", NavSts, self.simple_estimator_update_position)
         
     def on_MainWindow_delete_event(self, widget, event):
             gtk.main_quit()
@@ -416,6 +419,12 @@ class gtk_slam_sim:
         vertices += np.array([east, north])
         self.estimator.fov_poly_vertices = vertices
         
+    def simple_estimator_update_position(self, nav):
+        position = np.array([nav.position.north,
+                             nav.position.east,
+                             nav.position.depth])
+        self.simple_estimator.north_east_depth = position
+        
     def print_position(self):
         north, east, depth = np.round(self.vehicle.north_east_depth, 2)
         e_north, e_east, e_depth = np.round(self.estimator.north_east_depth, 2)
@@ -444,12 +453,15 @@ class gtk_slam_sim:
     def print_numlandmarks(self):
         north, east, depth = np.round(self.vehicle.north_east_depth, 2)
         e_north, e_east, e_depth = np.round(self.estimator.north_east_depth, 2)
+        se_north, se_east, se_depth = np.round(self.simple_estimator.north_east_depth, 2)
         numlandmarks_true = str(len(self.scene.landmarks))
         numlandmarks_est = str(self.estimator.landmarks.shape[0])
-        text_numlandmarks = ("Detected Landmarks: " + 
+        text_numlandmarks = ("Landmarks: " + 
             numlandmarks_est + "/" + numlandmarks_true +
-            ",  Position error (x, y): " + str(np.abs(e_north-north)) + ", " +
-            str(np.abs(e_east-east)))
+            ",  SLAM Pos Err: (%.2f, " % float(np.abs(e_north-north)) +
+            "%.2f)" % float(np.abs(e_east-east)) + 
+            "Nav Pos Err: (%.2f, " % np.abs(se_north-north) + 
+            "%.2f)" % np.abs(se_east-east))
         self.viewer.textview.landmark_count.get_buffer().set_text(text_numlandmarks)
     
     def update_visible_landmarks(self, *args, **kwargs):
