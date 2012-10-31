@@ -51,6 +51,7 @@ import numpy as np
 from lib.common.ros_helper import get_g500_config
 from lib.common.kalmanfilter import sigma_pts
 import featuredetector
+from lib.common import misctools
 from lib.common.misctools import STRUCT
 
 INVALID_ALTITUDE = -32665
@@ -174,8 +175,7 @@ class G500_SLAM():
         ros.last_update_time = rospy.Time.now()
         ros.NO_LOCK_ACQUIRE = 0
         
-        ros.pcl_helper = \
-            featuredetector.msgs.msgs(featuredetector.msgs.MSG_XYZ_COV)
+        ros.pcl_helper = misctools.pcl_xyz_cov()
         
         if not __PROFILE__:
             self.ros.subs = STRUCT()
@@ -216,9 +216,8 @@ class G500_SLAM():
             ros.map.msg.header.frame_id = "world"
             ros.map.publisher = \
                 rospy.Publisher("/phdslam/features", PointCloud2)
-            ros.map.helper = \
-                featuredetector.msgs.msgs(featuredetector.msgs.MSG_XYZ_COV)
-            
+            ros.map.helper = misctools.pcl_xyz_cov()
+                
             # Publish data every 500 ms
             rospy.timer.Timer(rospy.Duration(0.2), self.publish_data)
             rospy.timer.Timer(rospy.Duration(8), self.slam_housekeeping)
@@ -614,11 +613,12 @@ class G500_SLAM():
         if map_states.shape[0]:
             diag_cov = np.array([np.diag(map_covs[i]) 
                 for i in range(map_covs.shape[0])])
-            pcl_msg = self.ros.map.helper.to_pcl(self.ros.last_update_time, 
+            pcl_msg = self.ros.map.helper.to_pcl(
                 np.hstack((map_states, diag_cov)))
         else:
-            pcl_msg = self.ros.map.helper.to_pcl(self.ros.last_update_time, 
-                                                 np.zeros(0))
+            pcl_msg = self.ros.map.helper.to_pcl(np.zeros(0))
+        pcl_msg.header.stamp = self.ros.last_update_time
+        pcl_msg.header.frame_id = "world"
         self.ros.map.publisher.publish(pcl_msg)
         #print "Landmarks at: "
         #print map_states

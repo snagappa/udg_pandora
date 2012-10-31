@@ -25,9 +25,11 @@
 import blas
 import numpy as np
 from scipy import weave
-from operator import mul, add
-import code
-import numpy as np
+from sensor_msgs.msg import PointCloud2, PointField
+import pc2wrapper
+#from operator import mul, add
+#import code
+
 
 class STRUCT(object):
     def __init__(self):
@@ -37,17 +39,69 @@ class STRUCT(object):
         lines = []
         allvars = dir(self)
         [lines.append(
-            _var_ + " = " + str(getattr(self, _var_)) + self.__dtype__(getattr(self, _var_)))
+            _var_ + " = " + str(getattr(self, _var_)) + 
+            self.__dtype__(getattr(self, _var_)))
             for _var_ in allvars if not _var_ in self.__objvars__]
         return "\n".join(lines)
     def __dtype__(self, var):
-        dtype = ", " + str(type(var))
+        dtype = "\nType: " + str(type(var))
         if type(var) is np.ndarray:
-            dtype += ", " + str(var.dtype)
+            dtype += ", " + str(var.dtype) + ", " + str(var.shape)
         return dtype
-        
-
     
+
+class pcl_msg_helper(object):
+    def __init__(self, msg_fields, datatype_str="float32"):
+        self.datatype = getattr(np, datatype_str)
+        self.pointfield_dtype = getattr(PointField, datatype_str.upper())
+        self.data_size = self.datatype(0).nbytes
+        self.msg_fields = msg_fields
+        num_fields = len(self.msg_fields)
+        field_offsets = range(0, num_fields*self.data_size, self.data_size)
+        
+        self.pcl_fields = [PointField(name=_field_name_, offset=_field_offset_,
+                                      datatype=self.pointfield_dtype, count=1)
+                           for (_field_name_, _field_offset_) in 
+                           zip(self.msg_fields, field_offsets)]
+        #self.pcl_header = PointCloud2().header
+    
+    def to_pcl(self, point_array):
+        point_array = np.asarray(point_array, dtype=self.datatype)
+        return pc2wrapper.create_cloud(PointCloud2().header, self.pcl_fields, 
+                                       point_array)
+    
+    def from_pcl(self, pcl_msg):
+        if self.msg_fields is None:
+            pcl_points = np.array(list(pc2wrapper.read_points(pcl_msg)))
+        else:
+            pcl_fields_list = [pcl_msg.fields[i].name 
+                               for i in range(len(pcl_msg.fields))]
+            if not pcl_fields_list == self.msg_fields:
+                print "pcl fields don't match expected values; ignoring..."
+                pcl_points = np.empty(0)
+            else:
+                pcl_points = np.array(list(pc2wrapper.read_points(pcl_msg)))
+        return(pcl_points)
+
+def pcl_xyz(datatype="float32"):
+    fieldnames = ['x', 'y', 'z']
+    return pcl_msg_helper(fieldnames, datatype)
+    
+def pcl_xyz_cov(datatype="float32"):
+    fieldnames = ['x', 'y', 'z'] + ['sigma_x', 'sigma_y', 'sigma_z']
+    return pcl_msg_helper(fieldnames, datatype)
+
+def rotation_matrix(RPY):
+    ## See http://en.wikipedia.org/wiki/Rotation_matrix
+    r, p, y = 0, 1, 2
+    c = np.cos(RPY)
+    s = np.sin(RPY)
+    rot_matrix = np.array(
+        [[c[p]*c[y], -c[r]*s[y]+s[r]*s[p]*c[y], s[r]*s[y]+c[r]*s[p]*c[y] ],
+         [c[p]*s[y], c[r]*c[y]+s[r]*s[p]*s[y], -s[r]*c[y]+c[r]*s[p]*s[y] ],
+         [-s[p], s[r]*c[p], c[r]*c[p] ]])
+    return rot_matrix
+
 def gen_retain_idx(array_len, del_idx):
     if del_idx is None or len(del_idx) == 0:
         return range(array_len)
@@ -96,7 +150,9 @@ def merge_states(wt, x, P):
     #residual.shape += (1,)
     #P_copy = P.copy()
     #blas.dsyr('l', residual, 1.0, P_copy)
-    #merged_P = np.array([(wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt], order='C')
+    #merged_P = np.array(
+    #    [(wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt], 
+    #     order='C')
     #blas.symmetrise(merged_P, 'l')
     
     # method 2:
@@ -106,21 +162,24 @@ def merge_states(wt, x, P):
     P_copy = P + [residual[np.newaxis,i].T * residual[np.newaxis,i] 
         for i in xrange(residual.shape[0])]
     
-    #merged_P = np.array([(wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt], order='C')
-    merged_P = (wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt
+    #merged_P = np.array(
+    #    [(wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt], 
+    #     order='C')
+    merged_P = (wt[:, np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt
     return merged_wt, merged_x, merged_P
     
 def get_resample_index(weights, nparticles=-1):
     weights = weights/weights.sum()
     
-    if nparticles==-1:
+    if nparticles == -1:
         nparticles = weights.shape[0]
     
     resampled_indices = np.empty(nparticles, dtype=int)
     wt_cdf = np.empty(weights.shape, dtype=float)
     u1 = np.random.uniform()/nparticles
     
-    python_vars = ['nparticles', 'weights', 'wt_cdf', 'u1', 'resampled_indices']
+    python_vars = ['nparticles', 'weights', 'wt_cdf', 'u1', 
+                   'resampled_indices']
     code = """
     double normfac = 0;
     int j = 0;
@@ -178,7 +237,7 @@ def mvnpdf(x, mu, sigma):
 def sample_mn_cv(x, wt=None, SYMMETRISE=False):
     if wt.shape[0] == 1:
         return x[0].copy(), np.zeros((x.shape[1], x.shape[1]))
-    if wt==None:
+    if wt == None:
         wt = 1.0/x.shape[0]*np.ones(x.shape[0])
     else:
         wt /= wt.sum()
@@ -193,9 +252,10 @@ def sample_mn_cv(x, wt=None, SYMMETRISE=False):
     #blas.daxpy(-1.0, np.array([mean_x]), residuals)
     
     #mean_x = np.apply_along_axis(mul, 0, x, wt).sum(axis=0)
-    mean_x = (wt[:,np.newaxis]*x).sum(axis=0)
+    mean_x = (wt[:, np.newaxis]*x).sum(axis=0)
     residuals = x - mean_x
-    cov_x = np.array([blas.dsyr('l', residuals, wt).sum(axis=0)/(1-(wt**2).sum())])
+    cov_x = np.array(
+        [blas.dsyr('l', residuals, wt).sum(axis=0)/(1-(wt**2).sum())])
     if SYMMETRISE:
         blas.symmetrise(cov_x, 'l')
     return mean_x, cov_x[0]
@@ -257,9 +317,11 @@ def estimate_rigid_transform_3d(pts1, pts2):
 """Module for transforming between different coordinate systems."""
 
 def cartesian_to_spherical(cart_vect, spherical_vect=None):
-    """Convert the Cartesian vector [x; y; z] to spherical coordinates [r; theta; phi].
+    """Convert the Cartesian vector [x; y; z] to spherical coordinates 
+    [r; theta; phi].
 
-    The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
+    The parameter r is the radial distance, theta is the polar angle, and phi
+    is the azimuth.
 
 
     @param vector:  The Cartesian vector [x, y, z].
@@ -289,9 +351,11 @@ def cartesian_to_spherical(cart_vect, spherical_vect=None):
 
 
 def spherical_to_cartesian(spherical_vect, cart_vect=None):
-    """Convert the spherical coordinate vector [r, theta, phi] to the Cartesian vector [x, y, z].
+    """Convert the spherical coordinate vector [r, theta, phi] to the Cartesian
+    vector [x, y, z].
 
-    The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
+    The parameter r is the radial distance, theta is the polar angle, and phi
+    is the azimuth.
 
 
     @param spherical_vect:  The spherical coordinate vector [r, theta, phi].

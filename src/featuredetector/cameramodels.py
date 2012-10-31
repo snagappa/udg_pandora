@@ -7,8 +7,18 @@ Created on Tue Oct 30 12:20:27 2012
 
 from image_geometry import cameramodels as ros_cameramodels
 import numpy as np
-from lib.common import blas
+from lib.common import blas, pc2wrapper
+from sensor_msgs.msg import PointCloud2
 import tf
+import rospy
+from lib.common import misctools
+from lib.common.misctools import STRUCT
+
+default_float = "float64"
+
+def _raise_(ex):
+    raise ex
+
 
 class PinholeCameraModel(ros_cameramodels.PinholeCameraModel):
     def __init__(self):
@@ -22,6 +32,19 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel):
         self.fov_far = 5.0
         self.tfFrame = None
         self.observation_volume = 0.0
+        self.tferror = None
+        self.pcl_header = PointCloud2().header
+        self.pcl_helper = misctools.pcl_xyz(default_float)
+        try:
+            self.tflistener = tf.TransformListener()
+        except (rospy.ROSInitException, rospy.ROSException, 
+                rospy.ServiceException) as tferror:
+            self.tferror = tferror
+            self.tflistener = STRUCT()
+            self.tflistener.transformPointCloud = (
+                lambda *args, **kwargs: _raise_(self.tferror))
+            print ("Error initialising tflistener, transforms are unavailable")
+            print tferror
     
     def fromCameraInfo(self, msg):
         """fromCameraInfo(msg) -> None
@@ -105,21 +128,55 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel):
         clutter_pdf[pd==False] = 1
         return 
     
-    def to_world_coords(self, numpy_points, frame_id="world"):
-        """Convert points from camera coordinate system to world"""
-        pass
+    def _perform_tf_(self, target_frame, pcl_msg, RETURN_NP_ARRAY=False):
+        pcl_tf_points = self.tflistener.transformPointCloud(target_frame, 
+                                                            pcl_msg)
+        if RETURN_NP_ARRAY:
+            return self.pcl_helper.from_pcl(pcl_tf_points)
+        else:
+            return pcl_tf_points
     
-    def to_world_coords_pcl(self, pcl, frame_id="world"):
-        """Convert pointcloud from camera coordinate system to world"""
-        pass
+    def _nparray_to_pcl_(self, numpy_points, frame_id):
+        assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
+            (np.prod(numpy_points.shape == 0))), (
+            "Points must be Nx3 numpy array")
+        pcl_points = self.pcl_helper.to_pcl(numpy_points)
+        pcl_points.header.stamp = rospy.Time.now()
+        pcl_points.header.frame_id = frame_id
+        return pcl_points
+        
+    def to_world_coords(self, numpy_points):
+        """to_world_coords(self, numpy_points)->world_points
+        Convert Nx3 numpy array of points from camera coordinate system to
+        world coordinates"""
+        pcl_points = self._nparray_to_pcl_(numpy_points, self.tfFrame)
+        return self.to_world_coords_pcl(pcl_points, True)
     
-    def from_world_coords(self, points):
-        """Convert points from world coordinate system to camera"""
-        pass
+    def to_world_coords_pcl(self, pcl_msg, RETURN_NP_ARRAY=False):
+        """to_world_coords_pcl(self, pcl_msg, RETURN_NP_ARRAY=False)
+        -> world_points OR world_points_pcl
+        Convert pointcloud from camera coordinate system to world
+        coordinates.
+        Set RETURN_NP_ARRAY to True to return a numpy array instead of the
+        pointcloud"""
+        target_frame = "world"
+        return self._perform_tf_(target_frame, pcl_msg, RETURN_NP_ARRAY)
     
-    def from_world_coords_pcl(self, pcl):
-        """Convert points from world coordinate system to camera"""
-        pass
+    def from_world_coords(self, numpy_points):
+        """from_world_coords(self, points)->camera_points
+        Convert Nx3 numpy array of points from world coordinate system to
+        camera coordinates"""
+        pcl_points = self._nparray_to_pcl_(numpy_points, "world")
+        return self.from_world_coords_pcl(pcl_points, True)
+    
+    def from_world_coords_pcl(self, pcl_msg, RETURN_NP_ARRAY=False):
+        """from_world_coords_pcl(self, pcl, RETURN_NP_ARRAY=False)
+        ->camera_points OR camera_pcl
+        Convert points from world coordinate system to camera coordinates.
+        Set RETURN_NP_ARRAY to True to return a numpy array instead of the
+        pointcloud"""
+        target_frame = self.tfFrame
+        return self._perform_tf_(target_frame, pcl_msg, RETURN_NP_ARRAY)
     
 
 class StereoCameraModel(ros_cameramodels.StereoCameraModel):

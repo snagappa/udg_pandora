@@ -1,7 +1,6 @@
 #
-__all__ = ["tf", "msgs", "sensors", "image_feature_extractor"]
+__all__ = ["msgs", "dummysensor", "image_feature_extractor"]
 
-import tf
 import msgs
-import sensors
+import dummysensor
 import image_feature_extractor

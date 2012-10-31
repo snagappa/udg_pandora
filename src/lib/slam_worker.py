@@ -19,7 +19,7 @@ from collections import namedtuple
 import copy
 import code
 import threading
-from lib.common.misctools import STRUCT
+from lib.common.misctools import STRUCT, rotation_matrix
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -66,9 +66,9 @@ class GMPHD(object):
         self.flags.LOCK = threading.RLock()
         
         self.sensors = STRUCT()
-        self.sensors.camera = featuredetector.sensors.camera_fov()
+        self.sensors.camera = featuredetector.dummysensor.camera_fov()
         # Create a dummy camera with slightly larger fov
-        dummy_camera = featuredetector.sensors.camera_fov()
+        dummy_camera = featuredetector.dummysensor.camera_fov()
         dummy_camera.set_x_y_far(dummy_camera.fov_x_deg+2, 
                                  dummy_camera.fov_y_deg+2, 
                                  dummy_camera.fov_far_m+0.2)
@@ -202,9 +202,9 @@ class GMPHD(object):
                 # Covariance update part of the Kalman update is common to all 
                 # observation-updates
                 if observations.shape[0]:
-                    h_mat = featuredetector.tf.relative_rot_mat(self.parent_rpy)
+                    h_mat = featuredetector.dummysensor.relative_rot_mat(self.parent_rpy)
                     # Predicted observation from the current states
-                    pred_z = featuredetector.tf.relative(self.parent_ned, 
+                    pred_z = featuredetector.dummysensor.relative(self.parent_ned, 
                         self.parent_rpy, detected.states)
                     observation_noise = observation_noise[0]
                     detected.covs, kalman_info = kf_update_cov(detected.covs, 
@@ -635,7 +635,7 @@ class PHDSLAM(object):
         trans_mat = self.vars.F
         process_noise = self.vars.Q
         
-        rot_mat = delta_t * featuredetector.tf.rotation_matrix(ctrl_input)
+        rot_mat = delta_t * rotation_matrix(ctrl_input)
         trans_mat[0, 0:3, 3:] = rot_mat
         
         scale_matrix = np.vstack((rot_mat*delta_t/2, delta_t*np.eye(3)))
@@ -671,7 +671,7 @@ class PHDSLAM(object):
         # Copy the particle state to the PHD parent state
         parent_ned = np.array(pred_states[:, 0:3])
         #Calculate the rotation matrix to store for the map update
-        rot_mat = featuredetector.tf.rotation_matrix(ctrl_input)
+        rot_mat = rotation_matrix(ctrl_input)
         # Copy the predicted states to the "parent state" attribute and 
         # perform a prediction for the map
         for i in xrange(self.vars.nparticles):

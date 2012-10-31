@@ -15,5 +15,7 @@ try:
     import pc2wrapper
 except:
     print "Could not import pc2wrapper. Is ROS initialised?"
-
-del __blas_c_code__
+try:
+    del __blas_c_code__
+except:
+    pass

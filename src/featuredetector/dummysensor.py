@@ -5,8 +5,9 @@ Created on Tue Jul 17 12:22:51 2012
 @author: snagappa
 """
 import numpy as np
-import code
-import tf
+from lib.common import blas
+from lib.common.misctools import rotation_matrix
+#import code
 
 class camera_fov(object):
     def __init__(self,  fov_x_deg=60, fov_y_deg=45, fov_far_m=3):
@@ -65,7 +66,7 @@ class camera_fov(object):
         if not features_abs.shape[0]:
             return np.empty(0)
         # Transform points to local frame
-        rel_landmarks = tf.relative(ref_ned, ref_rpy, features_abs)
+        rel_landmarks = relative(ref_ned, ref_rpy, features_abs)
         visible_features_idx = np.array(self.is_visible(rel_landmarks), 
                                         dtype=np.float)
         # Take the distance rather than the square?
@@ -76,5 +77,30 @@ class camera_fov(object):
         return self.z_prob(z_rel[:,0])
         
     def rel_to_abs(self, ref_ned, ref_rpy, features_rel):
-        return tf.absolute(ref_ned, ref_rpy, features_rel)
-        
+        return absolute(ref_ned, ref_rpy, features_rel)
+    
+    
+def relative(vehicle_NED, vehicle_RPY, features_NED):
+    if not features_NED.shape[0]: return np.empty(0)
+    relative_position = features_NED - vehicle_NED
+    rot_matrix = np.array([rotation_matrix(-vehicle_RPY)])
+    relative_position = blas.dgemv(rot_matrix, relative_position)
+    #rot_matrix = rotation_matrix(-vehicle_RPY)
+    #relative_position = np.dot(rot_matrix, relative_position.T).T
+    return relative_position
+
+def relative_rot_mat(RPY):
+    return np.array([rotation_matrix(-RPY)])
+
+def absolute(vehicle_NED, vehicle_RPY, features_NED):
+    if not features_NED.shape[0]: return np.empty(0)
+    rot_matrix = np.array([rotation_matrix(vehicle_RPY)])
+    absolute_position = blas.dgemv(rot_matrix, features_NED) + vehicle_NED
+    #rot_matrix = rotation_matrix(vehicle_RPY)
+    #absolute_position = (
+    #    np.array(np.dot(rot_matrix, features_NED.T).T, order='C') + 
+    #    vehicle_NED)
+    return absolute_position
+    
+def absolute_rot_mat(RPY):
+    return np.array([rotation_matrix(RPY)])

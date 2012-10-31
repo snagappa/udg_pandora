@@ -64,7 +64,7 @@ class gtk_slam_sim:
         self.vehicle.fov.x_deg = 60
         self.vehicle.fov.y_deg = 45
         self.vehicle.fov.far_m = 3
-        self.vehicle.sensor_fov = featuredetector.sensors.camera_fov(self.vehicle.fov.x_deg, 
+        self.vehicle.sensor_fov = featuredetector.dummysensor.camera_fov(self.vehicle.fov.x_deg, 
                                                                      self.vehicle.fov.y_deg, 
                                                                      self.vehicle.fov.far_m)
         self.vehicle.visible_landmarks = STRUCT()
@@ -178,7 +178,7 @@ class gtk_slam_sim:
         rospy.Subscriber("/dataNavigator", Odometry, self.update_position)
         # Create Publisher
         self.ros.pcl_publisher = rospy.Publisher("/slamsim/features", PointCloud2)
-        self.ros.pcl_helper = featuredetector.msgs.msgs(featuredetector.msgs.MSG_XYZ_COV)
+        self.ros.pcl_helper = misctools.pcl_xyz_cov()
         #field_name = ['x', 'y', 'z', 'sigma_x', 'sigma_y', 'sigma_z']
         #field_offset = range(0, 24, 4)
         #self.ros.pcl_fields = [PointField(_field_name_, _field_offset_, 
@@ -470,7 +470,7 @@ class gtk_slam_sim:
         self.vehicle.LOCK.acquire()
         try:
             landmarks = np.array(self.scene.landmarks)
-            relative_landmarks = featuredetector.tf.relative(self.vehicle.north_east_depth, 
+            relative_landmarks = featuredetector.dummysensor.relative(self.vehicle.north_east_depth, 
                                                              self.vehicle.roll_pitch_yaw, 
                                                              landmarks)
             visible_landmarks_idx = self.vehicle.sensor_fov.is_visible(relative_landmarks)
@@ -485,7 +485,7 @@ class gtk_slam_sim:
                 self.vehicle.visible_landmarks.noise = np.empty(0)
             """
             if self.vehicle.visible_landmarks.rel.shape[0]:
-                inverse_landmarks = featuredetector.tf.absolute(self.vehicle.north_east_depth, 
+                inverse_landmarks = featuredetector.dummysensor.absolute(self.vehicle.north_east_depth, 
                                                                 self.vehicle.roll_pitch_yaw, 
                                                                 self.vehicle.visible_landmarks.rel)
             
@@ -530,7 +530,7 @@ class gtk_slam_sim:
                 landmarks_mask = nxutils.points_inside_poly(landmarks[:, [1,0]], vertices)
                 self.vehicle.visible_landmarks.abs = landmarks[landmarks_mask]
                 self.vehicle.visible_landmarks.rel = \
-                    featuredetector.tf.relative(np.array([north, east, depth]), 
+                    featuredetector.dummysensor.relative(np.array([north, east, depth]), 
                                                         self.vehicle.roll_pitch_yaw, 
                                                         self.vehicle.visible_landmarks.abs)
             else:
@@ -611,8 +611,9 @@ class gtk_slam_sim:
             rel_landmarks = np.vstack((rel_landmarks, clutter_landmarks))
         elif clutter_landmarks.shape[0]:
             rel_landmarks = clutter_landmarks
-        pcl_msg = self.ros.pcl_helper.to_pcl(rospy.Time.now(), rel_landmarks)
-        pcl_msg.header.frame_id = self.ros.name
+        pcl_msg = self.ros.pcl_helper.to_pcl(rel_landmarks)
+        pcl_msg.header.stamp = rospy.Time.now()
+        pcl_msg.header.frame_id = "girona500"
         # and publish visible landmarks
         self.ros.pcl_publisher.publish(pcl_msg)
         print "Visible Landmarks (abs):"
