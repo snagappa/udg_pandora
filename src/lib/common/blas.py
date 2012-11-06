@@ -193,7 +193,7 @@ def assert_valid_matrix(x, varname="unknown"):
     x_is = whatisit(x)
     assert (x_is.consistent_type()==np.ndarray), varname + " must be of type ndarray"
     assert x.flags.c_contiguous, varname + " must be C-order contiguous"
-    assert (len(x.shape)==3), varname + " must be 3 dimensional"
+    assert (len(x.shape)==3), varname + " must be 3 dimensional but has dimension " + str(x.ndim)
     
     
 def isnestedstruct(itis_info):

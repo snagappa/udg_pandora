@@ -28,7 +28,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_gtkagg import FigureCanvasGTK
 #from matplotlib import cm # colormap
 #from matplotlib import pylab
-import matplotlib.nxutils as nxutils
+#import matplotlib.nxutils as nxutils
 
 #pylab.hold(False) # This will avoid memory leak
 
@@ -39,21 +39,39 @@ from auv_msgs.msg import NavSts
 from cola2_control.srv import Goto, GotoRequest
 import rospy
 import tf
-from sensor_msgs.msg import PointCloud2
-import featuredetector
+from sensor_msgs.msg import PointCloud2, CameraInfo
 from lib.common import misctools
 import threading
 import numpy as np
-import copy
+#import copy
 import code
 from lib.common.misctools import STRUCT
-
+from featuredetector import cameramodels
 
 LANDMARKS = "landmarks"
 WAYPOINTS = "waypoints"
 
+#def _ned_to_xyz_(pts_array):
+#    is_empty = (np.prod(pts_array.shape) == 0)
+#    assert (((pts_array.ndim == 2) and (pts_array.shape[1] == 3)) or
+#            is_empty), "ned_array must be an Nx3 numpy array"
+#    if is_empty:
+#        return np.empty(0)
+#    tf_pts_array = pts_array.copy()
+#    tf_pts_array[:, 2] *= -1
+#    tf_pts_array = tf_pts_array[:, [2, 1, 0]]
+#    return tf_pts_array
+#
+#_xyz_to_ned_ = _ned_to_xyz_
+
+
 class gtk_slam_sim:
     def __init__(self):
+        # Initialise ROS before anything else tries to use ROS framework
+        self.ros = STRUCT()
+        self.ros.name = "slamsim"
+        rospy.init_node(self.ros.name)
+        
         # True vehicle position
         self.vehicle = STRUCT()
         self.vehicle.north_east_depth = np.zeros(3)
@@ -61,12 +79,15 @@ class gtk_slam_sim:
         self.vehicle.fov = STRUCT()
         self.vehicle.fov.width = 1.5
         self.vehicle.fov.depth = 3.0
-        self.vehicle.fov.x_deg = 60
-        self.vehicle.fov.y_deg = 45
+        self.vehicle.fov.x_deg = 64
+        self.vehicle.fov.y_deg = 50
         self.vehicle.fov.far_m = 3
-        self.vehicle.sensor_fov = featuredetector.dummysensor.camera_fov(self.vehicle.fov.x_deg, 
-                                                                     self.vehicle.fov.y_deg, 
-                                                                     self.vehicle.fov.far_m)
+        self.vehicle.sensors = STRUCT()
+        try:
+            self.vehicle.sensors.camera = cameramodels.StereoCameraModel()
+        except:
+            print "Error initialising camera models, will use dummy camera"
+        
         self.vehicle.visible_landmarks = STRUCT()
         self.vehicle.visible_landmarks.abs = np.empty(0)
         self.vehicle.visible_landmarks.rel = np.empty(0)
@@ -140,7 +161,7 @@ class gtk_slam_sim:
         
         self.glade.connect_signals(self)
         
-        self.ros = STRUCT()
+        # Initialise subxcriptions
         self.init_ros()
         self.viewer.figure = Figure(figsize=(512, 512), dpi=75)
         self.viewer.axis = self.viewer.figure.add_subplot(111) 
@@ -172,8 +193,6 @@ class gtk_slam_sim:
         self.glade.get_object("MainWindow").show_all()
         
     def init_ros(self):
-        self.ros.name = "slamsim"
-        rospy.init_node(self.ros.name)
         # Create Subscriber
         rospy.Subscriber("/dataNavigator", Odometry, self.update_position)
         # Create Publisher
@@ -190,7 +209,19 @@ class gtk_slam_sim:
         rospy.Subscriber("/phdslam/nav_sts", NavSts, self.estimator_update_position)
         rospy.Subscriber("/phdslam/features", PointCloud2, self.estimator_update_landmarks)
         rospy.Subscriber("/cola2_navigation/nav_sts", NavSts, self.simple_estimator_update_position)
-        
+        try:
+            camera_info_left = rospy.wait_for_message(
+                "/stereo_front/left/camera_info", CameraInfo, 5)
+            camera_info_right = rospy.wait_for_message(
+                "/stereo_front/right/camera_info", CameraInfo, 5)
+            self.vehicle.sensors.camera.fromCameraInfo(camera_info_left,
+                                                          camera_info_right)
+        except:
+            print "Could not find ROS camera_info, defaulting to dummycamera"
+            self.vehicle.sensors.camera = (
+                cameramodels.DummyCamera(self.vehicle.fov.x_deg, 
+                self.vehicle.fov.y_deg, self.vehicle.fov.far_m))
+    
     def on_MainWindow_delete_event(self, widget, event):
             gtk.main_quit()
     
@@ -267,9 +298,8 @@ class gtk_slam_sim:
         self.set_damage()
         
     def set_sensor_fov(self):
-        self.vehicle.sensor_fov.set_x_y_far(self.vehicle.fov.x_deg, 
-                                            self.vehicle.fov.y_deg, 
-                                            self.vehicle.fov.far_m)
+        self.vehicle.sensors.camera.set_x_y_far(self.vehicle.fov.x_deg, 
+            self.vehicle.fov.y_deg, self.vehicle.fov.far_m)
     
     def set_spinbutton_clutter(self, widget):
         self.scene.clutter = widget.get_value()
@@ -409,7 +439,7 @@ class gtk_slam_sim:
         self.print_position()
         
         # Update field of view
-        vertices = self.vehicle.sensor_fov.fov_vertices_2d()
+        vertices = self.vehicle.sensors.camera.fov_vertices_2d()
         # Rotate by the yaw
         cy = np.cos(self.estimator.roll_pitch_yaw[2])
         sy = np.sin(self.estimator.roll_pitch_yaw[2])
@@ -470,10 +500,11 @@ class gtk_slam_sim:
         self.vehicle.LOCK.acquire()
         try:
             landmarks = np.array(self.scene.landmarks)
-            relative_landmarks = featuredetector.dummysensor.relative(self.vehicle.north_east_depth, 
+            relative_landmarks = self.vehicle.sensors.camera.relative(self.vehicle.north_east_depth, 
                                                              self.vehicle.roll_pitch_yaw, 
                                                              landmarks)
-            visible_landmarks_idx = self.vehicle.sensor_fov.is_visible(relative_landmarks)
+            #relative_landmarks = self.vehicle.sensors.camera.from_world_coords(_ned_to_xyz_(landmarks))
+            visible_landmarks_idx = self.vehicle.sensors.camera.is_visible(relative_landmarks)
             self.vehicle.visible_landmarks.abs = landmarks[visible_landmarks_idx]
             self.vehicle.visible_landmarks.rel = relative_landmarks[visible_landmarks_idx]
             if self.vehicle.visible_landmarks.rel.shape[0]:
@@ -485,7 +516,7 @@ class gtk_slam_sim:
                 self.vehicle.visible_landmarks.noise = np.empty(0)
             """
             if self.vehicle.visible_landmarks.rel.shape[0]:
-                inverse_landmarks = featuredetector.dummysensor.absolute(self.vehicle.north_east_depth, 
+                inverse_landmarks = self.vehicle.sensors.camera.absolute(self.vehicle.north_east_depth, 
                                                                 self.vehicle.roll_pitch_yaw, 
                                                                 self.vehicle.visible_landmarks.rel)
             
@@ -495,7 +526,7 @@ class gtk_slam_sim:
                     #code.interact(local=locals())
             """
             # Set vertices
-            vertices = self.vehicle.sensor_fov.fov_vertices_2d()
+            vertices = self.vehicle.sensors.camera.fov_vertices_2d()
             
             # Rotate by the yaw
             cy = np.cos(self.vehicle.roll_pitch_yaw[2])
@@ -613,7 +644,7 @@ class gtk_slam_sim:
             rel_landmarks = clutter_landmarks
         pcl_msg = self.ros.pcl_helper.to_pcl(rel_landmarks)
         pcl_msg.header.stamp = rospy.Time.now()
-        pcl_msg.header.frame_id = "girona500"
+        pcl_msg.header.frame_id = self.vehicle.sensors.camera.tfFrame
         # and publish visible landmarks
         self.ros.pcl_publisher.publish(pcl_msg)
         print "Visible Landmarks (abs):"

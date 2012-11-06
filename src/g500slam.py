@@ -37,8 +37,7 @@ import sys
 # Msgs imports
 from cola2_navigation.msg import TeledyneExplorerDvl, ValeportSoundVelocity, \
     FastraxIt500Gps
-from sensor_msgs.msg import Imu
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import Imu, PointCloud2, CameraInfo
 from auv_msgs.msg import NavSts
 from std_srvs.srv import Empty, EmptyResponse
 from cola2_navigation.srv import SetNE, SetNEResponse #, SetNERequest
@@ -50,9 +49,9 @@ PHDSLAM = lib.slam_worker.PHDSLAM
 import numpy as np
 from lib.common.ros_helper import get_g500_config
 from lib.common.kalmanfilter import sigma_pts
-import featuredetector
 from lib.common import misctools
 from lib.common.misctools import STRUCT
+from featuredetector import cameramodels
 
 INVALID_ALTITUDE = -32665
 SAVITZKY_GOLAY_COEFFS = [0.2,  0.1,  0. , -0.1, -0.2]
@@ -176,6 +175,20 @@ class G500_SLAM():
         ros.NO_LOCK_ACQUIRE = 0
         
         ros.pcl_helper = misctools.pcl_xyz_cov()
+        
+        # Initialise the camera field of view
+        try:
+            camera_info_left = rospy.wait_for_message(
+                "/stereo_front/left/camera_info", CameraInfo, 5)
+            camera_info_right = rospy.wait_for_message(
+                "/stereo_front/right/camera_info", CameraInfo, 5)
+            for _map_ in self.slam_worker.vehicle.maps:
+                _map_.sensors.camera.fromCameraInfo(camera_info_left,
+                                                    camera_info_right)
+        except:
+            print "Error occurred initialising camera from camera_info, using dummycamera"
+            for _map_ in self.slam_worker.vehicle.maps:
+                _map_.sensors.camera = cameramodels.DummyCamera()
         
         if not __PROFILE__:
             self.ros.subs = STRUCT()
@@ -309,8 +322,8 @@ class G500_SLAM():
                     finally:
                         self.__LOCK__.release()
                     #self.publish_data()
-                print "Unregistering GPS subscription"
-                self.ros.subs.gps.unregister()
+                #print "Unregistering GPS subscription"
+                #self.ros.subs.gps.unregister()
         
     def update_dvl(self, dvl):
         #print os.getpid()
@@ -485,6 +498,7 @@ class G500_SLAM():
     def update_features(self, pcl_msg):
         init = self.config.init
         if (not init.init) or (not init.dvl):
+            print "Not initialised, not updating features"
             return
         self.__LOCK__.acquire()
         try:
@@ -507,6 +521,8 @@ class G500_SLAM():
             self.slam_worker.vehicle.weights = (
                 1.0/nparticles*np.ones(nparticles))
             self.ros.last_update_time = pcl_msg.header.stamp
+        except:
+            print "Error occurred while updating features"
         finally:
             self.__LOCK__.release()
         
@@ -618,7 +634,7 @@ class G500_SLAM():
         else:
             pcl_msg = self.ros.map.helper.to_pcl(np.zeros(0))
         pcl_msg.header.stamp = self.ros.last_update_time
-        pcl_msg.header.frame_id = "world"
+        #pcl_msg.header.frame_id = "world"
         self.ros.map.publisher.publish(pcl_msg)
         #print "Landmarks at: "
         #print map_states

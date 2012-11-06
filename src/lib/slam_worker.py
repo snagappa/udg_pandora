@@ -12,14 +12,14 @@ USE_CYTHON = False
 import numpy as np
 from lib.common import misctools, blas
 #from featuredetector import sensors, tf
-import featuredetector
+from featuredetector import cameramodels
 from lib.common.kalmanfilter import kf_predict_cov
 from lib.common.kalmanfilter import np_kf_update_cov, kf_update_cov, kf_update_x
 from collections import namedtuple
 import copy
 import code
 import threading
-from lib.common.misctools import STRUCT, rotation_matrix
+from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -59,20 +59,18 @@ class GMPHD(object):
         self.vars.prune_threshold = 1e-3
         self.vars.merge_threshold = 1.0
         self.vars.birth_intensity = 1e-1
-        self.vars.clutter_intensity = 2
+        self.vars.clutter_intensity = 0.1
         
         self.flags = STRUCT()
         self.flags.ESTIMATE_IS_VALID = False
         self.flags.LOCK = threading.RLock()
         
         self.sensors = STRUCT()
-        self.sensors.camera = featuredetector.dummysensor.camera_fov()
-        # Create a dummy camera with slightly larger fov
-        dummy_camera = featuredetector.dummysensor.camera_fov()
-        dummy_camera.set_x_y_far(dummy_camera.fov_x_deg+2, 
-                                 dummy_camera.fov_y_deg+2, 
-                                 dummy_camera.fov_far_m+0.2)
-        self.sensors.dummy_camera = dummy_camera
+        try:
+            self.sensors.camera = cameramodels.StereoCameraModel()
+        except:
+            print "Error initialising camera models, using dummy camera"
+            self.sensors.camera = cameramodels.DummyCamera()
     
     def copy(self):
         """phd.copy() -> phd_copy
@@ -202,9 +200,9 @@ class GMPHD(object):
                 # Covariance update part of the Kalman update is common to all 
                 # observation-updates
                 if observations.shape[0]:
-                    h_mat = featuredetector.dummysensor.relative_rot_mat(self.parent_rpy)
+                    h_mat = relative_rot_mat(self.parent_rpy)
                     # Predicted observation from the current states
-                    pred_z = featuredetector.dummysensor.relative(self.parent_ned, 
+                    pred_z = self.sensors.camera.relative(self.parent_ned, 
                         self.parent_rpy, detected.states)
                     observation_noise = observation_noise[0]
                     detected.covs, kalman_info = kf_update_cov(detected.covs, 
@@ -333,9 +331,11 @@ class GMPHD(object):
         try:
             if (self.vars.merge_threshold < 0) or (self.weights.shape[0] < 2):
                 return
-            sensor = self.sensors.dummy_camera
-            detected_idx = sensor.pdf_detection(self.parent_ned, self.parent_rpy,
+            camera = self.sensors.camera
+            # Convert states to camera coordinate system
+            rel_states = camera.relative(self.parent_ned, self.parent_rpy,
                                                 self.states)
+            detected_idx = camera.pdf_detection(rel_states, px_margin=2)
             undetected_idx = np.where(detected_idx < detection_threshold)[0]
             detected_idx = np.where(detected_idx >= detection_threshold)[0]
             #undetected_idx = misctools.gen_retain_idx(self.weights.shape[0], 
@@ -506,8 +506,8 @@ class GMPHD(object):
             birth_cv = np.empty((0, 3, 3))
         else:
             birth_wt = self.vars.birth_intensity*np.ones(features_rel.shape[0])
-            birth_st = self.sensors.camera.rel_to_abs(parent_ned, parent_rpy, 
-                                                      features_rel)
+            birth_st = self.sensors.camera.absolute(parent_ned, parent_rpy, 
+                                                    features_rel)
             if features_cv is None:
                 features_cv = np.repeat([np.eye(3)], features_rel.shape[0], 0)
             else:
@@ -523,15 +523,16 @@ class GMPHD(object):
         parent_rpy - numpy array of parent orientation (roll, pitch, yaw)
         features_abs - Nx3 numpy array of absolute position of features
         """
-        return self.sensors.camera.pdf_detection(parent_ned, 
-                                                 parent_rpy, features_abs)*0.9
+        camera = self.sensors.camera
+        features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
+        return camera.pdf_detection(features_rel)*0.9
     
     def camera_clutter(self, observations):
         """phd.camera_clutter(observations) -> clutter_intensity
         Returns the clutter intensity evaluated for the observations
         observations - Nx3 numpy array indicating observations from landmarks
         """
-        return self.sensors.camera.z_prob(observations[:, 0])
+        return self.sensors.camera.pdf_clutter(observations)
         
     
 ###############################################################################

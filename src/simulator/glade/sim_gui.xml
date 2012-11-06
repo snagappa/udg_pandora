@@ -70,21 +70,21 @@
   <object class="GtkAdjustment" id="fov_width">
     <property name="lower">1</property>
     <property name="upper">3</property>
-    <property name="value">1.5</property>
+    <property name="value">1.5000000002235174</property>
     <property name="step_increment">0.10000000000000001</property>
     <property name="page_increment">0.5</property>
   </object>
   <object class="GtkAdjustment" id="fov_x">
     <property name="lower">30</property>
     <property name="upper">90</property>
-    <property name="value">60</property>
+    <property name="value">64</property>
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
   </object>
   <object class="GtkAdjustment" id="fov_y">
     <property name="lower">30</property>
     <property name="upper">60</property>
-    <property name="value">45</property>
+    <property name="value">50</property>
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
   </object>
