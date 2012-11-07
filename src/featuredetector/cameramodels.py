@@ -4,7 +4,6 @@ Created on Tue Oct 30 12:20:27 2012
 
 @author: snagappa
 """
-
 from image_geometry import cameramodels as ros_cameramodels
 import numpy as np
 import tf
@@ -206,10 +205,10 @@ class _FoV_(object):
     #    target_frame = self.tfFrame
     #    return self._perform_tf_(target_frame, pcl_msg, RETURN_NP_ARRAY)
     
-    def relative(self, target_coord_NED, target_coord_PY, world_points_NED):
+    def relative(self, target_coord_NED, target_coord_RPY, world_points_NED):
         if not world_points_NED.shape[0]: return np.empty(0)
         relative_position = world_points_NED - target_coord_NED
-        rot_matrix = np.array([rotation_matrix(-target_coord_PY)])
+        rot_matrix = np.array([rotation_matrix(-target_coord_RPY)], order='C')
         relative_position = blas.dgemv(rot_matrix, relative_position)
         return relative_position
     
@@ -218,7 +217,7 @@ class _FoV_(object):
     
     def absolute(self, source_coord_NED, source_coord_RPY, source_points_NED):
         if not source_points_NED.shape[0]: return np.empty(0)
-        rot_matrix = np.array([rotation_matrix(source_coord_RPY)])
+        rot_matrix = np.array([rotation_matrix(source_coord_RPY)], order='C')
         absolute_position = (blas.dgemv(rot_matrix, source_points_NED) + 
                              source_coord_NED)
         return absolute_position
@@ -292,7 +291,7 @@ class DummyCamera(_FoV_):
         return np.exp(-dist_from_ref*0.005)*0.99*visible_features_idx
         
     def pdf_clutter(self, points):
-        assert (((points.ndim == 2) and (points.ndim[1] == 3)) or
+        assert (((points.ndim == 2) and (points.shape[1] == 3)) or
                 (np.prod(points.shape) == 0)), "points must be a Nx3 ndarray"
         return self.z_prob(points[:,0])
     
@@ -306,6 +305,11 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         ros_cameramodels.PinholeCameraModel.__init__(self)
         self.tfFrame = None
         _FoV_.__init__(self)
+        self._normals_ = np.empty(0)
+    
+    def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
+        _FoV_.set_near_far_fov(self, fov_near, fov_far)
+        self._create_normals_()
     
     def fromCameraInfo(self, msg):
         """fromCameraInfo(msg) -> None
@@ -314,6 +318,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         super(PinholeCameraModel, self).fromCameraInfo(msg)
         self.tfFrame = msg.header.frame_id
         self.observation_volume = self._observation_volume_()
+        self._create_normals_()
     
     def project3dToPixel(self, point):
         """
@@ -323,7 +328,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         using the camera :math:`P` matrix.
         This is the inverse of :meth:`projectPixelTo3dRay`.
         """
-        src = np.empty((point.shape[0], 4), dtype=np.float)
+        src = np.empty((point.shape[0], 4), dtype=np.float64)
         src[:, :3] = point
         src[:, 3] = 1.0
         P = np.asarray(self.P, dtype=np.float)
@@ -333,6 +338,23 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         w[w == 0] = np.inf
         pixels /= w[:, np.newaxis]
         return pixels
+    
+    def projectPixelTo3dRay(self, uv):
+        """
+        :param uv:        rectified pixel coordinates
+        :type uv:         (u, v)
+    
+        Returns the unit vector which passes from the camera center to through rectified pixel (u, v),
+        using the camera :math:`P` matrix.
+        This is the inverse of :meth:`project3dToPixel`.
+        """
+        points = np.empty((uv.shape[0], 3))
+        points[:, 0] = (uv[:, 0] - self.cx()) / self.fx()
+        points[:, 1] = (uv[:, 1] - self.cy()) / self.fy()
+        points[:, 2] = 1
+        norm = np.sqrt((points**2).sum(axis=1))
+        points /= norm[:, np.newaxis]
+        return points
     
     def fov_vertices_2d(self):
         if not self.width is None:
@@ -352,9 +374,8 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Calculate the volume of the observation space
         """
         # Diagonal corners of the pyramid base 
-        corners_2d = [(0, 0), (self.width, self.height)]
-        unit_corners_3d = [np.asarray(self.projectPixelTo3dRay(_corner_))
-                           for _corner_ in corners_2d]
+        corners_2d = np.asarray([(0, 0), (self.width, self.height)])
+        unit_corners_3d = self.projectPixelTo3dRay(corners_2d)
         # Scale according to the z coordinate
         scalefactor = np.abs(self.fov_far/unit_corners_3d[0][2])
         corners_3d = unit_corners_3d*scalefactor
@@ -363,27 +384,49 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         return obs_volume
     
     def pdf_detection(self, points, **kwargs):
-        """pdf_detection(self, points, {"px_margin":1e-2}) -> pd
+        """pdf_detection(self, points, {"margin":1e-2}) -> pd
         Determines the probability of detection for points specified according
         to (north, east, down) coordinate system relative to the camera centre.
         """
         if points.shape[0] == 0:
             return np.empty(0)
-        px_margin = kwargs.get("px_margin", 1e-2)
+        margin = kwargs.get("margin", 1e-2)
         # Convert points from (n,e,d) to camera (right, up, far)
+        idx_visible = np.arange(points.shape[0])
         points = points[:, [1, 2, 0]]
-        pd = self.pd*np.ones(points.shape[0], dtype=np.float)
-        pd[points[:, 2] < self.fov_near] = 0
-        pd[points[:, 2] > self.fov_far] = 0
-        pixels = self.project3dToPixel(points)
-        try:
-            pd[pixels[:, 0] < px_margin] = 0
-            pd[pixels[:, 0] > (self.width+px_margin)] = 0
-            pd[pixels[:, 1] < px_margin] = 0
-            pd[pixels[:, 1] > (self.height+px_margin)] = 0
-        except:
-            code.interact(local=locals())
+        pd = np.zeros(points.shape[0], dtype=np.float)
+        # Check near plane
+        idx_visible = idx_visible[points[idx_visible, 2] > self.fov_near]
+        if idx_visible.shape[0] == 0: return pd
+        # Check far plane
+        idx_visible = idx_visible[points[idx_visible, 2] < self.fov_far]
+        if idx_visible.shape[0] == 0: return pd
+        # Frustum planes
+        for _normal_ in self._normals_:
+            idx_visible = (
+                idx_visible[np.dot(points[idx_visible], _normal_) < margin])
+            if idx_visible.shape[0] == 0: return pd
+        pd[idx_visible] = self.pd
+        #pd[points[:, 2] < self.fov_near] = 0
+        #pd[points[:, 2] > self.fov_far] = 0
+        #pixels = self.project3dToPixel(points)
+        #pd[pixels[:, 0] < px_margin] = 0
+        #pd[pixels[:, 0] > (self.width+px_margin)] = 0
+        #pd[pixels[:, 1] < px_margin] = 0
+        #pd[pixels[:, 1] > (self.height+px_margin)] = 0
         return pd
+    
+    def _create_normals_(self):
+        # Create unit vectors along edges of the view frustum
+        edge_points = np.asarray([(0, 0), (self.width, 0), 
+                                  (self.width, self.height), (0, self.height)])
+        edge_unit_vectors = self.projectPixelTo3dRay(edge_points)
+        #scalefactor = np.abs(self.fov_far/edge_unit_vectors[0, 2])
+        #far_vectors = edge_unit_vectors * scalefactor
+        # Create normals to the view frustum planes
+        self._normals_ = np.asarray(
+            [np.cross(edge_unit_vectors[idx], edge_unit_vectors[idx-1]) 
+            for idx in range(edge_unit_vectors.shape[0])])
     
     def pdf_clutter(self, points):
         """pdf_clutter(self, points) -> clutter_pdf
