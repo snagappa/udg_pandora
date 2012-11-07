@@ -1,6 +1,5 @@
 #
-__all__ = ["msgs", "dummysensor", "image_feature_extractor"]
+__all__ = ["image_feature_extractor", "cameramodels"]
 
-import msgs
-import dummysensor
 import image_feature_extractor
+import cameramodels
