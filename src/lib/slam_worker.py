@@ -17,7 +17,7 @@ from lib.common.kalmanfilter import kf_predict_cov
 from lib.common.kalmanfilter import np_kf_update_cov, kf_update_cov, kf_update_x
 from collections import namedtuple
 import copy
-#import code
+import code
 import threading
 from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
 
@@ -56,10 +56,17 @@ class GMPHD(object):
                                  np.zeros((0, 3)), np.zeros((0, 3, 3)))
         
         self.vars = STRUCT()
+        # Prune components less than this weight
         self.vars.prune_threshold = 1e-3
-        self.vars.merge_threshold = 1.0
+        # Merge components  closer than this threshold
+        self.vars.merge_threshold = 0.5
+        # Intensity of new targets
         self.vars.birth_intensity = 1e-1
+        # Intensity of clutter in the scene
         self.vars.clutter_intensity = 0.1
+        # Probability of detection of targets in the FoV
+        self.vars.pd = 0.9
+        #self.vars.ps = 1.0
         
         # Temporary variables to speed up some processing across different functions
         self.tmp = STRUCT()
@@ -75,6 +82,7 @@ class GMPHD(object):
         except:
             print "Error initialising camera models, using dummy camera"
             self.sensors.camera = cameramodels.DummyCamera()
+        self.sensors.camera.set_const_pd(self.vars.pd)
     
     def copy(self):
         """phd.copy() -> phd_copy
@@ -168,10 +176,13 @@ class GMPHD(object):
         if not self.weights.shape[0]:
             return slam_info
         
-        detection_probability = self.camera_pd(self.parent_ned, 
-                                               self.parent_rpy, self.states)
-        
-        #detection_probability[detection_probability<0.1] = 0
+        #detection_probability = self.camera_pd(self.parent_ned, 
+        #                                       self.parent_rpy, self.states)
+        rel_states = self.sensors.camera.from_world_coords(self.states)
+        detection_probability = self.sensors.camera.pdf_detection(rel_states[0], 
+                                                          rel_states[1], margin=0)
+        rel_states = np.asarray(rel_states[0], order='C')
+        detection_probability[detection_probability<0.5] = 0
         clutter_pdf = self.camera_clutter(observations)
         clutter_intensity = self.vars.clutter_intensity*clutter_pdf
         
@@ -206,8 +217,10 @@ class GMPHD(object):
                 if observations.shape[0]:
                     h_mat = relative_rot_mat(self.parent_rpy)
                     # Predicted observation from the current states
-                    pred_z = self.sensors.camera.relative(self.parent_ned, 
-                        self.parent_rpy, detected.states)
+                    #pred_z = self.sensors.camera.relative(self.parent_ned, 
+                    #    self.parent_rpy, detected.states)
+                    #pred_z = self.sensors.camera.from_world_coords(detected.states)[0]
+                    pred_z = rel_states
                     observation_noise = observation_noise[0]
                     detected.covs, kalman_info = kf_update_cov(detected.covs, 
                                                                h_mat, 
@@ -259,6 +272,9 @@ class GMPHD(object):
             slam_info.likelihood = (slam_info.exp_sum__pd_predwt * 
                                     slam_info.sum__clutter_with_pd_updwt.prod())
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
+        except:
+            print "error in update"
+            code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
         return slam_info
@@ -340,9 +356,16 @@ class GMPHD(object):
             else:
                 camera = self.sensors.camera
                 # Convert states to camera coordinate system
-                rel_states = camera.relative(self.parent_ned, self.parent_rpy,
+                try:
+                    # Stereo camera - get relative position for left and right
+                    rel_states = camera.from_world_coords(self.states)
+                    detected_idx = camera.pdf_detection(rel_states[0], rel_states[1])
+                    rel_states = rel_states[0]
+                except:
+                    print "Couldn't use tf"
+                    rel_states = camera.relative(self.parent_ned, self.parent_rpy,
                                              self.states)
-                detected_idx = camera.pdf_detection(rel_states)
+                    detected_idx = camera.pdf_detection(rel_states)
                 undetected_idx = np.where(detected_idx < detection_threshold)[0]
                 detected_idx = np.where(detected_idx >= detection_threshold)[0]
             #undetected_idx = misctools.gen_retain_idx(self.weights.shape[0], 
@@ -512,15 +535,28 @@ class GMPHD(object):
             birth_st = np.empty((0, 3))
             birth_cv = np.empty((0, 3, 3))
         else:
-            birth_wt = self.vars.birth_intensity*np.ones(features_rel.shape[0])
-            birth_st = self.sensors.camera.absolute(parent_ned, parent_rpy, 
-                                                    features_rel)
-            if features_cv is None:
-                features_cv = np.repeat([np.eye(3)], features_rel.shape[0], 0)
+            # Select features which are not on the edge of the FoV
+            visible_idx = self.sensors.camera.is_visible(features_rel, 
+                                                         None, margin=-0.18)
+            birth_features = features_rel[visible_idx]
+            features_cv = features_cv[visible_idx]
+            if not birth_features.shape[0]:
+                birth_wt = np.empty(0)
+                birth_st = np.empty((0, 3))
+                birth_cv = np.empty((0, 3, 3))
             else:
-                features_cv = features_cv.copy()
-                
-            birth_cv = features_cv
+                birth_wt = self.vars.birth_intensity*np.ones(birth_features.shape[0])
+                try:
+                    birth_st = self.sensors.camera.to_world_coords(birth_features)
+                except:
+                    print "tf conversion to world coords failed!"
+                    birth_st = self.sensors.camera.absolute(parent_ned, parent_rpy, 
+                                                            birth_features)
+                if features_cv is None:
+                    features_cv = np.repeat([np.eye(3)], birth_features.shape[0], 0)
+                else:
+                    features_cv = features_cv.copy()
+                birth_cv = features_cv
         return (birth_wt, birth_st, birth_cv)
         
     def camera_pd(self, parent_ned, parent_rpy, features_abs):
@@ -531,8 +567,16 @@ class GMPHD(object):
         features_abs - Nx3 numpy array of absolute position of features
         """
         camera = self.sensors.camera
-        features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
-        return camera.pdf_detection(features_rel)*0.9
+        try:
+            features_rel = camera.from_world_coords(features_abs)
+            pdf_detection = camera.pdf_detection(features_rel[0],
+                                                 features_rel[1])
+        except:
+            print "Error calling camera pdf_detection()"
+            code.interact(local=dict(locals().items() + globals().items()))
+            features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
+            pdf_detection = camera.pdf_detection(features_rel)
+        return pdf_detection
     
     def camera_clutter(self, observations):
         """phd.camera_clutter(observations) -> clutter_intensity

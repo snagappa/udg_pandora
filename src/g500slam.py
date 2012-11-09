@@ -186,11 +186,15 @@ class G500_SLAM():
                 "/stereo_front/left/camera_info", CameraInfo, 5)
             camera_info_right = rospy.wait_for_message(
                 "/stereo_front/right/camera_info", CameraInfo, 5)
+            left_tf_frame = "slam_sensor"
+            right_tf_frame = "slam_sensor_right"
             for _map_ in self.slam_worker.vehicle.maps:
                 _map_.sensors.camera.fromCameraInfo(camera_info_left,
                                                     camera_info_right)
+                _map_.sensors.camera.set_tf_frame(left_tf_frame, right_tf_frame)
         except:
             print "Error occurred initialising camera from camera_info, using dummycamera"
+            code.interact(local=locals())
             for _map_ in self.slam_worker.vehicle.maps:
                 _map_.sensors.camera = cameramodels.DummyCamera()
         
@@ -627,7 +631,12 @@ class G500_SLAM():
             nav_msg.header.stamp, 
             nav_msg.header.frame_id, 
             parent_frame_id)
-            
+        
+        # Publish stereo_camera tf relative to slam girona
+        o2 = tf.transformations.quaternion_from_euler(0, 0.0, 0, 'sxyz')
+        br.sendTransform((0.0, -0.06, -0.7), o2, nav_msg.header.stamp, 'slam_sensor', self.ros.name)
+        o3 = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0, 'sxyz')
+        br.sendTransform((0.0, 0.12, 0.0), o3, nav_msg.header.stamp, 'slam_sensor_right', 'slam_sensor')
         ##
         # Publish landmarks now
         map_estimate = slam_estimate.map
