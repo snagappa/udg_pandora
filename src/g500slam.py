@@ -29,10 +29,11 @@ import rospy
 import tf
 import PyKDL
 import math
-import code
+#import code
 import copy
 import threading
 import sys
+import pickle
 
 # Msgs imports
 from cola2_navigation.msg import TeledyneExplorerDvl, ValeportSoundVelocity, \
@@ -181,20 +182,31 @@ class G500_SLAM():
         ros.pcl_helper = misctools.pcl_xyz_cov()
         
         # Initialise the camera field of view
+        left_tf_frame = "slam_sensor"
+        right_tf_frame = "slam_sensor_right"
         try:
             camera_info_left = rospy.wait_for_message(
                 "/stereo_front/left/camera_info", CameraInfo, 5)
             camera_info_right = rospy.wait_for_message(
                 "/stereo_front/right/camera_info", CameraInfo, 5)
-            left_tf_frame = "slam_sensor"
-            right_tf_frame = "slam_sensor_right"
+        except:
+            print "Error occurred initialising camera from camera_info"
+            print "Loading camera_info from disk"
+            camera_info_pickle = (
+                roslib.packages.find_resource("udg_pandora", "camera_info.p"))
+            if len(camera_info_pickle):
+                camera_info_pickle = camera_info_pickle[0]
+                camera_info_left, camera_info_right = (
+                    pickle.load(open(camera_info_pickle, "rb")))
+            else:
+                camera_info_left, camera_info_right = None, None
+        try:
             for _map_ in self.slam_worker.vehicle.maps:
                 _map_.sensors.camera.fromCameraInfo(camera_info_left,
                                                     camera_info_right)
                 _map_.sensors.camera.set_tf_frame(left_tf_frame, right_tf_frame)
         except:
-            print "Error occurred initialising camera from camera_info, using dummycamera"
-            code.interact(local=locals())
+            print "Error occurred initialising stereo camera, using dummycamera"
             for _map_ in self.slam_worker.vehicle.maps:
                 _map_.sensors.camera = cameramodels.DummyCamera()
         
@@ -531,7 +543,7 @@ class G500_SLAM():
             self.ros.last_update_time = pcl_msg.header.stamp
         except:
             print "Error occurred while updating features"
-            code.interact(local=locals())
+            #code.interact(local=locals())
         finally:
             self.__LOCK__.release()
         

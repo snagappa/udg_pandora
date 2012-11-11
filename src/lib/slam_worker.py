@@ -17,7 +17,7 @@ from lib.common.kalmanfilter import kf_predict_cov
 from lib.common.kalmanfilter import np_kf_update_cov, kf_update_cov, kf_update_x
 from collections import namedtuple
 import copy
-import code
+#import code
 import threading
 from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
 
@@ -274,7 +274,7 @@ class GMPHD(object):
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
         except:
             print "error in update"
-            code.interact(local=locals())
+            #code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
         return slam_info
@@ -339,7 +339,7 @@ class GMPHD(object):
         finally:
             self.flags.LOCK.release()
     
-    def merge_fov(self, detection_threshold=0.5):
+    def merge_fov(self, detection_threshold=0.1):
         """phd.merge_fov(detection_threshold=0.5)
         Merge Gaussian components which are in the field of view or which
         satisfy a probability of detection given by detection_threshold.
@@ -573,7 +573,7 @@ class GMPHD(object):
                                                  features_rel[1])
         except:
             print "Error calling camera pdf_detection()"
-            code.interact(local=dict(locals().items() + globals().items()))
+            #code.interact(local=dict(locals().items() + globals().items()))
             features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
             pdf_detection = camera.pdf_detection(features_rel)
         return pdf_detection

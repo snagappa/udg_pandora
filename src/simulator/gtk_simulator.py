@@ -47,6 +47,7 @@ import numpy as np
 import code
 from lib.common.misctools import STRUCT
 from featuredetector import cameramodels
+import pickle
 
 LANDMARKS = "landmarks"
 WAYPOINTS = "waypoints"
@@ -221,15 +222,28 @@ class gtk_slam_sim:
                          self.estimator_update_landmarks)
         rospy.Subscriber("/cola2_navigation/nav_sts", NavSts,
                          self.simple_estimator_update_position)
+        
+        left_tf_frame = "sim_sensor"
+        right_tf_frame = "sim_sensor_right"
         try:
             camera_info_left = rospy.wait_for_message(
                 "/stereo_front/left/camera_info", CameraInfo, 5)
             camera_info_right = rospy.wait_for_message(
                 "/stereo_front/right/camera_info", CameraInfo, 5)
+        except:
+            print "Error occurred initialising camera from camera_info"
+            print "Loading camera_info from disk"
+            camera_info_pickle = (
+                roslib.packages.find_resource("udg_pandora", "camera_info.p"))
+            if len(camera_info_pickle):
+                camera_info_pickle = camera_info_pickle[0]
+                camera_info_left, camera_info_right = (
+                    pickle.load(open(camera_info_pickle, "rb")))
+            else:
+                camera_info_left, camera_info_right = None, None
+        try:
             self.vehicle.sensors.camera.fromCameraInfo(camera_info_left,
                                                           camera_info_right)
-            left_tf_frame = "sim_sensor"
-            right_tf_frame = "sim_sensor_right"
             self.vehicle.sensors.camera.set_tf_frame(left_tf_frame,
                                                      right_tf_frame)
         except:
@@ -671,7 +685,7 @@ class gtk_slam_sim:
         else:
             clutter_landmarks = np.empty(0)
         
-        detected = np.random.rand(rel_landmarks.shape[0])<0.95
+        detected = np.random.rand(rel_landmarks.shape[0])<1#0.95
         if detected.shape[0]:
             rel_landmarks = rel_landmarks[detected]
         else:
