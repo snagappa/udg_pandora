@@ -17,7 +17,7 @@ import code
 import objdetect
 from cvbridge_wrapper import image_converter
 import numpy as np
-from featuredetector import image_feature_extractor
+from featuredetector import cameramodels, image_feature_extractor
 import message_filters
 from lib.common.misctools import STRUCT
 import tf
@@ -30,7 +30,7 @@ class VisualDetector:
         
         # Create Subscriber
         sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
-        nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
+        #nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
         
         # Create publisher
         self.pub_valve_panel = metaclient.Publisher('/visual_detector/valve_panel', Detection,{})
@@ -74,8 +74,22 @@ class VisualDetector:
             template_image_file = template_image_file[0]
             template_image = cv2.imread(template_image_file, cv2.CV_8UC1)
         else:
-            template_image = None
             rospy.logerr("Could not locate panel template")
+            raise rospy.exceptions.ROSException(
+                    "Could not locate panel template")
+        
+        # Check if ORB/SURF detector is available
+        try:
+            _feature_extractor_ = image_feature_extractor.Orb().__class__
+        except AttributeError as attr_err:
+            print attr_err
+            try:
+                _feature_extractor_ = image_feature_extractor.Surf().__class__
+            except AttributeError as attr_err:
+                print attr_err
+                rospy.logfatal("No feature extractors available!")
+                raise rospy.exceptions.ROSException(
+                    "Cannot initialise feature extractors")
         
         # Subscriptions
         subs = STRUCT()
@@ -85,66 +99,44 @@ class VisualDetector:
                                 rostopic_camera_root+"/right/camera_info"]
             subs.image_raw = [rostopic_camera_root+"/left/image_raw",
                               rostopic_camera_root+"/right/image_raw"]
+            
+                
         else:
             subs.camera_info = [rostopic_camera_root+"/camera_info"]
             subs.image_raw = [rostopic_camera_root+"/image_raw"]
         panel.subscriptions = subs
         
-        # Extract camera parameters from ROS topics
+        panel.detector = objdetect.Detector(
+            feat_detector=_feature_extractor_)
+        # Get camera info msg and initialise camera
         try:
             cam_info = [rospy.wait_for_message(cam_info_topic, 
                                                sensor_msgs.msg.CameraInfo, 5)
                         for cam_info_topic in subs.camera_info]
         except rospy.ROSException:
-            rospy.logerr("Could not read camera parameters")
-            return
+            rospy.logfatal("Could not read camera parameters")
+            raise rospy.exceptions.ROSException(
+                    "Cannot initialise feature extractors")
+        else:
+            panel.detector.init_camera(*cam_info)
+        # Set template
+        panel.detector.set_template(template_image, panel_corners)
         
-        try:
-            camera_matrix = [_cam_info_.K for _cam_info_ in cam_info]
-            camera_matrix = np.reshape(np.asarray(camera_matrix), 
-                                       (len(camera_matrix), 3, 3))
-            camera_matrix = np.squeeze(camera_matrix)
-            
-            projection_matrix = [_cam_info_.P for _cam_info_ in cam_info]
-            projection_matrix = np.reshape(np.asarray(projection_matrix), 
-                                           (len(projection_matrix), 3, 4))
-            projection_matrix = np.squeeze(projection_matrix)
-        except:
-            print "Error occurred"
-            return
-        
-        _detector_ = objdetect.Detector
-        func_args = (template_image, panel_corners, camera_matrix)
-        if IS_STEREO:
-            _detector_ = objdetect.Stereo_detector
-            func_args += (projection_matrix,)
-        
-        try:
-            panel.detector = _detector_(*(func_args+(image_feature_extractor.orb,)))
-            panel.init = True
-        except AttributeError, ae:
-            rospy.loginfo(ae)
-            rospy.loginfo("Could not initialise ORB detector, attempting fallback to SURF")
-            try:
-                panel.detector = _detector_(*(func_args+(image_feature_extractor.surf,)))
-                panel.init = True
-            except AttributeError, ae:
-                rospy.loginfo(ae)
-                rospy.loginfo("Failed to initialise SURF detector")
-                rospy.logerr("Please ensure that cv2.ORB() or cv2.SURF() are available.")
         panel.DETECTED = False
-        panel.sub = None
         panel.img_sub = [
             message_filters.Subscriber(_sub_image_raw_, sensor_msgs.msg.Image)
             for _sub_image_raw_ in self.panel.subscriptions.image_raw]
         panel.ts = message_filters.TimeSynchronizer(panel.img_sub, 5)
         
+        # Publish panel position
         panel.pub = metaclient.Publisher('/visual_detector2/valve_panel', Detection, {})
         panel.detection_msg = Detection()
         panel.pose_msg = PoseWithCovarianceStamped()
         panel.pose_msg.header.frame_id = "panel_position"
         panel.pose_msg_pub = metaclient.Publisher('/slam_landmarks/panel_position', PoseWithCovarianceStamped, {})
-        
+        # Publish image of detected panel
+        self.panel.img_pub = metaclient.Publisher('/visual_detector2/panel_img',
+                                                  sensor_msgs.msg.Image, {})
     
     def enablePanelValveDetectionSrv(self, req):
         #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
@@ -191,19 +183,26 @@ class VisualDetector:
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in args]
         self.panel.detector.detect(*cvimage)
         #self.panel.detector.show()
-        panel_detected, panel_position = self.panel.detector.location()
+        panel_detected, panel_position, panel_orientation = (
+            self.panel.detector.location())
         self.panel.detection_msg.detected = panel_detected
         (self.panel.detection_msg.position.position.x, 
          self.panel.detection_msg.position.position.y,
          self.panel.detection_msg.position.position.z) = panel_position
         self.panel.detection_msg.header.stamp = time_now
         self.panel.pub.publish(self.panel.detection_msg)
+        # Publish image of detected panel
+        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(self.panel.detector.get_scene()))
+        img_msg.header.stamp = time_now
+        self.panel.img_pub.publish(img_msg)
         if panel_detected:
+            # Panel orientation is screwy - only broadcast the yaw
+            # which is panel_orientation[1]
             self.panel.pose_msg.header.stamp = time_now
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.panel.br.sendTransform(tuple(panel_position),
-            tf.transformations.quaternion_from_euler(0, 0, 0), time_now,
-            "panel_position", "stereo_front")
+                tf.transformations.quaternion_from_euler(0., 0., panel_orientation[1]), 
+                time_now, "panel_position", "stereo_front")
         print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
     
