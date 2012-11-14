@@ -14,7 +14,7 @@ import numpy as np
 import code
 #import copy
 from scipy import weave
-from lib.common.misctools import STRUCT
+from lib.common.misctools import STRUCT, estimate_rigid_transform_3d
 from featuredetector import cameramodels
 import tf
 #from matplotlib import pyplot
@@ -51,6 +51,7 @@ class Detector(object):
         # Rotation matrix and translation vector from solvePnP
         self.obj_rpy = None
         self.obj_trans = None
+        self.obj_corners = np.empty(0)
         # Image of the current scene
         self._scene_ = None
         # Set up FLANN matcher
@@ -59,7 +60,7 @@ class Detector(object):
         # Filter for the template and scene
         self.filter_kernel = phasecorr.log_filter_kernel(13)
     
-    def init_camera(self, camera_info):
+    def init_camera(self, camera_info, *dummy_args):
         self.camera.fromCameraInfo(camera_info)
     
     def set_template(self, template_im=None, corners_3d=None):
@@ -108,9 +109,9 @@ class Detector(object):
             return None
         #self._scene_ = copy.copy(im_scene)
         # Filter the scene
-        self._scene_ = self.process_images((im_scene,))[0]
+        proc_im_scene = self.process_images((im_scene,))[0]
         (keypoints_scene, descriptors_scene) = (
-            self.camera.get_features(self._scene_))
+            self.camera.get_features(proc_im_scene))
         dam_result = self.camera.detect_and_match(self._object_.keypoints,
                                                   self._object_.descriptors,
                                                   keypoints_scene,
@@ -122,10 +123,13 @@ class Detector(object):
             min_inliers=self._object_.min_correspondences))
         return status, h_mat, num_inliers, inliers_status
     
-    def detect(self, im_scene):
+    def detect(self, im_scene, *dummy_args):
         """
-        Calculates the homography matrix using the template and current scene.
+        detect(self, im_scene) -> None
+        Detects object by matching features and calculating the homography 
+        matrix from the template and current scene.
         """
+        self._scene_ = im_scene
         status, h_mat, num_inliers, inliers_status = self._detect_(im_scene)
         print '%d / %d  inliers/matched' % (num_inliers, len(inliers_status))
         self._object_.status = status
@@ -139,28 +143,12 @@ class Detector(object):
         Return the estimated homography matrix
         """
         return self._object_.h_mat
-        
-    def _location_(self, corners_tpl_2d, corners_tpl_3d, h_mat, camera_matrix):
-        # Compute the location if object corners are known in world coordinates
-        retval = False
-        r_mat = np.zeros((3, 3))
-        tvec = np.zeros(3)
-        if not corners_tpl_3d is None:
-            # Project the corners of the template onto the scene
-            corners_float = cv2.perspectiveTransform(
-                corners_tpl_2d.reshape(1, -1, 2), h_mat).reshape(-1, 2)
-            corners = corners_float.astype(np.int32)
-            cv2.polylines(self._scene_, [corners], 
-                          True, (255, 255, 255), 4)
-            try:
-                retval, rvec, tvec = cv2.solvePnP(corners_tpl_3d, corners_float, 
-                                              camera_matrix, np.empty(0))
-            except TypeError as type_err:
-                print type_err
-                code.interact(local=locals())
-            r_mat = cv2.Rodrigues(rvec)[0]
-            rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
-        return retval, np.squeeze(tvec), rpy
+    
+    def location(self):
+        """
+        Return detected (bool), relative position (x, y, z) and 
+        orientation (RPY) of the object.
+        """
         # From http://en.wikipedia.org/wiki/Camera_resectioning#Extrinsic_parameters
         # "T is not the position of the camera. It is the position of 
         # the origin of the world coordinate system expressed in 
@@ -168,36 +156,38 @@ class Detector(object):
         # position, C, of the camera expressed in world coordinates is 
         # C = -R^{-1}T = -R^T T (since R is a rotation matrix)."
         #camera_centre = np.dot(-(cv2.Rodrigues(rvec)[0].T), tvec)
-            
-        
-    def location(self):
-        """
-        Return detected (bool) and relative position (x, y, z) of the object.
-        """
         detected = False
-        position = np.zeros(3)
-        orientation = np.zeros(3)
         if self._object_.status:
-            (retval, self.obj_trans, 
-             self.obj_rpy) =  self._location_(self._object_.corners_2d,
-                                            self._object_.corners_3d,
-                                            self._object_.h_mat,
-                                            self.camera.camera_matrix())
-            
-            #sph_tvec = (c2s(tvec).T*[1, 180/np.pi, 180/np.pi])[0]
+            # Project the corners of the template onto the scene
+            self.obj_corners = cv2.perspectiveTransform(
+                self._object_.corners_2d.reshape(1, -1, 2), 
+                self._object_.h_mat).reshape(-1, 2)
+            # Solve perspective n-point
+            retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d, 
+                self.obj_corners, self.camera.camera_matrix(), np.empty(0))
+            # Convert the rotation vector to RPY
+            r_mat = cv2.Rodrigues(rvec)[0]
+            self.obj_rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
+            self.obj_trans = tvec
             obj_range = np.linalg.norm(self.obj_trans)
             if not retval or (not 0.25 < obj_range < 5):
                 print "Too close/far for reliable estimation"
             else:
                 detected = True
-                position = self.obj_trans
-                orientation = self.obj_rpy
-            print "Relative panel position (x,y,z) = ", str(self.obj_trans)
-            print "Relative panel orientation (RPY) = ", str(self.obj_rpy)
-        return detected, position, orientation
+                # Plot outline on image
+                corners = self.obj_corners.astype(np.int32)
+                cv2.polylines(self.get_scene(0), [corners], 
+                              True, (255, 255, 255), 4)
+        else:
+            self.obj_trans = np.zeros(3)
+            self.obj_rpy = np.zeros(3)
+        return detected, self.obj_trans, self.obj_rpy
     
-    def get_scene(self):
-        return self._scene_
+    def get_scene(self, idx=None):
+        if not idx is None:
+            return (self._scene_,)[idx]
+        else:
+            return (self._scene_,)
     
     #def show(self):
     #    cv2.namedWindow("panel-detect")
@@ -232,221 +222,105 @@ class Stereo_detector(Detector):
         if len(self._object_.keypoints) == 0:
             rospy.logfatal("No keypoints detected in template image")
             raise rospy.ROSException("No keypoints detected in template image")
-        
-        if not self._object_.corners_3d is None:
-            # Perform the homography and monocular localisation to obtain the
-            # projection matrix as r_mat and t_vec
-            super(Stereo_detector, self).detect(template_im)
-            # parent location() requires that only one camera matrix is used
-            (detected, panel_centre) = super(Stereo_detector, self).location()
-            # Save template z offset if required later
-            self.template_z_offset = panel_centre[2]
-            # Obtain pixel coordinates of the keypoints
-            self._object_.keypoints_2d = np.array([_kp_.pt 
-                for _kp_ in self._object_.keypoints])
-            """
-            # Append pixel coordinates with 1: (x, y) -> (x, y, 1)
-            keypoints_2d_1 = np.hstack((self._object_.keypoints_2d, 
-                np.ones((self._object_.keypoints_2d.shape[0], 1))))
-            # Inverse mapping from pixel points to 3D world coordinates for
-            # all the template keypoints
-            code.interact(local=locals())
-            self._object_.keypoints_3d = np.dot(
-                np.dot(-self.r_mat.T, self.t_vec), keypoints_2d_1)
-            """
-            keypoints_3d = np.hstack((self._object_.keypoints_2d, 
-            np.ones((self._object_.keypoints_2d.shape[0], 1))))
-            
-            kp_offset = np.array(self._object_.template.shape)/2
-            keypoints_3d[:, 2] = self.template_z_offset
-            keypoints_3d[:, 0:2] -= kp_offset
-            keypoints_3d[:, 0:2] /= kp_offset
-            keypoints_3d[:, 0:2] *= np.abs(self._object_.corners_3d[0, 0:2])
-            self._object_.keypoints_3d = keypoints_3d
-            
+        self._object_.keypoints_2d = np.array(
+            [_kp_.pt for _kp_ in self._object_.keypoints])
+        keypoints_normalised = (self._object_.keypoints_2d/
+                                [template_im.shape[1], template_im.shape[0]])
+        keypoints_normalised -= 0.5
+        # Find size of the template by taking the difference of the corners
+        template_size = np.max(np.abs(np.diff(corners_3d, axis=0)), axis=0)
+        keypoints_3d = np.hstack((keypoints_normalised, 
+            np.zeros((keypoints_normalised.shape[0], 1))))
+        keypoints_3d *= template_size
+        self._object_.keypoints_3d = keypoints_3d
     
     def detect(self, im_scene_l, im_scene_r):
-        if self._object_.template is None:
-            print "object template is not set!"
-            return None
+        """
+        detect(self, im_scene) -> None
+        Detects object by matching features and calculating the homography 
+        matrix from the template and current scene.
+        """
+        # Set affine transformation and status to false
+        self._object_.status = [False, False]
+        self._object_.h_mat = [None, None]
+        self._object_.num_inliers = [0, 0]
+        self._object_.inliers_status = [None, None]
+        self.obj_rpy = np.zeros(3)
+        self.obj_trans = np.zeros(3)
+        self.obj_corners = np.empty(0)
+        
         # Threshold the image
         self._scene_ = self.process_images((im_scene_l, im_scene_r))
         
-        # Set affine transformation and status to false
-        self._object_.h_mat = [None, None]
-        self._object_.affine_3d = [None, None]
-        self._object_.status = np.zeros(2)
-        self._object_.inliers = np.zeros(2)
+        if self._object_.template is None:
+            print "object template is not set!"
+            return None
         
-        # Get keypoints and descriptors from the stereo image
-        points3d, (kp_l, kp_r), (desc_l, desc_r) = (
-            self.camera.points3d_from_img(im_scene_l, im_scene_r))
-        # Check if keypoints in both images, otherwise cannot do the matching
-        if kp_l and kp_r:
-            # Match keypoints in the images
-            dam_result = self.camera.detect_and_match(
-                kp_l, desc_l, kp_r, desc_r, self.flann_ratio_threshold)
-            pt_l, pt_r, idx_l, idx_r = dam_result[0:4]
-            # Check for initial matches
-            if idx_l.shape[0] < self._object_.min_correspondences:
-                return
-            # Valid matches are those where y co-ordinate of p1 and p2 are
-            # almost equal
-            y_diff = np.abs(pt_l[:, 1] - pt_r[:, 1])
-            valid_pts_mask = y_diff < 3
-            pt_l = pt_l[valid_pts_mask]
-            pt_r = pt_r[valid_pts_mask]
-            idx_l = idx_l[valid_pts_mask]
-            idx_r = idx_r[valid_pts_mask]
-            print "Matched ", str(len(valid_pts_mask)), " points between l & r images"
-            
-            # Proceed only if minimum required points detected
-            if ((pt_l.shape[0] < self._object_.min_correspondences) or
-                (pt_r.shape[0] < self._object_.min_correspondences)):
-                return
-            
-            final_matched_kp_img = []
-            final_matched_kp_tpl = []
-            for kp_img, desc_img, idx_img in ((kp_l, desc_l, idx_l), 
-                                              (kp_r, desc_r, idx_r)):
-                # Match template descriptors with valid points from left image
-                selected_keypoints_img = [kp_img[_idx_] for _idx_ in idx_img]
-                selected_descriptors_img = desc_img[idx_img]
-                
-                dam_result = self._detect_and_match_(self._object_.keypoints,
-                                                     self._object_.descriptors,
-                                                     selected_keypoints_img,
-                                                     selected_descriptors_img)
-                template_idx = dam_result[2]
-                if template_idx.shape[0] < self._object_.min_correspondences:
-                    return
-                final_matched_kp_tpl.append(dam_result[0])
-                final_matched_kp_img.append(dam_result[1])
-            
-            # Matching keypoints are now stored in
-            # final_matched_kp_{tpl,img}[0->left, 1->right]
-            h_mat = []
-            status = np.zeros(2)
-            inliers = np.zeros(2)
-            for count in range(2):
-                # Compute homography since we have minimum required matches
-                _h_mat_, _status_ = cv2.findHomography(final_matched_kp_tpl[count],
-                                                   final_matched_kp_img[count],
-                                                   cv2.RANSAC, 5.0)
-                _inliers_ = np.sum(_status_)
-                print '%d / %d  inliers/matched' % (_inliers_, len(_status_))
-                
-                inliers[count] = _inliers_
-                # Homography is valid only if we have at least 
-                # min_correspondences number of inliers
-                if ((_h_mat_ is None) or 
-                    (_inliers_ < self._object_.min_correspondences)):
-                    status[count] = False
-                else:
-                    status[count] = True
-                h_mat.append(_h_mat_)
-                
-            self._object_.h_mat = h_mat
-            self._object_.status = status
-            self._object_.inliers = inliers
-            """
-            # Triangulate the points
-            points4d = cv2.triangulatePoints(self.camera_projection_matrix[0],
-                                             self.camera_projection_matrix[1],
-                                             pt_l.T, pt_r.T)
-            points4d /= points4d[3]  #(wx,wy,wz,w) -> (x,y,z,1)
-            
-            
-            # Select the subset of triangulated points using the valid matches
-            # of the template
-            template_idx, scene_idx = dam_result[2:4]
-            scene_points = points4d[0:3, scene_idx]
-            template_points = self._object_.keypoints_3d[template_idx]
-            print "Matched ", str(len(template_idx)), " points between l image and template"
-            # Use the point correspondences to obtain the 3D affine 
-            # transformation
-            # Python binding for estimateAffine3D doesn't work, use C api
-            #(retval, affine_3d, inliers) = (
-            #    cv2.estimateAffine3D(template_points.astype(np.float32), 
-            #                         scene_points.T))
-            
-            # Check if sufficient number of correspondences
-            if template_idx.shape[0] < self._object_.min_correspondences:
-                return
-            (retval, affine_3d, inliers) = (
-                _estimateAffine3D_(template_points, scene_points.T))
-            print "estimateAffine3D found", str(inliers[0]), " inliers"
-            # Find the transformation of [0, 0, 0, 1] using the transformation
-            if retval and len(inliers) >= self._object_.min_correspondences:
-                self._object_.affine_3d = affine_3d
-                self._object_.status = True
-            """
-    
-    """
-    def affine_3d(self):
-        # Return the estimated 3D affine transformation
-        return self._object_.affine_3d
-    
-    def location(self):
-        # Return detected (bool) and relative position (x, y, z) of the object.
-        detected = False
-        position = np.zeros(3)
-        # Evaluate the location only if the homography is valid
-        if self._object_.status:
-            detected = True
-            position = np.dot(self._object_.affine_3d, 
-                              np.array([[0, 0, 0, 1]]).T)
-        return detected, position
-    """
+        status_l, h_mat_l, num_inliers_l, inliers_status_l = self._detect_(im_scene_l)
+        status_r, h_mat_r, num_inliers_r, inliers_status_r = self._detect_(im_scene_r)
+        self._object_.status = [status_l, status_r]
+        self._object_.h_mat = [h_mat_l, h_mat_r]
+        self._object_.num_inliers = [num_inliers_l, num_inliers_r]
+        self._object_.inliers_status = [inliers_status_l, inliers_status_r]
     
     def location(self):
         """
-        Return detected (bool) and relative position (x, y, z) of the object.
+        Return detected (bool), relative position (x, y, z) and 
+        orientation (RPY) of the object.
         """
-        detected = 0
-        position = np.zeros(3)
-        
-        r_mat = []
-        t_vec = []
-        for count in range(2):
-            # Compute the location if a homography was computed even if invalid
-            if not self._object_.h_mat[count] is None:
-                (_retval_, _r_mat_, 
-                 _t_vec_) = self._location_(self._object_.corners_2d,
-                                            self._object_.corners_3d,
-                                            self._object_.h_mat[count],
-                                            self.camera_matrix[count])
-                r_mat.append(_r_mat_)
-                t_vec.append(_t_vec_)
-                #sph_tvec = (c2s(tvec).T*[1, 180/np.pi, 180/np.pi])[0]
-                obj_range = np.linalg.norm(_t_vec_)
-                # Check if the computed location is valid
-                if ((_retval_) and (0.25 < obj_range < 5) and 
-                    (self._object_.status[count])):
-                    detected += 1
-                    _t_vec_offset_ = _t_vec_.copy()
-                    _t_vec_offset_[0] += (0.5-count)*self.camera_half_baseline
-                    position += _t_vec_offset_
-                    
+        status = self._object_.status
+        h_mat = self._object_.h_mat
+        num_inliers = np.asarray(self._object_.num_inliers)
+        #inliers_status = self._object_.inliers_status
+        obj_corners = []
+        obj_trans = []
+        obj_rpy = []
+        for idx in range(2):
+            if status[idx]:
+                _obj_corners_ = cv2.perspectiveTransform(
+                    self._object_.corners_2d.reshape(1, -1, 2), 
+                    h_mat[idx]).reshape(-1, 2)
+                # Solve perspective n-point
+                _retval_, _rvec_, _tvec_ = cv2.solvePnP(
+                    self._object_.corners_3d, _obj_corners_, 
+                    self.camera.camera_matrix(), np.empty(0))
+                # Convert the rotation vector to RPY
+                _r_mat_ = cv2.Rodrigues(_rvec_)[0]
+                _rpy_ = np.asarray(tf.transformations.euler_from_matrix(_r_mat_))
+                # Check if object in valid range
+                obj_range = np.linalg.norm(_tvec_)
+                if not _retval_ or (not 0.25 < obj_range < 5):
+                    status[idx] = False
                 else:
-                    print "Too close/far for reliable estimation"
+                    # Plot the bounding box
+                    corners = _obj_corners_.astype(np.int32)
+                    cv2.polylines(self.get_scene(idx), [corners], 
+                                  True, (255, 255, 255), 4)
             else:
-                # Cannot compute homography, push None on to the lists
-                r_mat.append(None)
-                t_vec.append(None)
-            
-            if detected:
-                position /= detected
-                detected = True
-                print "Relative panel position (x,y,z) = ", str(position)
-            self.r_mat = r_mat
-            self.t_vec = t_vec
-            
-            #print "Relative panel position (r,az,el) = ", str(sph_tvec)
-        return detected, position
+                _obj_corners_ = np.zeros((1, 3))
+                _rpy_ = np.zeros(3)
+                _tvec_ = np.zeros(3)
+            obj_corners.append(_obj_corners_)
+            obj_trans.append(np.squeeze(_tvec_))
+            obj_rpy.append(_rpy_)
+        
+        # Convert the translation from the right image to the left
+        tf_obj_trans = self.camera.left.from_world_coords(
+            self.camera.right.to_world_coords(obj_trans[1][np.newaxis]))[0]
+        detected = status[0] or status[1]
+        # Compute the weighted average of the pose
+        total_inliers = (num_inliers*status).sum()
+        position = np.squeeze((obj_trans[0]*status[0]*num_inliers[0] +
+                    tf_obj_trans*status[1]*num_inliers[1])/total_inliers)
+        orientation = (obj_rpy[0]*status[0]*num_inliers[0] +
+                       obj_rpy[1]*status[1]*num_inliers[1])/total_inliers
+        return detected, position, orientation
     
-    def get_scene(self):
-        return self._scene_[0]
+    def get_scene(self, idx=None):
+        if not idx is None:
+            return self._scene_[idx]
+        else:
+            return self._scene_
     
 
 def _estimateAffine3D_(src_points, dst_points):

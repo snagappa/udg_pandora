@@ -21,7 +21,8 @@ DESCRIPTORS = ("SIFT", "SURF") + BINARY_DESCRIPTORS
 
 
 class _feature_detector_(object):
-    def __init__(self, feature_detector, feature_descriptor):
+    def __init__(self, feature_detector, feature_descriptor, 
+                 GRID_ADAPTED=False):
         """
         _feature_detector_(detector<str>, descriptor<str>) 
             -> _feature_detector_ object
@@ -38,15 +39,21 @@ class _feature_detector_(object):
         # Type of norm used for the descriptor
         self.NORM = None
         self.DESCRIPTOR_IS_BINARY = -1
+        
         # Type of detector and descriptor used
         self.type = STRUCT()
         self.type.feature_detector = feature_detector
         self.type.feature_descriptor = feature_descriptor
         self._detector_init_()
-        
+        if GRID_ADAPTED:
+            self.make_grid_adapted()
+        else:
+            self.GRID_ADAPTED = False
+    
     def _detector_init_(self):
         # Initialise the feature detector
         self._detector_ = cv2.FeatureDetector_create(self.type.feature_detector)
+        
         # Initialise the descriptor extractor
         self._descriptor_extractor_ = (
             cv2.DescriptorExtractor_create(self.type.feature_descriptor))
@@ -68,12 +75,21 @@ class _feature_detector_(object):
                 self.NORM = None
             self.DESCRIPTOR_IS_BINARY = False
         
+    def make_grid_adapted(self):
+        try:
+            self._detector_ = cv2.GridAdaptedFeatureDetector(self._detector_)
+            self.GRID_ADAPTED = True
+        except:
+            print "Could not create grid adapted detector"
+            self.GRID_ADAPTED = False
     
     def reinit(self):
         """
         Reinitialise the feature detector if necessary
         """
         self._detector_init_()
+        if self.GRID_ADAPTED:
+            self.make_grid_adapted()
     
     def get_features(self, im, mask=None):
         """
@@ -82,45 +98,54 @@ class _feature_detector_(object):
         (self._keypoints_, self._descriptors_) = \
             self._detect_(im, mask)
         return (self._keypoints_, self._descriptors_)
-        
-    def change_num_features(self, parameter_scale_factor):
-        """
-        change_num_features(parameter_scale_factor)
-        Scale the parameter which affects the number of keypoints returned.
-        Scale factor > 1 increases the number of keypoints, < 1 decreases the
-        number of keypoints.
-        """
-        assert parameter_scale_factor > 0, "scale factor must be > 0"
-        if self.type.feature_detector == "ORB":
-            num_features = self._detector_.getInt("nFeatures")
-            num_features *= parameter_scale_factor
-            self._detector_.setInt("nFeatures", int(num_features))
-        elif self.type.feature_detector == "SURF":
-            hessian_threshold = self._detector_.getDouble("hessianThreshold")
-            hessian_threshold /= parameter_scale_factor
-            self._detector_.setDouble("hessianThreshold", float(hessian_threshold))
-
+    
+    def set_grid_adapted_num_features(self, num_features):
+        params_list = self._detector_.getParams()
+        assert (self.GRID_ADAPTED and 
+            "maxTotalKeypoints" in params_list), "Cannot set number of features"
+        self._detector_.setInt("maxTotalKeypoints", num_features)
+    
 
 class Sift(_feature_detector_):
     def __init__(self, *args, **kwargs):
-        super(Sift, self).__init__("SIFT", "SIFT")
+        super(Sift, self).__init__("SIFT", "SIFT", *args, **kwargs)
     
+
 class Surf(_feature_detector_):
     def __init__(self, *args, **kwargs):
-        super(Surf, self).__init__("SURF", "SURF")
+        super(Surf, self).__init__("SURF", "SURF", *args, **kwargs)
     
+    def set_hessian_threshold(self, hessian_threshold):
+        if self.GRID_ADAPTED:
+            maxTotalKeypoints = self._detector_.getInt("maxTotalKeypoints")
+        self._detector_init_()
+        self._detector_.setDouble("hessianThreshold", hessian_threshold)
+        if self.GRID_ADAPTED:
+            self.make_grid_adapted()
+            self.set_grid_adapted_num_features(maxTotalKeypoints)
+    
+
 class Mser(_feature_detector_):
     def __init__(self, *args, **kwargs):
-        super(Mser, self).__init__("MSER", "ORB")
+        super(Mser, self).__init__("MSER", "ORB", *args, **kwargs)
+    
     
 class Orb(_feature_detector_):
     def __init__(self, *args, **kwargs):
-        super(Orb, self).__init__("ORB", "ORB")
-        self.change_num_features(2)
-        
+        super(Orb, self).__init__("ORB", "ORB", *args, **kwargs)
+        self.set_num_features(1000)
+    
+    def set_num_features(self, num_features):
+        if self.GRID_ADAPTED:
+            self.set_grid_adapted_num_features(num_features)
+        else:
+            self._detector_.setInt("nFeatures", num_features)
+    
+
 class Freak(_feature_detector_):
     def __init__(self, *args, **kwargs):
-        super(Freak, self).__init__("FAST", "FREAK")
+        super(Freak, self).__init__("FAST", "FREAK", *args, **kwargs)
+
 
 sift  = Sift
 surf  = Surf

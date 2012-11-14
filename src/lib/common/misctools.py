@@ -280,11 +280,13 @@ def sample_mn_cv(x, wt=None, SYMMETRISE=False):
 def estimate_rigid_transform_3d(pts1, pts2):
     """
     estimate_3d_transform(pts1, pts2) -> [R|t]
-    Estimate 3D transformation using SVD.
+    Estimate 3D transformation from pts1 to pts2 using SVD.
     D.W. Eggert, A. Lorusso, R.B. Fisher, "Estimating 3-D rigid body 
     transformations: a comparison of four major algorithms", Machine Vision 
     and Applications (1997) 9: 272–290 Machine Vision and Applications, 
     Springer-Verlag 1997
+    This code adapted from Nghia Ho
+    http://nghiaho.com/uploads/code/rigid_transform_3D.py_
     """
     assert ((pts1.shape == pts2.shape) and (pts1.ndim == 2) and
             (pts1.shape[1] == 3)), "pts1 and pts2 must be Nx3 ndarrays"

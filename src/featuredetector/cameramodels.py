@@ -91,7 +91,7 @@ class FlannMatcher(object):
                                key_size = 12,     # 20
                                multi_probe_level = 1) #2
         else:
-            self._flann_.PARAMS = dict(algorithm = FLANN_INDEX_KDTREE, 
+            self.PARAMS = dict(algorithm = FLANN_INDEX_KDTREE, 
                                        trees = 5)
         self.NEW_FLANN_MATCHER = False
         try:
@@ -157,9 +157,9 @@ class FlannMatcher(object):
             idx1, idx2, distance = self.knnMatch(obj_desc, scene_desc, 2)
         except:
             print "Error occurred computing knnMatch"
-            idx1 = np.empty(0)
-            idx2 = np.empty(0)
-            distance = np.zeros(0, 2)
+            idx1 = np.empty(0, dtype=np.int)
+            idx2 = np.empty((0, 2), dtype=np.int)
+            distance = np.zeros((0, 2))
         
         # Use only good matches
         mask = distance[:, 0] < (distance[:, 1] * ratio)
@@ -171,8 +171,8 @@ class FlannMatcher(object):
         for (_idx1_, _idx2_) in zip(valid_idx1, valid_idx2):
             match_kp1.append(obj_kp[_idx1_])
             match_kp2.append(scene_kp[_idx2_])
-        pts_1 = np.float32([kp.pt for kp in match_kp1])
-        pts_2 = np.float32([kp.pt for kp in match_kp2])
+        pts_1 = np.asarray([kp.pt for kp in match_kp1], dtype=np.float32)
+        pts_2 = np.asarray([kp.pt for kp in match_kp2], dtype=np.float32)
         #kp_pairs = zip(match_kp1, match_kp2)
         return pts_1, pts_2, valid_idx1, valid_idx2, (idx1, idx2, mask) #, kp_pairs
     
@@ -499,6 +499,12 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def projection_matrix(self):
         return np.asarray(self.P)
     
+    def width(self):
+        return self.width
+    
+    def height(self):
+        return self.height
+    
     def fov_vertices_2d(self):
         if not self.width is None:
             half_fov_angle = np.arctan2(self.width/2.0, self.fx())
@@ -612,6 +618,12 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         return np.vstack((self.left.projection_matrix()[np.newaxis], 
                           self.right.projection_matrix()[np.newaxis]))
     
+    def width(self):
+        return self.left.width()
+    
+    def height(self):
+        return self.left.height()
+    
     def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0) -> None
         Set the near and far field of view
@@ -661,6 +673,10 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         be Nx2 numpy arrays
         """
         # Triangulate the points
+        assert (pts_left.ndim == 2) and (pts_right.ndim == 2), "pts must be Nx2 numpy array"
+        assert pts_left.shape == pts_right.shape, "pts_{left/right} must have the same shape"
+        if pts_left.shape[0] == 0:
+            return np.empty(0)
         points4d = cv2.triangulatePoints(np.asarray(self.left.P),
                                          np.asarray(self.right.P),
                                          pts_left.T, pts_right.T)
@@ -683,11 +699,11 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     
 
 class _CameraFeatureDetector_(object):
-    def __init__(self, feature_extractor=image_feature_extractor.Orb):
+    def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
         self._flann_mathcer_ = None
         self._featuredetector_ = None
         if not feature_extractor is None:
-            self.set_feature_extractor(feature_extractor)
+            self.set_feature_extractor(feature_extractor, **kwargs)
 #        left = STRUCT()
 #        left.raw = None
 #        left.keypoints = None
@@ -695,8 +711,8 @@ class _CameraFeatureDetector_(object):
 #        self.images = [left]
     
     def set_feature_extractor(self, 
-                              feature_extractor=image_feature_extractor.Orb):
-        self._featuredetector_ = feature_extractor()
+                              feature_extractor=image_feature_extractor.Orb, **kwargs):
+        self._featuredetector_ = feature_extractor(**kwargs)
         self._flann_matcher_ = FlannMatcher(self._featuredetector_.DESCRIPTOR_IS_BINARY)
     
     def get_features(self, image):
@@ -709,7 +725,8 @@ class _CameraFeatureDetector_(object):
         _detect_and_match_(obj_kp, obj_desc, scene_kp, scene_desc, ratio)
         Returns pt1, pt2, valid_idx1, valid_idx2
         """
-        if (not obj_kp) or (not scene_kp):
+        if (obj_kp is None or (len(obj_kp) == 0) or 
+            scene_kp is None or (len(scene_kp) == 0)):
             return (np.empty(0, dtype=np.float), np.empty(0, dtype=np.float),
                     np.empty(0, dtype=np.int), np.empty(0, dtype=np.int))
         idx1, idx2, distance = self._flann_matcher_.knnMatch(obj_desc, 
@@ -744,6 +761,7 @@ class _CameraFeatureDetector_(object):
         if pts_1.shape[0] > min_inliers:
             h_mat, inliers_status = cv2.findHomography(pts_1, pts_2, method, 
                                                        ransacReprojThreshold)
+            inliers_status = np.squeeze(inliers_status)
             num_inliers = np.sum(inliers_status)
             if (num_inliers < min_inliers) or (h_mat is None):
                 status = False
@@ -753,22 +771,22 @@ class _CameraFeatureDetector_(object):
     
 
 class PinholeCameraFeatureDetector(PinholeCameraModel, _CameraFeatureDetector_):
-    def __init__(self, feature_extractor=image_feature_extractor.Orb):
+    def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
         PinholeCameraModel.__init__(self)
-        _CameraFeatureDetector_.__init__(self, feature_extractor)
+        _CameraFeatureDetector_.__init__(self, feature_extractor, **kwargs)
     
 
 class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
-    def __init__(self, feature_extractor=image_feature_extractor.Orb):
+    def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
         """StereoCameraFeatureDetector(feature_extractor=image_feature_extractor.Orb)
         -> stereocam_detector
         """
         StereoCameraModel.__init__(self)
-        _CameraFeatureDetector_.__init__(self, feature_extractor)
+        _CameraFeatureDetector_.__init__(self, feature_extractor, **kwargs)
 #        self.images.append(copy.deepcopy(self.images[0]))
     
-    def points3d_from_img(self, image_left, image_right, ratio_threshold=0.6):
-        """get_points(self, image_left, image_right, ratio_threshold=0.75)
+    def points3d_from_img(self, image_left, image_right, ratio_threshold=0.75):
+        """get_points(self, image_left, image_right, ratio_threshold=0.6)
             -> points3d, keypoints, descriptors
         """
         images = [STRUCT(), STRUCT()]
@@ -776,33 +794,46 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
         for (idx, _im_) in zip((0, 1), (image_left, image_right)):
             #self.images[idx].raw = _im_.copy()
             (images[idx].keypoints, images[idx].descriptors) = (
-            self.extract_features(_im_))
+            self.get_features(_im_))
         
         # Use the flann matcher to match keypoints
         im_left = images[0]
         im_right = images[1]
-        match_result = self._flann_matcher_.detect_and_match(
-            im_left.keypoints, im_left.descriptors,
-            im_right.keypoints, im_right.descriptors, ratio_threshold)
-        pts_l, pts_r, idx_l, idx_r, mask_tuple = match_result
+        if len(im_left.keypoints) and len(im_right.keypoints):
+            match_result = self._flann_matcher_.detect_and_match(
+                im_left.keypoints, im_left.descriptors,
+                im_right.keypoints, im_right.descriptors, ratio_threshold)
+            pts_l, pts_r, idx_l, idx_r, mask_tuple = match_result
+        else:
+            pts_l = np.empty(0)
+            pts_r = np.empty(0)
         
-        kp_l = np.asarray(im_left.keypoints)[idx_l]
-        desc_l = np.asarray(im_left.descriptors)[idx_l]
-        kp_r = np.asarray(im_right.keypoints)[idx_r]
-        desc_r = np.asarray(im_right.descriptors)[idx_r]
-        # Valid matches are those where y co-ordinate of p1 and p2 are
-        # almost equal
-        y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
-        valid_disparity_mask = y_diff < 4.0
-        # Select keypoints and descriptors which satisfy disparity
-        pts_l = pts_l[valid_disparity_mask]
-        kp_l = kp_l[valid_disparity_mask]
-        desc_l = desc_l[valid_disparity_mask]
-        pts_r = pts_r[valid_disparity_mask]
-        kp_r = kp_r[valid_disparity_mask]
-        desc_r = desc_r[valid_disparity_mask]
-        
-        # Triangulate the points now that they are matched
-        points3d = self.triangulate(pts_l, pts_r)
-        return points3d, (kp_l, kp_r), (desc_l, desc_r)
+        # Only proceed if there are matches
+        if pts_l.shape[0]:
+            kp_l = np.asarray(im_left.keypoints)[idx_l]
+            desc_l = np.asarray(im_left.descriptors)[idx_l]
+            kp_r = np.asarray(im_right.keypoints)[idx_r]
+            desc_r = np.asarray(im_right.descriptors)[idx_r]
+            # Valid matches are those where y co-ordinate of p1 and p2 are
+            # almost equal
+            y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
+            valid_disparity_mask = y_diff < 4.0
+            # Select keypoints and descriptors which satisfy disparity
+            pts_l = pts_l[valid_disparity_mask]
+            kp_l = kp_l[valid_disparity_mask]
+            desc_l = desc_l[valid_disparity_mask]
+            pts_r = pts_r[valid_disparity_mask]
+            kp_r = kp_r[valid_disparity_mask]
+            desc_r = desc_r[valid_disparity_mask]
+            
+            # Triangulate the points now that they are matched
+            # Normalise the points
+            points3d = self.triangulate(pts_l, pts_r)
+        else:
+            points3d = np.empty(0)
+            kp_l = np.empty(0)
+            kp_r = np.empty(0)
+            desc_l = np.empty(0)
+            desc_r = np.empty(0)
+        return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
     
