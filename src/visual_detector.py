@@ -19,7 +19,8 @@ import numpy as np
 from featuredetector import cameramodels, image_feature_extractor
 import message_filters
 from lib.common.misctools import STRUCT, pcl_xyz_cov, approximate_mahalanobis, merge_states
-import tf
+from tf import TransformBroadcaster
+from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import threading
 import copy
@@ -202,16 +203,16 @@ class VisualDetector:
         self.image_buffer = stereo_image_buffer(rostopic_cam_root)
         
         # Initialise panel detector
-        template_image_file = "uwsim_panel_template.png"
+        template_image_file = "uwsim_panel_template3.png"
         
         panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], 
                                   [0.8, -0.5, 0], [-0.8, -0.5, 0]])
         panel_update_rate = 4
         self.panel = STRUCT()
-        self.panel.br = tf.TransformBroadcaster()
+        self.panel.br = TransformBroadcaster()
         self.init_panel_detector( 
             template_image_file, panel_corners, IS_STEREO, panel_update_rate)
-        
+        self._enablePanelValveDetectionSrv_()
         # Initialise valve detector
         #self.valve = STRUCT()
         #self.valve.detector = objdetect.valve_detector()
@@ -245,7 +246,8 @@ class VisualDetector:
         else:
             panel.detector = objdetect.Detector(
                 feat_detector=_default_feature_extractor_)
-        
+        # Set number of features from detector
+        panel.detector.set_detector_num_features(2000)
         # Get camera info msg and initialise camera
         cam_info = self.image_buffer.get_camera_info()
         panel.detector.init_camera(*cam_info)
@@ -356,10 +358,20 @@ class VisualDetector:
         #self.panel.detector.show()
         panel_detected, panel_position, panel_orientation = (
             self.panel.detector.location())
+        panel_rpy = panel_orientation[[2, 0, 1]]
+        panel_detected = (panel_detected and 
+            self._check_valid_panel_orientation_(panel_rpy))
+        panel_orientation_quaternion = quaternion_from_euler(*panel_rpy)
         self.panel.detection_msg.detected = panel_detected
         (self.panel.detection_msg.position.position.x, 
          self.panel.detection_msg.position.position.y,
          self.panel.detection_msg.position.position.z) = panel_position
+        (self.panel.detection_msg.position.orientation.x,
+         self.panel.detection_msg.position.orientation.y,
+         self.panel.detection_msg.position.orientation.z,
+         self.panel.detection_msg.position.orientation.w,) = (
+             panel_orientation_quaternion)
+        
         self.panel.detection_msg.header.stamp = time_now
         self.panel.pub.publish(self.panel.detection_msg)
         # Publish image of detected panel
@@ -375,11 +387,26 @@ class VisualDetector:
             self.panel.pose_msg.header.stamp = time_now
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.panel.br.sendTransform(tuple(panel_position),
-                tf.transformations.quaternion_from_euler(0., 0., panel_orientation[1]), 
+                panel_orientation_quaternion, 
                 time_now, "panel_position", "stereo_front")
-        print "Detected = ", self.panel.detection_msg.detected
+        #print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
     
+    def _check_valid_panel_orientation_(self, panel_rpy):
+        # if panel_orientation{0,2} not close to zero, return false
+        abs_rpy = np.abs(panel_rpy)
+        if ((abs_rpy[0] < 0.35 or (np.pi-abs_rpy[0]) < 0.35) and
+            (np.pi-abs_rpy[1] < 0.35)):
+            return True
+        else:
+            return False
+        #remainder = np.mod(np.pi - np.mod(abs_po, np.pi), np.pi)
+        #if np.any(remainder > 0.2):
+        #    return False
+        #else:
+        #    return True
+        #return True
+        
     def detect_slam_features(self, *args):
         time_now = rospy.Time.now()
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in args]

@@ -769,6 +769,11 @@ class _CameraFeatureDetector_(object):
                 status = True
         return status, h_mat, num_inliers, inliers_status
     
+    def make_grid_adapted_detector(self):
+        self._featuredetector_.make_grid_adapted()
+    
+    def set_detector_num_features(self, num_features):
+        self._featuredetector_.set_num_features(num_features)
 
 class PinholeCameraFeatureDetector(PinholeCameraModel, _CameraFeatureDetector_):
     def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):

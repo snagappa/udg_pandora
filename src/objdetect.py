@@ -189,6 +189,9 @@ class Detector(object):
         else:
             return (self._scene_,)
     
+    def set_detector_num_features(self, num_features):
+        self.camera.set_detector_num_features(num_features)
+    
     #def show(self):
     #    cv2.namedWindow("panel-detect")
     #    if not self._object_.h_mat is None:

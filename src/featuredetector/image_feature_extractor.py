@@ -45,10 +45,9 @@ class _feature_detector_(object):
         self.type.feature_detector = feature_detector
         self.type.feature_descriptor = feature_descriptor
         self._detector_init_()
+        self.GRID_ADAPTED = False
         if GRID_ADAPTED:
             self.make_grid_adapted()
-        else:
-            self.GRID_ADAPTED = False
     
     def _detector_init_(self):
         # Initialise the feature detector
@@ -75,13 +74,18 @@ class _feature_detector_(object):
                 self.NORM = None
             self.DESCRIPTOR_IS_BINARY = False
         
-    def make_grid_adapted(self):
+    def make_grid_adapted(self, FORCE=False):
+        if self.GRID_ADAPTED and not FORCE:
+            print "Already set to grid adapted"
+            return
         try:
             self._detector_ = cv2.GridAdaptedFeatureDetector(self._detector_)
-            self.GRID_ADAPTED = True
         except:
             print "Could not create grid adapted detector"
             self.GRID_ADAPTED = False
+        else:
+            self.GRID_ADAPTED = True
+            self.set_num_features = self.set_grid_adapted_num_features
     
     def reinit(self):
         """
@@ -89,7 +93,7 @@ class _feature_detector_(object):
         """
         self._detector_init_()
         if self.GRID_ADAPTED:
-            self.make_grid_adapted()
+            self.make_grid_adapted(FORCE=True)
     
     def get_features(self, im, mask=None):
         """
@@ -105,6 +109,8 @@ class _feature_detector_(object):
             "maxTotalKeypoints" in params_list), "Cannot set number of features"
         self._detector_.setInt("maxTotalKeypoints", num_features)
     
+    def set_num_features(self, num_features):
+        raise UnboundLocalError("Convert to grid adapted detector first using make_grid_adapted()")
 
 class Sift(_feature_detector_):
     def __init__(self, *args, **kwargs):
@@ -121,7 +127,7 @@ class Surf(_feature_detector_):
         self._detector_init_()
         self._detector_.setDouble("hessianThreshold", hessian_threshold)
         if self.GRID_ADAPTED:
-            self.make_grid_adapted()
+            self.make_grid_adapted(FORCE=True)
             self.set_grid_adapted_num_features(maxTotalKeypoints)
     
 
@@ -136,10 +142,7 @@ class Orb(_feature_detector_):
         self.set_num_features(1000)
     
     def set_num_features(self, num_features):
-        if self.GRID_ADAPTED:
-            self.set_grid_adapted_num_features(num_features)
-        else:
-            self._detector_.setInt("nFeatures", num_features)
+        self._detector_.setInt("nFeatures", num_features)
     
 
 class Freak(_feature_detector_):
