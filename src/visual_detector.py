@@ -275,7 +275,7 @@ class VisualDetector:
         
         # Initialise the detector and reset the number of features
         slam_features.camera = cameramodels.StereoCameraFeatureDetector(
-            feature_extractor=_default_feature_extractor_, GRID_ADAPTED=True)
+            feature_extractor=_default_feature_extractor_, GRID_ADAPTED=False)
         #if _default_feature_extractor_ is image_feature_extractor.Orb:
         #    slam_features.camera._featuredetector_.set_num_features(num_features)
         #elif _default_feature_extractor_ is image_feature_extractor.Surf:
@@ -285,7 +285,7 @@ class VisualDetector:
         #    raise rospy.ROSException("Could not reset the number of features for slam")
         
         try:
-            slam_features.camera._featuredetector_.set_grid_adapted_num_features(num_features)
+            slam_features.camera._featuredetector_.set_num_features(num_features)
         except AssertionError as assert_err:
             print assert_err
             rospy.logfatal("Failed to set number of features for slam feature detector")
@@ -414,6 +414,8 @@ class VisualDetector:
             self.slam_features.camera.points3d_from_img(*cvimage))
         if points3d.shape[0]:
             points_range = np.sqrt((points3d**2).sum(axis=1))
+            # Convert from image space to (relative) north, east, down
+            points3d = points3d[:, [2, 0, 1]]
         else:
             points_range = np.empty(0, dtype=np.int32)
         points3d = points3d[points_range <= 3]

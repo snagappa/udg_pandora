@@ -60,12 +60,15 @@ class GMPHD(object):
         self.vars.prune_threshold = 1e-3
         # Merge components  closer than this threshold
         self.vars.merge_threshold = 0.5
+        # Maximum number of components to track
+        self.vars.max_num_components = 150
         # Intensity of new targets
-        self.vars.birth_intensity = 1e-1
+        self.vars.birth_intensity = 5e-2
         # Intensity of clutter in the scene
         self.vars.clutter_intensity = 0.1
         # Probability of detection of targets in the FoV
         self.vars.pd = 0.9
+        self.vars.far_fov = 3.0
         #self.vars.ps = 1.0
         
         # Temporary variables to speed up some processing across different functions
@@ -335,7 +338,18 @@ class GMPHD(object):
             self.weights = self.weights[valid_idx]
             self.states = self.states[valid_idx]
             self.covs = self.covs[valid_idx]
-            assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
+            # Prune to the maximum number of components
+            max_num_components = self.vars.max_num_components
+            if valid_idx.shape[0] > max_num_components:
+                # Sort in ascending order and 
+                # select the last max_num_components states
+                idx = self.weights.argsort()[-max_num_components:]
+                self.weights = self.weights[idx]
+                self.states = self.states[idx]
+                self.covs = self.covs[idx]
+            assert (self.weights.shape[0] == 
+                    self.states.shape[0] == 
+                    self.covs.shape[0]), "Lost states!!"
         finally:
             self.flags.LOCK.release()
     
@@ -591,7 +605,7 @@ class GMPHD(object):
 
 
 class PHDSLAM(object):
-    def __init__(self):
+    def __init__(self, nparticles=5, ndims=6, resample_threshold=-1):
         """PHDSLAM() -> phdslam
         Creates an object that performs PHD SLAM in addition to updates from 
         odometry.
@@ -603,9 +617,9 @@ class PHDSLAM(object):
         self.flags.ESTIMATE_IS_VALID = True
         
         self.vars = STRUCT()
-        self.vars.ndims = 6
-        self.vars.nparticles = 5#2*self.vars.ndims + 1
-        self.vars.resample_threshold = -1
+        self.vars.nparticles = nparticles#2*self.vars.ndims + 1
+        self.vars.ndims = ndims
+        self.vars.resample_threshold = resample_threshold
         
         self.vars.F = np.array(np.eye(self.vars.ndims)[np.newaxis], order='C')
         self.vars.Q = None
@@ -696,6 +710,15 @@ class PHDSLAM(object):
             + delta_t/10*np.eye(6)
         return trans_mat, sc_process_noise
     
+    def _copy_state_to_map_(self, parent_ned=None, ctrl_input=None, rot_matrix=None):
+        for i in range(self.vars.nparticles):
+            if not parent_ned is None:
+                self.vehicle.maps[i].parent_ned = parent_ned[i]
+            if not ctrl_input is None:
+                self.vehicle.maps[i].parent_rpy = ctrl_input
+            if not rot_matrix is None:
+                self.vehicle.maps[i].vars.H = rot_matrix
+    
     def predict(self, ctrl_input, predict_to_time):
         """predict(self, ctrl_input, predict_to_time)
         Predict the state to the specified time given the control input
@@ -726,11 +749,12 @@ class PHDSLAM(object):
         rot_mat = rotation_matrix(ctrl_input)
         # Copy the predicted states to the "parent state" attribute and 
         # perform a prediction for the map
-        for i in range(self.vars.nparticles):
-            self.vehicle.maps[i].parent_ned = parent_ned[i]
-            self.vehicle.maps[i].parent_rpy = ctrl_input
-            self.vehicle.maps[i].vars.H = rot_mat
-            # self.vehicle.maps.predict()  # Not needed
+        self._copy_state_to_map_(parent_ned, ctrl_input, rot_mat)
+        #for i in range(self.vars.nparticles):
+        #    self.vehicle.maps[i].parent_ned = parent_ned[i]
+        #    self.vehicle.maps[i].parent_rpy = ctrl_input
+        #    self.vehicle.maps[i].vars.H = rot_mat
+        #    # self.vehicle.maps.predict()  # Not needed
     
     def _kf_update_(self, weights, states, covs, h_mat, r_mat, z):
         """_kf_update_(self, weights, states, covs, h_mat, r_mat, z)
@@ -774,6 +798,9 @@ class PHDSLAM(object):
         self.vehicle.weights = upd_weights
         self.vehicle.states = upd_states
         self.vehicle.covs = upd_covs
+        # Copy the particle state to the PHD parent state
+        parent_ned = np.array(self.vehicle.states[:, 0:3])
+        self._copy_state_to_map_(parent_ned)
     
     def update_dvl(self, dvl, mode):
         """update_dvl(self, dvl, mode)
@@ -793,6 +820,9 @@ class PHDSLAM(object):
         self.vehicle.weights = upd_weights
         self.vehicle.states = upd_states
         self.vehicle.covs = upd_covs
+        # Copy the particle state to the PHD parent state
+        parent_ned = np.array(self.vehicle.states[:, 0:3])
+        self._copy_state_to_map_(parent_ned)
     
     def update_svs(self, svs):
         """update_svs(self, svs)
@@ -800,6 +830,9 @@ class PHDSLAM(object):
         """
         self.flags.ESTIMATE_IS_VALID = False
         self.vehicle.states[:, 2] = svs
+        # Copy the particle state to the PHD parent state
+        parent_ned = np.array(self.vehicle.states[:, 0:3])
+        self._copy_state_to_map_(parent_ned)
     
     def update_features(self, features):
         """update_features(self, features)

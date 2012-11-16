@@ -49,8 +49,8 @@ def kf_update(state, covariance, H, R, z=None, INPLACE=True):
     
     
 def kf_update_x(x, pred_z, z, kalman_gain, INPLACE=True):
-    assert len(z.shape) == 1, "z must be a single observations, \
-    not an array of observations"
+    #assert len(z.shape) == 1, "z must be a single observations, \
+    #not an array of observations"
     if INPLACE:
         upd_state = x
     else:
