@@ -269,7 +269,7 @@ def merge_states(wt, x, P):
     
     # method 3:
     P_copy = P + [residual[np.newaxis,i].T * residual[np.newaxis,i] 
-        for i in xrange(residual.shape[0])]
+        for i in range(residual.shape[0])]
     
     #merged_P = np.array(
     #    [(wt[:,np.newaxis,np.newaxis]*P_copy).sum(axis=0)/merged_wt], 
@@ -343,6 +343,15 @@ def mvnpdf(x, mu, sigma):
     return pdf
     
     
+def approximate_mvnpdf(x, mu, sigma):
+    residual = x-mu
+    # Extract diagonals from sigma into a 2D array
+    sigma_diag = sigma[:, range(sigma.shape[1]), range(sigma.shape[2])]
+    exp_term = ((residual**2)*(1.0/sigma_diag)).sum(axis=1)
+    pdf = np.exp(-0.5*exp_term)/np.sqrt(sigma_diag.prod(axis=1)*(2*np.pi)**residual.shape[1])
+    return pdf
+
+
 def sample_mn_cv(x, wt=None, SYMMETRISE=False):
     if wt.shape[0] == 1:
         return x[0].copy(), np.zeros((x.shape[1], x.shape[1]))

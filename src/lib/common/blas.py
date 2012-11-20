@@ -284,7 +284,7 @@ def ddot(x, y):
         assert_valid_vector(y, "y")
         assert (x.shape[0] in [1, y.shape[0]]) and (y.shape[0] in [1, x.shape[0]]), NUM_ELEM_MISMATCH
         assert (x.shape[1] == y.shape[1]), V_V_DIM_MISMATCH
-    xt_dot_y = np.zeros(max([x.shape[0], y.shape[0]]), dtype=float)
+    xt_dot_y = np.empty(max([x.shape[0], y.shape[0]]), dtype=float)
     exec blas_exec_cmd["ddot"]
     return xt_dot_y
     
@@ -393,7 +393,7 @@ def _dcopy_(x, y, vec_len=None, x_offset=0, y_offset=0):
 
 #def dgemv(A, x, alpha=1.0, y=None, beta=1.0, TRANSPOSE_A=False):
 def dgemv(A, x, TRANSPOSE_A=False, alpha=np.array([1.0]), 
-          beta=np.array([1.0]), y=None):
+          beta=np.array([0.0]), y=None):
     """
     Performs in-place matrix vector multiplication
     dgemv --
@@ -407,9 +407,9 @@ def dgemv(A, x, TRANSPOSE_A=False, alpha=np.array([1.0]),
     fn_return_val = None
     if y==None:
         if not TRANSPOSE_A:
-            y = np.zeros(((max([A.shape[0],x.shape[0]]),) + (A.shape[1],)))
+            y = np.empty(((max([A.shape[0],x.shape[0]]),) + (A.shape[1],)))
         else:
-            y = np.zeros(((max([A.shape[0],x.shape[0]]),) + (A.shape[2],)))
+            y = np.empty(((max([A.shape[0],x.shape[0]]),) + (A.shape[2],)))
         fn_return_val = y
     if DEBUG:
         assert_valid_vector(y, "y")
@@ -468,7 +468,7 @@ def dtrsv(UPLO, A, x, TRANSPOSE_A=False):
     exec blas_exec_cmd["dtrsv"]
     
 
-def dsymv(UPLO, A, x, alpha=np.array([1.0]), beta=np.array([1.0]), y=None):
+def dsymv(UPLO, A, x, alpha=np.array([1.0]), beta=np.array([0.0]), y=None):
     """
     Performs in-place matrix vector multiplication for the symmetric matrix A.
     dsymv -- y = alpha*A*x + beta*y, A is symmetric
@@ -561,7 +561,7 @@ def dsyr(UPLO, x, alpha=np.array([1.0]), A=None):
 
 #def dgemm(A, B, alpha=1.0, C=None, beta=1.0, TRANSPOSE_A=False, TRANSPOSE_B=False):
 def dgemm(A, B, TRANSPOSE_A=False, TRANSPOSE_B=False, alpha=np.array([1.0]), 
-          beta=np.array([1.0]), C=None):
+          beta=np.array([0.0]), C=None):
     """
     Performs general matrix matrix multiplication in-place
     dgemm -- matrix-matrix operation, 
@@ -584,7 +584,7 @@ def dgemm(A, B, TRANSPOSE_A=False, TRANSPOSE_B=False, alpha=np.array([1.0]),
             
     fn_return_val = None
     if C==None:
-        C = np.zeros((max([A.shape[0], B.shape[0]]), A_dims[0], B_dims[1]), dtype=float)
+        C = np.empty((max([A.shape[0], B.shape[0]]), A_dims[0], B_dims[1]), dtype=float)
         fn_return_val = C
     
     if not isinstance(alpha, np.ndarray):
@@ -611,7 +611,7 @@ def dgemm(A, B, TRANSPOSE_A=False, TRANSPOSE_B=False, alpha=np.array([1.0]),
 
 
 def dsymm(A, B, UPLO, SIDE='l', alpha=np.array([1.0]), 
-          beta=np.array([1.0]), C=None):
+          beta=np.array([0.0]), C=None):
     """
     Performs in-place matrix matrix multiplication for symmetric matrix A.
     dsymm -- matrix-matrix operation, A is symmetric, B and C are mxn
@@ -656,7 +656,7 @@ def dsymm(A, B, UPLO, SIDE='l', alpha=np.array([1.0]),
 
 
 def dsyrk(UPLO, A, TRANSPOSE_A=False, alpha=np.array([1.0]), 
-          beta=np.array([1.0]), C=None):
+          beta=np.array([0.0]), C=None):
     """
     Perform in-place symmetric rank k operation.
     dsyrk -- symmetric rank k operation, C is symmetric

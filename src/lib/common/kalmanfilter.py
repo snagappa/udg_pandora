@@ -5,7 +5,7 @@ Created on Tue Jul 10 12:14:38 2012
 @author: snagappa
 """
 
-from lib.common import blas
+import blas
 import numpy as np
 
 #class kalmanfilter(object): pass
@@ -14,10 +14,11 @@ __all__ = []
 def kf_predict(state, covariance, F, Q, B=None, u=None):
     pred_state = blas.dgemv(F, state)
     if (not B==None) and (not u==None):
-        blas.dgemv(B, u, y=pred_state)
+        blas.dgemv(B, u, beta=np.array([1.0]), y=pred_state)
     # Repeat Q n times and return as the predicted covariance
     pred_cov = np.repeat(np.array([Q]), state.shape[0], 0)
-    blas.dgemm(F, blas.dgemm(covariance, F, TRANSPOSE_B=True), C=pred_cov)
+    blas.dgemm(F, blas.dgemm(covariance, F, TRANSPOSE_B=True), 
+               beta=np.array([1.0]), C=pred_cov)
     return pred_state, pred_cov
     
 
@@ -59,7 +60,7 @@ def kf_update_x(x, pred_z, z, kalman_gain, INPLACE=True):
     #blas.daxpy(-1, pred_z, residuals)
     residuals = z - pred_z
     # Update the state
-    blas.dgemv(kalman_gain, residuals, y=upd_state)
+    blas.dgemv(kalman_gain, residuals, beta=np.array([1.0]), y=upd_state)
     
     return upd_state, residuals
     
@@ -84,7 +85,8 @@ def np_kf_update_x(x, pred_z, z, kalman_gain, INPLACE=True):
 def kf_predict_cov(covariance, F, Q):
     # Repeat Q n times and return as the predicted covariance
     #pred_cov = np.repeat(np.array([Q]), covariance.shape[0], 0)
-    #blas.dgemm(F, blas.dgemm(covariance, F, TRANSPOSE_B=True), C=pred_cov)
+    #blas.dgemm(F, blas.dgemm(covariance, F, TRANSPOSE_B=True), 
+    #           beta=np.array([1.0]), C=pred_cov)
     pred_cov = blas.dgemm(F, blas.dgemm(covariance, F, TRANSPOSE_B=True)) + Q
     return pred_cov
     
@@ -165,7 +167,8 @@ def kf_update_cov(covariance, H, R, INPLACE=True):
     
     # Update the covariance
     k_h = blas.dgemm(kalman_gain, H)
-    blas.dgemm(k_h, covariance_copy, alpha=-1.0, C=upd_covariance)
+    blas.dgemm(k_h, covariance_copy, alpha=np.array([-1.0]), 
+               beta=np.array([1.0]), C=upd_covariance)
     
     kalman_info.S = hp_ht_pR
     kalman_info.inv_sqrt_S = inv_sqrt_S

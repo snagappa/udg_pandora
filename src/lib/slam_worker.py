@@ -17,7 +17,7 @@ from lib.common.kalmanfilter import kf_predict_cov
 from lib.common.kalmanfilter import np_kf_update_cov, kf_update_cov, kf_update_x
 from collections import namedtuple
 import copy
-import code
+#import code
 import threading
 from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
 
@@ -60,6 +60,10 @@ class GMPHD(object):
         self.vars.merge_threshold = 1.0
         self.vars.birth_intensity = 1e-1
         self.vars.clutter_intensity = 0.1
+        
+        # Temporary variables to speed up some processing across different functions
+        self.tmp = STRUCT()
+        self.tmp.detection_probability = np.empty(0)
         
         self.flags = STRUCT()
         self.flags.ESTIMATE_IS_VALID = False
@@ -221,13 +225,11 @@ class GMPHD(object):
                                                         INPLACE=False)
                     # Calculate the weight of the Gaussians for this observation
                     # Calculate term in the exponent
-                    #code.interact(local=locals())
                     #x_pdf = np.exp(-0.5*np.power(
                     #    blas.dgemv(kalman_info.inv_sqrt_S, 
                     #               residuals, TRANSPOSE_A=True), 2).sum(axis=1))/ \
                     #    np.sqrt(kalman_info.det_S*(2*np.pi)**z_dim)
-                    x_pdf = misctools.mvnpdf(_observation_, pred_z, kalman_info.S)
-                    
+                    x_pdf = misctools.approximate_mvnpdf(_observation_, pred_z, kalman_info.S)
                     upd_weights = detected.weights*x_pdf
                     
                     # Normalise the weights
@@ -331,13 +333,18 @@ class GMPHD(object):
         try:
             if (self.vars.merge_threshold < 0) or (self.weights.shape[0] < 2):
                 return
-            camera = self.sensors.camera
-            # Convert states to camera coordinate system
-            rel_states = camera.relative(self.parent_ned, self.parent_rpy,
-                                                self.states)
-            detected_idx = camera.pdf_detection(rel_states, px_margin=2)
-            undetected_idx = np.where(detected_idx < detection_threshold)[0]
-            detected_idx = np.where(detected_idx >= detection_threshold)[0]
+            # Get objects in the field of view
+            if detection_threshold <= 0:
+                undetected_idx = np.empty(0, dtype=np.int)
+                detected_idx = np.arange(self.states.shape[0])
+            else:
+                camera = self.sensors.camera
+                # Convert states to camera coordinate system
+                rel_states = camera.relative(self.parent_ned, self.parent_rpy,
+                                             self.states)
+                detected_idx = camera.pdf_detection(rel_states)
+                undetected_idx = np.where(detected_idx < detection_threshold)[0]
+                detected_idx = np.where(detected_idx >= detection_threshold)[0]
             #undetected_idx = misctools.gen_retain_idx(self.weights.shape[0], 
             #                                          detected_idx)
             
@@ -553,7 +560,7 @@ class PHDSLAM(object):
         
         self.vars = STRUCT()
         self.vars.ndims = 6
-        self.vars.nparticles = 7#2*self.vars.ndims + 1
+        self.vars.nparticles = 5#2*self.vars.ndims + 1
         self.vars.resample_threshold = -1
         
         self.vars.F = np.array(np.eye(self.vars.ndims)[np.newaxis], order='C')
@@ -675,7 +682,7 @@ class PHDSLAM(object):
         rot_mat = rotation_matrix(ctrl_input)
         # Copy the predicted states to the "parent state" attribute and 
         # perform a prediction for the map
-        for i in xrange(self.vars.nparticles):
+        for i in range(self.vars.nparticles):
             self.vehicle.maps[i].parent_ned = parent_ned[i]
             self.vehicle.maps[i].parent_rpy = ctrl_input
             self.vehicle.maps[i].vars.H = rot_mat
@@ -761,12 +768,12 @@ class PHDSLAM(object):
         if features.shape[0]:
             features_pos = features[:, 0:3].copy()
             features_noise = np.array([np.diag(features[i, 3:6]) 
-                for i in xrange(features.shape[0])])
+                for i in range(features.shape[0])])
         else:
             features_pos = np.empty((0, 3))
             features_noise = np.empty((0, 3, 3))
         slam_info = [self.vehicle.maps[i].iterate(features_pos, features_noise) 
-            for i in xrange(self.vars.nparticles)]
+            for i in range(self.vars.nparticles)]
         slam_weight_update = np.array([slam_info[i].likelihood])
         self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
         

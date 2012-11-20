@@ -29,7 +29,7 @@ import rospy
 import tf
 import PyKDL
 import math
-#import code
+import code
 import copy
 import threading
 import sys
@@ -56,7 +56,7 @@ from featuredetector import cameramodels
 INVALID_ALTITUDE = -32665
 SAVITZKY_GOLAY_COEFFS = [0.2,  0.1,  0. , -0.1, -0.2]
 
-UKF_ALPHA = 0.01
+UKF_ALPHA = 0.2
 UKF_BETA = 2
 UKF_KAPPA = 0
 
@@ -111,22 +111,26 @@ class G500_SLAM():
         
         #ndims = slam_worker.vars.ndims
         nparticles = slam_worker.vars.nparticles
-        if nparticles == 7:#2*ndims+1:
+        if nparticles == 5:#2*ndims+1:
             sigma_states = self._make_sigma_states_(slam_worker, 
-                                                    np.zeros((1, 3)), nparticles)
+                                                    np.zeros((1, 2)), nparticles)
             slam_worker.set_states(states=sigma_states)
         return slam_worker
         
     def _make_sigma_states_(self, slam_worker, mean_state, nparticles):
+        # Generate covariance
         sc_process_noise = \
             slam_worker.trans_matrices(np.zeros(3), 1.0)[1] + \
             slam_worker.trans_matrices(np.zeros(3), 0.01)[1]
-        sigma_states = sigma_pts(mean_state, 
-                                 sc_process_noise[0:3,0:3].copy(), 
-                                _alpha=UKF_ALPHA, _beta=UKF_BETA, 
-                                _kappa=UKF_KAPPA)[0]
+        state_dim = mean_state.shape[1]
+        # Create sigma states over dimensions specified by mean_state
+        sigma_states = (
+            sigma_pts(mean_state, 
+                      sc_process_noise[0:state_dim, 0:state_dim].copy(), 
+                      _alpha=UKF_ALPHA, _beta=UKF_BETA, _kappa=UKF_KAPPA)[0])
+        # Pad with zeros to achieve state dimension 6
         sigma_states = np.array(
-            np.hstack((sigma_states, np.zeros((nparticles,3)))),
+            np.hstack((sigma_states, np.zeros((nparticles, 6-state_dim)))),
             order='C')
         return sigma_states
             
@@ -523,6 +527,7 @@ class G500_SLAM():
             self.ros.last_update_time = pcl_msg.header.stamp
         except:
             print "Error occurred while updating features"
+            code.interact(local=locals())
         finally:
             self.__LOCK__.release()
         
@@ -554,9 +559,11 @@ class G500_SLAM():
         else:
             pose_angle = tf.transformations.euler_from_quaternion(
                                                 self.vehicle.pose_orientation)
-            if predict_to_time <= config.last_time.predict:
+            if predict_to_time < config.last_time.predict:
                 self.ros.NO_LOCK_ACQUIRE += 1
                 return False
+            elif predict_to_time == config.last_time.predict:
+                return True
             time_now = predict_to_time
             config.last_time.predict = copy.copy(time_now)
             time_now = time_now.to_sec()
