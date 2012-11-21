@@ -20,6 +20,7 @@ import copy
 #import code
 import threading
 from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
+import sys
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -84,6 +85,7 @@ class GMPHD(object):
             self.sensors.camera = cameramodels.StereoCameraModel()
         except:
             print "Error initialising camera models, using dummy camera"
+            print "GMPHD:__INIT__():\n", sys.exc_info()
             self.sensors.camera = cameramodels.DummyCamera()
         self.sensors.camera.set_const_pd(self.vars.pd)
     
@@ -103,6 +105,8 @@ class GMPHD(object):
             new_object.flags = copy.copy(self.flags)
             new_object.flags.LOCK = threading.RLock()
             new_object.sensors.camera = copy.deepcopy(self.sensors.camera)
+        except:
+            print "GMPHD:COPY():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
         return new_object
@@ -119,6 +123,8 @@ class GMPHD(object):
             self.weights = ptr_weights
             self.states = ptr_states
             self.covs = ptr_covs
+        except:
+            print "GMPHD:SET_STATES():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
     
@@ -132,6 +138,8 @@ class GMPHD(object):
         try:
             self.parent_ned = parent_ned.copy()
             self.parent_rpy = parent_rpy.copy()
+        except:
+            print "GMPHD:SET_PARENT():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
     
@@ -182,8 +190,8 @@ class GMPHD(object):
         #detection_probability = self.camera_pd(self.parent_ned, 
         #                                       self.parent_rpy, self.states)
         rel_states = self.sensors.camera.from_world_coords(self.states)
-        detection_probability = self.sensors.camera.pdf_detection(rel_states[0], 
-                                                          rel_states[1], margin=0)
+        detection_probability = self.sensors.camera.pdf_detection(self.states, 
+                                                                  margin=0)
         rel_states = np.asarray(rel_states[0], order='C')
         detection_probability[detection_probability<0.5] = 0
         clutter_pdf = self.camera_clutter(observations)
@@ -277,6 +285,7 @@ class GMPHD(object):
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
         except:
             print "error in update"
+            print "GMPHD:UPDATE():\n", sys.exc_info()
             #code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
@@ -293,6 +302,8 @@ class GMPHD(object):
                 weights = self.weights.copy()
                 states = self.states.copy()
                 covs = self.covs.copy()
+            except:
+                print "GMPHD:ESTIMATE():\n", sys.exc_info()
             finally:
                 self.flags.LOCK.release()
             valid_targets = weights>0.5
@@ -350,6 +361,8 @@ class GMPHD(object):
             assert (self.weights.shape[0] == 
                     self.states.shape[0] == 
                     self.covs.shape[0]), "Lost states!!"
+        except:
+            print "GMPHD:PRUNE():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
     
@@ -372,14 +385,12 @@ class GMPHD(object):
                 # Convert states to camera coordinate system
                 try:
                     # Stereo camera - get relative position for left and right
-                    rel_states = camera.from_world_coords(self.states)
-                    detected_idx = camera.pdf_detection(rel_states[0], rel_states[1])
-                    rel_states = rel_states[0]
+                    detected_idx = camera.pdf_detection(self.states)
                 except:
-                    print "Couldn't use tf"
+                    print "GMPHD:MERGE_FOV():\n", sys.exc_info()
                     rel_states = camera.relative(self.parent_ned, self.parent_rpy,
                                              self.states)
-                    detected_idx = camera.pdf_detection(rel_states)
+                    detected_idx = camera._pdf_detection_(rel_states)
                 undetected_idx = np.where(detected_idx < detection_threshold)[0]
                 detected_idx = np.where(detected_idx >= detection_threshold)[0]
             #undetected_idx = misctools.gen_retain_idx(self.weights.shape[0], 
@@ -432,6 +443,8 @@ class GMPHD(object):
                             np.vstack((unmerged_sts, np.array(merged_sts))), 
                             np.vstack((unmerged_cvs, np.array(merged_cvs))))
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
+        except:
+            print "GMPHD:MERGE_FOV():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
         
@@ -478,6 +491,8 @@ class GMPHD(object):
             self.set_states(np.array(merged_wts), 
                             np.array(merged_sts), np.array(merged_cvs))
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
+        except:
+            print "GMPHD:MERGE():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
         
@@ -504,6 +519,8 @@ class GMPHD(object):
             self.states = np.vstack((self.states, states))
             self.covs = np.vstack((self.covs, covs))
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
+        except:
+            print "GMPHD:APPEND():\n", sys.exc_info()
         finally:
             self.flags.LOCK.release()
     
@@ -544,14 +561,15 @@ class GMPHD(object):
         features_rel - Nx3 numpy array of feature positions relative to parent
         features_cv - Nx3x3 numpy array of covariance of the features
         """
+        camera = self.sensors.camera
         if not features_rel.shape[0]:
             birth_wt = np.empty(0)
             birth_st = np.empty((0, 3))
             birth_cv = np.empty((0, 3, 3))
         else:
             # Select features which are not on the edge of the FoV
-            visible_idx = self.sensors.camera.is_visible(features_rel, 
-                                                         None, margin=-0.18)
+            visible_idx = camera.is_visible_relative2sensor(features_rel, 
+                None, margin=-0.18)
             birth_features = features_rel[visible_idx]
             features_cv = features_cv[visible_idx]
             if not birth_features.shape[0]:
@@ -564,6 +582,7 @@ class GMPHD(object):
                     birth_st = self.sensors.camera.to_world_coords(birth_features)
                 except:
                     print "tf conversion to world coords failed!"
+                    print "GMPHD:CMAERA_BIRTH():\n", sys.exc_info()
                     birth_st = self.sensors.camera.absolute(parent_ned, parent_rpy, 
                                                             birth_features)
                 if features_cv is None:
@@ -582,14 +601,13 @@ class GMPHD(object):
         """
         camera = self.sensors.camera
         try:
-            features_rel = camera.from_world_coords(features_abs)
-            pdf_detection = camera.pdf_detection(features_rel[0],
-                                                 features_rel[1])
+            pdf_detection = camera.pdf_detection(features_abs)
         except:
             print "Error calling camera pdf_detection()"
+            print "GMPHD:CAMERA_PD():\n", sys.exc_info()
             #code.interact(local=dict(locals().items() + globals().items()))
             features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
-            pdf_detection = camera.pdf_detection(features_rel)
+            pdf_detection = camera._pdf_detection_(features_rel)
         return pdf_detection
     
     def camera_clutter(self, observations):

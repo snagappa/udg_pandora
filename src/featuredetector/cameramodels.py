@@ -15,6 +15,7 @@ import image_feature_extractor
 import copy
 import code
 from geometry_msgs.msg import PointStamped
+import sys
 
 default_float = "float64"
 
@@ -157,6 +158,7 @@ class FlannMatcher(object):
             idx1, idx2, distance = self.knnMatch(obj_desc, scene_desc, 2)
         except:
             print "Error occurred computing knnMatch"
+            print sys.exc_info()
             idx1 = np.empty(0, dtype=np.int)
             idx2 = np.empty((0, 2), dtype=np.int)
             distance = np.zeros((0, 2))
@@ -245,25 +247,35 @@ class _FoV_(object):
         """
         self.pd = pd
     
-    def pdf_detection(self, points1, points2=None, **kwargs):
-        """pdf_detection(self, points) -> pd
-        Returns the probability of detection for points between the spheres of
-        radius fov_near and fov_far.
-        """
-        if not points1.shape[0]:
-            return np.array([], dtype=np.bool)
-        euclid_distance = np.power(np.power(points1, 2).sum(axis=1), 0.5)
-        pd = np.zeros(points1.shape[0])
+    def _pdf_detection_(self, rel_points1, rel_points2=None, **kwargs):
+        euclid_distance = np.power(np.power(rel_points1, 2).sum(axis=1), 0.5)
+        pd = np.zeros(rel_points1.shape[0])
         pd[np.logical_and(self.fov_near < euclid_distance, 
                           euclid_distance < self.fov_far)] = self.pd
         return pd
     
-    def is_visible(self, points1, points2=None, **kwargs):
+    def pdf_detection(self, points, **kwargs):
+        """pdf_detection(self, points) -> pd
+        Returns the probability of detection for points between the spheres of
+        radius fov_near and fov_far.
+        """
+        if points.shape[0] == 0:
+            return np.empty(0)
+        rel_points = self.from_world_coords(points)[0]
+        return self._pdf_detection_(rel_points, **kwargs)
+    
+    def is_visible(self, points, **kwargs):
         """is_visible(self, points) -> bool_vector
         """
-        if not points1.shape[0]:
-            return np.array([], dtype=np.bool)
-        pd = self.pdf_detection(points1, points2, **kwargs)
+        if points.shape[0] == 0:
+            return np.empty(0, dtype=np.bool)
+        pd = self.pdf_detection(points, **kwargs)
+        return (pd > 0)
+    
+    def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
+        if rel_points1.shape[0] == 0:
+            return np.empty(0, dtype=np.bool)
+        pd = self._pdf_detection_(rel_points1, **kwargs)
         return (pd > 0)
     
     def pdf_clutter(self, points1, points2=None, **kwargs):
@@ -271,9 +283,9 @@ class _FoV_(object):
         Calculate the probability distribution for the clutter at the given
         points
         """
-        pd = self.pdf_detection(points1, points2, **kwargs).astype(np.bool)
+        pd = self._pdf_detection_(points1, points2, **kwargs).astype(np.bool)
         clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0])
-        clutter_pdf[pd == False] = 1
+        clutter_pdf[pd == 0] = 1
         return 
     
     def _perform_tf_(self, target_frame, pcl_msg, RETURN_NP_ARRAY=False):
@@ -288,15 +300,6 @@ class _FoV_(object):
     def set_tf_frame(self, frame_id):
         self.tfFrame = frame_id
     
-    #def _nparray_to_pcl_(self, numpy_points, frame_id):
-    #    assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
-    #        (np.prod(numpy_points.shape) == 0)), (
-    #        "Points must be Nx3 numpy array")
-    #    pcl_points = self.pcl_helper.to_pcl(numpy_points)
-    #    pcl_points.header.stamp = rospy.Time.now()
-    #    pcl_points.header.frame_id = frame_id
-    #    return pcl_points
-        
     def to_world_coords(self, numpy_points):
         """to_world_coords(self, numpy_points)->world_points
         Convert Nx3 numpy array of points from camera coordinate system to
@@ -307,16 +310,6 @@ class _FoV_(object):
         source_frame = self.tfFrame
         return transform_numpy_array(target_frame, source_frame, numpy_points,
                                      ROTATE_BEFORE_TRANSLATE=True)
-    
-    #def to_world_coords_pcl(self, pcl_msg, RETURN_NP_ARRAY=False):
-    #    """to_world_coords_pcl(self, pcl_msg, RETURN_NP_ARRAY=False)
-    #    -> world_points OR world_points_pcl
-    #    Convert pointcloud from camera coordinate system to world
-    #    coordinates.
-    #    Set RETURN_NP_ARRAY to True to return a numpy array instead of the
-    #    pointcloud"""
-    #    target_frame = "world"
-    #    return self._perform_tf_(target_frame, pcl_msg, RETURN_NP_ARRAY)
     
     def from_world_coords(self, numpy_points):
         """from_world_coords(self, numpy_points)->(camera_points,)
@@ -329,24 +322,12 @@ class _FoV_(object):
         return (transform_numpy_array(target_frame, source_frame, numpy_points,
                                      ROTATE_BEFORE_TRANSLATE=True),)
     
-    #def from_world_coords_pcl(self, pcl_msg, RETURN_NP_ARRAY=False):
-    #    """from_world_coords_pcl(self, pcl, RETURN_NP_ARRAY=False)
-    #    ->camera_points OR camera_pcl
-    #    Convert points from world coordinate system to camera coordinates.
-    #    Set RETURN_NP_ARRAY to True to return a numpy array instead of the
-    #    pointcloud"""
-    #    target_frame = self.tfFrame
-    #    return self._perform_tf_(target_frame, pcl_msg, RETURN_NP_ARRAY)
-    
     def relative(self, target_coord_NED, target_coord_RPY, world_points_NED):
         if not world_points_NED.shape[0]: return np.empty(0)
         relative_position = world_points_NED - target_coord_NED
         rot_matrix = np.array([rotation_matrix(-target_coord_RPY)], order='C')
         relative_position = blas.dgemv(rot_matrix, relative_position)
         return relative_position
-    
-    #def relative_rot_mat(self, RPY):
-    #    return np.array([rotation_matrix(-RPY)])
     
     def absolute(self, source_coord_NED, source_coord_RPY, source_points_NED):
         if not source_points_NED.shape[0]: return np.empty(0)
@@ -355,9 +336,10 @@ class _FoV_(object):
                              source_coord_NED)
         return absolute_position
     
-    #def absolute_rot_mat(self, RPY):
-    #    return np.array([rotation_matrix(RPY)])
-
+    def observations(self, points):
+        rel_states = self.from_world_coords(points)
+        return rel_states
+    
 
 class DummyCamera(_FoV_):
     def __init__(self,  fov_x_deg=64, fov_y_deg=50, fov_far_m=3):
@@ -532,29 +514,27 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         obs_volume = 0.33*base_width*base_height*self.fov_far
         return obs_volume
     
-    def pdf_detection(self, points1, points2=None, **kwargs):
-        """pdf_detection(self, points1, <margin=1e-2>) -> pd
+    def _pdf_detection_(self, rel_points1, rel_points2=None, **kwargs):
+        """pdf_detection(self, points, <margin=1e-2>) -> pd
         Determines the probability of detection for points specified according
-        to (north, east, down) coordinate system relative to the camera centre.
+        to (north, east, down) coordinate system relative to the world.
         """
-        if points1.shape[0] == 0:
-            return np.empty(0)
         margin = kwargs.get("margin", 1e-2)
         # Convert points from (n,e,d) to camera (right, up, far)
-        idx_visible = np.arange(points1.shape[0])
-        points1 = points1[:, [1, 2, 0]]
-        pd = np.zeros(points1.shape[0], dtype=np.float)
+        idx_visible = np.arange(rel_points1.shape[0])
+        rel_points1 = rel_points1[:, [1, 2, 0]]
+        pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
-        idx_visible = idx_visible[points1[idx_visible, 2] > self.fov_near]
+        idx_visible = idx_visible[rel_points1[idx_visible, 2] > self.fov_near]
         if idx_visible.shape[0] == 0: return pd
         # Check far plane
-        idx_visible = idx_visible[points1[idx_visible, 2] < self.fov_far]
+        idx_visible = idx_visible[rel_points1[idx_visible, 2] < self.fov_far]
         if idx_visible.shape[0] == 0: return pd
         # Frustum planes
         # Scale pd according to distance from the plane
         scale_factor = self.pd*np.ones(idx_visible.shape[0], dtype=np.float)
         for _normal_ in self._normals_:
-            dot_product = np.dot(points1[idx_visible], _normal_)
+            dot_product = np.dot(rel_points1[idx_visible], _normal_)
             valid_idx = dot_product < margin
             idx_visible = idx_visible[valid_idx]
             scale_factor = scale_factor[valid_idx]
@@ -589,7 +569,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Calculate the probability distribution for the clutter at the given
         points
         """
-        pd = self.pdf_detection(points1, points2, **kwargs).astype(np.bool)
+        pd = self._pdf_detection_(points1, points2, **kwargs).astype(np.bool)
         clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0])
         clutter_pdf[pd == False] = 1
         return clutter_pdf
@@ -644,17 +624,28 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         else:
             return np.empty((0, 2))
     
-    def pdf_detection(self, points1, points2=None, **kwargs):
+    def pdf_detection(self, points, **kwargs):
         """pdf_detection(self, points) -> pd
         Calculate the probability of detection for the points
         """
-        l_pdf = self.left.pdf_detection(points1, None, **kwargs)
-        if not points2 is None:
-            r_pdf = self.right.pdf_detection(points2, None, **kwargs)
+        l_pdf = self.left.pdf_detection(points, **kwargs)
+        r_pdf = self.right.pdf_detection(points, **kwargs)
+        l_pdf = np.vstack((l_pdf, r_pdf))
+        return np.min(l_pdf, axis=0)
+    
+    def is_visible(self, points, **kwargs):
+        return (self.pdf_detection(points, **kwargs) > 0).astype(np.bool)
+    
+    def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
+        if rel_points1.shape[0] == 0:
+            return np.empty(0, dtype=np.bool)
+        l_pdf = self.left._pdf_detection_(rel_points1, None, **kwargs)
+        if not rel_points2 is None:
+            r_pdf = self.right._pdf_detection_(rel_points2, None, **kwargs)
             l_pdf = np.vstack((l_pdf, r_pdf))
-            return np.min(l_pdf, axis=0)
+            return (np.min(l_pdf, axis=0) > 0).astype(np.bool)
         else:
-            return l_pdf
+            return (l_pdf > 0).astype(np.bool)
     
     def pdf_clutter(self, points1, points2=None, **kwargs):
         """pdf_clutter(self, points) -> clutter_pdf
@@ -697,10 +688,13 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         self.left.set_tf_frame(left_frame_id)
         self.right.set_tf_frame(right_frame_id)
     
+    def observations(self, states):
+        rel_states = self.from_world_coords(states)
+        return rel_states
 
 class _CameraFeatureDetector_(object):
     def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
-        self._flann_mathcer_ = None
+        self._flann_matcher_ = None
         self._featuredetector_ = None
         if not feature_extractor is None:
             self.set_feature_extractor(feature_extractor, **kwargs)
@@ -774,6 +768,10 @@ class _CameraFeatureDetector_(object):
     
     def set_detector_num_features(self, num_features):
         self._featuredetector_.set_num_features(num_features)
+    
+    def get_detector_num_features(self):
+        return self._featuredetector_.get_num_features()
+    
 
 class PinholeCameraFeatureDetector(PinholeCameraModel, _CameraFeatureDetector_):
     def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
@@ -796,49 +794,64 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
         """
         images = [STRUCT(), STRUCT()]
         # Get keypoints and descriptors from images
+        """
         for (idx, _im_) in zip((0, 1), (image_left, image_right)):
             #self.images[idx].raw = _im_.copy()
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
+        """
         
-        # Use the flann matcher to match keypoints
-        im_left = images[0]
-        im_right = images[1]
-        if len(im_left.keypoints) and len(im_right.keypoints):
-            match_result = self._flann_matcher_.detect_and_match(
-                im_left.keypoints, im_left.descriptors,
-                im_right.keypoints, im_right.descriptors, ratio_threshold)
-            pts_l, pts_r, idx_l, idx_r, mask_tuple = match_result
-        else:
-            pts_l = np.empty(0)
-            pts_r = np.empty(0)
-        
-        # Only proceed if there are matches
-        if pts_l.shape[0]:
-            kp_l = np.asarray(im_left.keypoints)[idx_l]
-            desc_l = np.asarray(im_left.descriptors)[idx_l]
-            kp_r = np.asarray(im_right.keypoints)[idx_r]
-            desc_r = np.asarray(im_right.descriptors)[idx_r]
-            # Valid matches are those where y co-ordinate of p1 and p2 are
-            # almost equal
-            y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
-            valid_disparity_mask = y_diff < 4.0
-            # Select keypoints and descriptors which satisfy disparity
-            pts_l = pts_l[valid_disparity_mask]
-            kp_l = kp_l[valid_disparity_mask]
-            desc_l = desc_l[valid_disparity_mask]
-            pts_r = pts_r[valid_disparity_mask]
-            kp_r = kp_r[valid_disparity_mask]
-            desc_r = desc_r[valid_disparity_mask]
+        num_features = self.get_detector_num_features()
+        try:
+            self.set_detector_num_features(np.max([num_features*10, 2000]))
+            for (idx, _im_) in zip((0, 1), (image_left, image_right)):
+                #self.images[idx].raw = _im_.copy()
+                (images[idx].keypoints, images[idx].descriptors) = (
+                self.get_features(_im_))
+            # Use the flann matcher to match keypoints
+            im_left = images[0]
+            im_right = images[1]
+            if len(im_left.keypoints) and len(im_right.keypoints):
+                match_result = self._flann_matcher_.detect_and_match(
+                    im_left.keypoints, im_left.descriptors,
+                    im_right.keypoints, im_right.descriptors, ratio_threshold)
+                pts_l, pts_r, idx_l, idx_r, mask_tuple = match_result
+            else:
+                pts_l = np.empty(0)
+                pts_r = np.empty(0)
             
-            # Triangulate the points now that they are matched
-            # Normalise the points
-            points3d = self.triangulate(pts_l, pts_r)
-        else:
-            points3d = np.empty(0)
-            kp_l = np.empty(0)
-            kp_r = np.empty(0)
-            desc_l = np.empty(0)
-            desc_r = np.empty(0)
+            # Only proceed if there are matches
+            if pts_l.shape[0]:
+                print "matches found"
+                kp_l = np.asarray(im_left.keypoints)[idx_l]
+                desc_l = np.asarray(im_left.descriptors)[idx_l]
+                kp_r = np.asarray(im_right.keypoints)[idx_r]
+                desc_r = np.asarray(im_right.descriptors)[idx_r]
+                # Valid matches are those where y co-ordinate of p1 and p2 are
+                # almost equal
+                y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
+                valid_disparity_mask = y_diff < 6.0
+                # Select keypoints and descriptors which satisfy disparity
+                pts_l = pts_l[valid_disparity_mask]
+                kp_l = kp_l[valid_disparity_mask]
+                desc_l = desc_l[valid_disparity_mask]
+                pts_r = pts_r[valid_disparity_mask]
+                kp_r = kp_r[valid_disparity_mask]
+                desc_r = desc_r[valid_disparity_mask]
+                
+                # Triangulate the points now that they are matched
+                # Normalise the points
+                points3d = self.triangulate(pts_l, pts_r)
+            else:
+                points3d = np.empty(0)
+                kp_l = np.empty(0)
+                kp_r = np.empty(0)
+                desc_l = np.empty(0)
+                desc_r = np.empty(0)
+        except:
+            print sys.exc_info()
+        finally:
+            self.set_detector_num_features(num_features)
+        #print "Found (%s, %s) keypoints" % (len(images[0].keypoints), len(images[1].keypoints))
         return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
     

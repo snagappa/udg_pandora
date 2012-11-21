@@ -25,6 +25,7 @@
 # ROS imports
 import roslib 
 roslib.load_manifest('udg_pandora')
+roslib.load_manifest("navigation_g500")
 import rospy
 import tf
 import PyKDL
@@ -34,10 +35,32 @@ import copy
 import threading
 import sys
 import pickle
+import cola2_navigation.msg
+try:
+    import navigation_g500.msg
+except:
+    pass
 
-# Msgs imports
-from cola2_navigation.msg import TeledyneExplorerDvl, ValeportSoundVelocity, \
-    FastraxIt500Gps
+
+USE_COLA_TOPICS =  True
+USE_GPS = True
+SIMULATOR = True
+
+
+nav_sensors_msg = cola2_navigation.msg
+SENSOR_TOPIC_ROOT = "/cola2_navigation/"
+if not USE_COLA_TOPICS:
+    try:
+        nav_sensors_msg = navigation_g500.msg
+    except:
+        print "navigation_g500.msg is unavailable, using cola2"
+    else:
+        SENSOR_TOPIC_ROOT = "/navigation_g500/"
+
+TeledyneExplorerDvl = nav_sensors_msg.TeledyneExplorerDvl
+ValeportSoundVelocity = nav_sensors_msg.ValeportSoundVelocity
+FastraxIt500Gps = nav_sensors_msg.FastraxIt500Gps
+    
 from sensor_msgs.msg import Imu, PointCloud2, CameraInfo
 from auv_msgs.msg import NavSts
 from std_srvs.srv import Empty, EmptyResponse
@@ -171,7 +194,10 @@ class G500_SLAM():
         config.last_time.map = copy.copy(time_now)
         
         config.imu_data = False
-        config.gps_data = not config.gps_update
+        if USE_GPS:
+            config.gps_data = not config.gps_update
+        else:
+            config.gps_data = True
         config.altitude = INVALID_ALTITUDE
         config.bottom_status = 0
         config.gps_init_samples_list = []
@@ -187,59 +213,25 @@ class G500_SLAM():
         
         ros.pcl_helper = misctools.pcl_xyz_cov()
         
-        # Initialise the camera field of view
-        left_tf_frame = "slam_sensor"
-        right_tf_frame = "slam_sensor_right"
-        try:
-            camera_info_left = rospy.wait_for_message(
-                "/stereo_front/left/camera_info", CameraInfo, 5)
-            camera_info_right = rospy.wait_for_message(
-                "/stereo_front/right/camera_info", CameraInfo, 5)
-        except:
-            print "Error occurred initialising camera from camera_info"
-            print "Loading camera_info from disk"
-            camera_info_pickle = (
-                roslib.packages.find_resource("udg_pandora", "camera_info.p"))
-            if len(camera_info_pickle):
-                camera_info_pickle = camera_info_pickle[0]
-                camera_info_left, camera_info_right = (
-                    pickle.load(open(camera_info_pickle, "rb")))
-            else:
-                camera_info_left, camera_info_right = None, None
-        try:
-            for _map_, idx in zip(self.slam_worker.vehicle.maps, 
-                                  range(len(self.slam_worker.vehicle.maps))):
-                _map_.sensors.camera.fromCameraInfo(camera_info_left,
-                                                    camera_info_right)
-                str_idx = str(idx)
-                _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
-                                                  right_tf_frame+str_idx)
-                # Set the far field of view
-                _map_.sensors.camera.set_near_far_fov(fov_far=_map_.vars.far_fov)
-        except:
-            print "Error occurred initialising stereo camera, using dummycamera"
-            for _map_ in self.slam_worker.vehicle.maps:
-                _map_.sensors.camera = cameramodels.DummyCamera()
-        
         if not __PROFILE__:
             self.ros.subs = STRUCT()
             print "Creating ROS subscriptions..."
             # Create Subscriber
             self.ros.subs.dvl = rospy.Subscriber(
-                "/cola2_navigation/teledyne_explorer_dvl", 
+                SENSOR_TOPIC_ROOT+"teledyne_explorer_dvl", 
                 TeledyneExplorerDvl, self.update_dvl)
             self.ros.subs.svs = rospy.Subscriber(
-                "/cola2_navigation/valeport_sound_velocity", 
+                SENSOR_TOPIC_ROOT+"valeport_sound_velocity", 
                 ValeportSoundVelocity, self.update_svs)
-            self.ros.subs.imu = rospy.Subscriber("/cola2_navigation/imu", 
+            self.ros.subs.imu = rospy.Subscriber(SENSOR_TOPIC_ROOT+"imu", 
                                                  Imu, self.update_imu)
             if self.config.gps_update :
                 self.ros.subs.gps = rospy.Subscriber(
-                    "/cola2_navigation/fastrax_it_500_gps", 
+                    SENSOR_TOPIC_ROOT+"fastrax_it_500_gps", 
                     FastraxIt500Gps, self.update_gps)
             ## Subscribe to visiona slam-features node
-            SIMULATOR = False
             if SIMULATOR:
+                print "simulator"
                 rospy.Subscriber("/slamsim/features", PointCloud2, 
                                  self.update_features)
             else:
@@ -275,6 +267,42 @@ class G500_SLAM():
         else:
             print "** RUNNING IN PROFILER MODE **"
         
+        # Initialise the camera field of view
+        left_tf_frame = "slam_sensor"
+        right_tf_frame = "slam_sensor_right"
+        try:
+            camera_info_left = rospy.wait_for_message(
+                "/stereo_front/left/camera_info", CameraInfo, 5)
+            camera_info_right = rospy.wait_for_message(
+                "/stereo_front/right/camera_info", CameraInfo, 5)
+        except:
+            print "Error occurred initialising camera from camera_info"
+            print "Loading camera_info from disk"
+            print "G500_SLAM:INIT_ROS():\n", sys.exc_info
+            camera_info_pickle = (
+                roslib.packages.find_resource("udg_pandora", "camera_info.p"))
+            if len(camera_info_pickle):
+                camera_info_pickle = camera_info_pickle[0]
+                camera_info_left, camera_info_right = (
+                    pickle.load(open(camera_info_pickle, "rb")))
+            else:
+                camera_info_left, camera_info_right = None, None
+        try:
+            for _map_, idx in zip(self.slam_worker.vehicle.maps, 
+                                  range(len(self.slam_worker.vehicle.maps))):
+                _map_.sensors.camera.fromCameraInfo(camera_info_left,
+                                                    camera_info_right)
+                str_idx = str(idx)
+                _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
+                                                  right_tf_frame+str_idx)
+                # Set the far field of view
+                _map_.sensors.camera.set_near_far_fov(fov_far=_map_.vars.far_fov)
+        except:
+            print "Error occurred initialising stereo camera, using dummycamera"
+            print "G500_SLAM:INIT_ROS():\n", sys.exc_info
+            for _map_ in self.slam_worker.vehicle.maps:
+                _map_.sensors.camera = cameramodels.DummyCamera()
+        
         return ros
         
     def reset_navigation(self, req):
@@ -283,8 +311,8 @@ class G500_SLAM():
         num_sigma_dims = (self.slam_particles-1)/2
         try:
             self.create_sigma_states(np.zeros(num_sigma_dims))
-        except AssertionError as attr_err:
-            print attr_err
+        except AssertionError as assert_err:
+            print assert_err
             rospy.loginfo("Failed to set sigma states")
             self.slam_worker.vehicle.states[:, :] = 0
         return EmptyResponse()
@@ -293,8 +321,8 @@ class G500_SLAM():
         print "Setting new navigation..."
         try:
             self.create_sigma_states(np.array([req.north, req.east]))
-        except AssertionError as attr_err:
-            print attr_err
+        except AssertionError as assert_err:
+            print assert_err
             rospy.loginfo("Failed to set sigma states")
             self.slam_worker.vehicle.states[:, :] = 0
         self.slam_worker.vehicle.states[:, 2] = self.vehicle.pose_position[2]
@@ -323,6 +351,7 @@ class G500_SLAM():
                 print "gps not set: initialising"
                 config.gps_init_samples_list.append([gps.north, gps.east])
                 if len(config.gps_init_samples_list) >= config.gps_init_samples:
+                    print "GPS initialised"
                     config.gps_data = True
                     [config.init.north, config.init.east] = \
                             np.mean(np.array(config.gps_init_samples_list), 
@@ -350,6 +379,8 @@ class G500_SLAM():
                             self.ros.last_update_time = config.last_time.gps
                             self.slam_worker.resample()
                             print "Updated with GPS"
+                    except:
+                        print "GPS UPDATE ERROR:\n", sys.exc_info()
                     finally:
                         self.__LOCK__.release()
                     #self.publish_data()
@@ -421,6 +452,8 @@ class G500_SLAM():
                 self.slam_worker.update_dvl(self.vehicle.twist_linear, mode)
                 self.ros.last_update_time = config.last_time.dvl
                 self.slam_worker.resample()
+            except:
+                print "DVL UPDATE ERROR:\n", sys.exc_info()
             finally:
                 self.__LOCK__.release()
             #self.publish_data()
@@ -445,9 +478,11 @@ class G500_SLAM():
             config.init.svs = True
             self.__LOCK__.acquire()
             try:
-                print "INITIALISING DEPTH to ", str(svs_data[2])
+                print "SVS: INITIALISING DEPTH to ", str(svs_data[2])
                 self.vehicle.pose_position[2] = svs_data[2]
                 self.slam_worker.vehicle.states[:, 2] = svs_data[2]
+            except:
+                print "G500_SLAM:UPDATE_SVS():\n", sys.exc_info
             finally:
                 self.__LOCK__.release()
             return
@@ -461,6 +496,8 @@ class G500_SLAM():
                 #self.slam_worker.update_svs(self.vehicle.pose_position[2])
                 self.slam_worker.vehicle.states[:, 2] = self.vehicle.pose_position[2]
                 self.ros.last_update_time = config.last_time.svs
+        except:
+            print "G500_SLAM:UPDATE_SVS():\n", sys.exc_info
         finally:
             self.__LOCK__.release()
         #self.publish_data()
@@ -490,6 +527,7 @@ class G500_SLAM():
             config.heading_buffer.append(config.heading_buffer[-1] + inc)
             
             if len(config.heading_buffer) == len(config.savitzky_golay_coeffs):
+                print "IMU initialised!"
                 config.imu_data = True
             
         else:
@@ -520,6 +558,8 @@ class G500_SLAM():
                 self.predict(imu.header.stamp)
                 self.ros.last_update_time = imu.header.stamp
                 ###############################################################
+            except:
+                print "G500_SLAM:UPDATE_IMU():\n", sys.exc_info
             finally:
                 self.__LOCK__.release()
             #self.publish_data()
@@ -557,6 +597,7 @@ class G500_SLAM():
             self.ros.last_update_time = pcl_msg.header.stamp
         except:
             print "Error occurred while updating features"
+            print "G500_SLAM:UPDATE_FEATURES():\n", sys.exc_info
             #code.interact(local=locals())
         finally:
             self.__LOCK__.release()
@@ -565,6 +606,8 @@ class G500_SLAM():
         self.__LOCK__.acquire()
         try:
             self.slam_worker.compress_maps()
+        except:
+            print "G500_SLAM:SLAM_HOUSEKEEPING():\n", sys.exc_info
         finally:
             self.__LOCK__.release()
         
@@ -603,6 +646,7 @@ class G500_SLAM():
     
     def publish_data(self, *args, **kwargs):
         if not self.config.init.init:
+            print "Not initialised yet..."
             # self.ros.last_update_time = rospy.Time.now()
             # self.config.init = True
             return

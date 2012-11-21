@@ -84,8 +84,8 @@ class stereo_image_buffer(object):
             [rostopic_camera_root+"/left/camera_info",
              rostopic_camera_root+"/right/camera_info"])
         self._image_raw_topic_ = (
-            [rostopic_camera_root+"/left/image_raw",
-             rostopic_camera_root+"/right/image_raw"])
+            [rostopic_camera_root+"/left/image_color",
+             rostopic_camera_root+"/right/image_color"])
         
         try:
             self._camera_info_ = (
@@ -106,7 +106,7 @@ class stereo_image_buffer(object):
         self._img_sub_ = [
             message_filters.Subscriber(_sub_image_raw_, Image)
             for _sub_image_raw_ in self._image_raw_topic_]
-        self.timesync = message_filters.TimeSynchronizer(self._img_sub_, 5)
+        self.timesync = message_filters.TimeSynchronizer(self._img_sub_, 10)
         self.timesync.registerCallback(self.update_images)
     
     def update_images(self, *args):
@@ -219,7 +219,7 @@ class VisualDetector:
         
         # Initialise feature detector for SLAM
         self.slam_features = STRUCT()
-        slam_features_update_rate = 1
+        slam_features_update_rate = None
         num_slam_features = 100
         self.init_slam_feature_detector(slam_features_update_rate, 
                                         num_features=num_slam_features)
@@ -408,8 +408,10 @@ class VisualDetector:
         #return True
         
     def detect_slam_features(self, *args):
+        img_msgs = [copy.deepcopy(args[0]), copy.deepcopy(args[1])]
+        #time_now = args[0].header.stamp
         time_now = rospy.Time.now()
-        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in args]
+        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in img_msgs]
         points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r) = (
             self.slam_features.camera.points3d_from_img(*cvimage))
         if points3d.shape[0]:
@@ -417,8 +419,9 @@ class VisualDetector:
             # Convert from image space to (relative) north, east, down
             points3d = points3d[:, [2, 0, 1]]
         else:
+            print "no features found"
             points_range = np.empty(0, dtype=np.int32)
-        points3d = points3d[points_range <= 3]
+        points3d = points3d[points_range <= 5]
         
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])

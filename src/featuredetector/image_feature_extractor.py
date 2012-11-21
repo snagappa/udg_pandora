@@ -86,6 +86,7 @@ class _feature_detector_(object):
         else:
             self.GRID_ADAPTED = True
             self.set_num_features = self.set_grid_adapted_num_features
+            self.get_num_features = self.get_grid_adapted_num_features
     
     def reinit(self):
         """
@@ -109,8 +110,19 @@ class _feature_detector_(object):
             "maxTotalKeypoints" in params_list), "Cannot set number of features"
         self._detector_.setInt("maxTotalKeypoints", num_features)
     
+    def get_grid_adapted_num_features(self):
+        params_list = self._detector_.getParams()
+        assert (self.GRID_ADAPTED and 
+            "maxTotalKeypoints" in params_list), "Cannot get number of features"
+        num_features = self._detector_.getInt("maxTotalKeypoints")
+        return num_features
+    
     def set_num_features(self, num_features):
         raise UnboundLocalError("Convert to grid adapted detector first using make_grid_adapted()")
+    
+    def get_num_features(self):
+        raise UnboundLocalError("Convert to grid adapted detector first using make_grid_adapted()")
+    
 
 class Sift(_feature_detector_):
     def __init__(self, *args, **kwargs):
@@ -143,6 +155,10 @@ class Orb(_feature_detector_):
     
     def set_num_features(self, num_features):
         self._detector_.setInt("nFeatures", num_features)
+    
+    def get_num_features(self):
+        num_features = self._detector_.getInt("nFeatures")
+        return num_features
     
 
 class Freak(_feature_detector_):

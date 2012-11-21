@@ -556,25 +556,29 @@ class gtk_slam_sim:
             camera = self.vehicle.sensors.camera
             #try:
             # Stereo camera - get relative position for left and right
+            """
             _relative_landmarks_ = camera.from_world_coords((landmarks))
             relative_landmarks = [(_relative_landmarks_[0]),
                                   (_relative_landmarks_[1])]
             # Check which landmarks are visible
-            visible_landmarks_idx = camera.is_visible(relative_landmarks[0],
+            visible_landmarks_idx = camera.is_visible_relative2sensor(relative_landmarks[0],
                                                       relative_landmarks[1],
                                                       margin=0)
             # We only track in the left image frame
             relative_landmarks = relative_landmarks[0]
+            """
+            visible_landmarks_idx = camera.is_visible(landmarks)
+            relative_landmarks = camera.observations(landmarks[visible_landmarks_idx])[0]
 #            except:
 #                print "Could not use tf for transformation"
 #                relative_landmarks = camera.relative(self.vehicle.north_east_depth, 
 #                                                     self.vehicle.roll_pitch_yaw, 
 #                                                     landmarks)
-#                visible_landmarks_idx = camera.is_visible(relative_landmarks)
+#                visible_landmarks_idx = camera.is_visible_relative2sensor(relative_landmarks)
             ##relative_landmarks = self.vehicle.sensors.camera.from_world_coords(_ned_to_xyz_(landmarks))
             self.vehicle.visible_landmarks.abs = landmarks[visible_landmarks_idx]
-            self.vehicle.visible_landmarks.rel = (
-                relative_landmarks[visible_landmarks_idx])
+            self.vehicle.visible_landmarks.rel = relative_landmarks
+            
             if self.vehicle.visible_landmarks.rel.shape[0]:
                 self.vehicle.visible_landmarks.noise = (
                     np.sqrt((self.vehicle.visible_landmarks.rel**2).sum(axis=1))*
@@ -582,17 +586,7 @@ class gtk_slam_sim:
                 self.vehicle.visible_landmarks.noise[self.vehicle.visible_landmarks.noise < 0.001] = 0.001
             else:
                 self.vehicle.visible_landmarks.noise = np.empty(0)
-            """
-            if self.vehicle.visible_landmarks.rel.shape[0]:
-                inverse_landmarks = self.vehicle.sensors.camera.absolute(self.vehicle.north_east_depth, 
-                                                                self.vehicle.roll_pitch_yaw, 
-                                                                self.vehicle.visible_landmarks.rel)
             
-                if not (np.abs(inverse_landmarks - self.vehicle.visible_landmarks.abs) < 1e-4).all():
-                    print "Inverse not equal"
-                    print "Diff = ", (inverse_landmarks - self.vehicle.visible_landmarks.abs)
-                    #code.interact(local=locals())
-            """
             # Set vertices
             vertices = self.vehicle.sensors.camera.fov_vertices_2d()
             
@@ -605,41 +599,9 @@ class gtk_slam_sim:
             vertices += np.array([east, north])
             self.vehicle.visible_landmarks.fov_poly_vertices = vertices
             
-            """
-            north, east, depth = self.vehicle.north_east_depth
-            yaw = self.vehicle.roll_pitch_yaw[2]
-            vis_width = self.vehicle.fov.width
-            vis_depth = self.vehicle.fov.depth
-            
-            # Set vertices
-            vertices = np.array([[-vis_width/2, 0], [-vis_width/2, vis_depth], 
-                                 [vis_width/2, vis_depth], [vis_width/2, 0]])
-            
-            # Rotate by the yaw
-            cy = np.cos(yaw)
-            sy = np.sin(yaw)
-            vertices = np.dot(np.array([[cy, sy], [-sy, cy]]), vertices.T).T
-            # Translation to vehicle position
-            vertices += np.array([east, north])
-            self.vehicle.visible_landmarks.fov_poly_vertices = vertices
-            
-            # copy visible landmarks to self.vehicle.visible_landmarks.abs
-            landmarks = np.array(self.scene.landmarks)
-            if landmarks.shape[0]:
-                landmarks_mask = nxutils.points_inside_poly(landmarks[:, [1,0]], vertices)
-                self.vehicle.visible_landmarks.abs = landmarks[landmarks_mask]
-                self.vehicle.visible_landmarks.rel = \
-                    featuredetector.dummysensor.relative(np.array([north, east, depth]), 
-                                                        self.vehicle.roll_pitch_yaw, 
-                                                        self.vehicle.visible_landmarks.abs)
-            else:
-                self.vehicle.visible_landmarks.abs = np.empty(0)
-                self.vehicle.visible_landmarks.rel = np.empty(0)
-            # Perform translation/rotation of visible landmarks to
-            # self.vehicle.visible_landmarks.rel
-            """
         except:
-            print "Error occurred updating while visible landmarks"
+            print "Error occurred while updating visible landmarks"
+            print sys.exc_info()
         finally:
             self.vehicle.LOCK.release()
         # Publish the landmarks
