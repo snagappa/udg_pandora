@@ -285,8 +285,8 @@ class _FoV_(object):
         """
         pd = self._pdf_detection_(points1, points2, **kwargs).astype(np.bool)
         clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0])
-        clutter_pdf[pd == 0] = 1
-        return 
+        #clutter_pdf[pd == 0] = 1
+        return clutter_pdf
     
     def _perform_tf_(self, target_frame, pcl_msg, RETURN_NP_ARRAY=False):
         print "CALLING _PERFORM_TF_"
