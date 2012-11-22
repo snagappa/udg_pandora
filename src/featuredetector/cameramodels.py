@@ -339,7 +339,12 @@ class _FoV_(object):
     def observations(self, points):
         rel_states = self.from_world_coords(points)
         return rel_states
-    
+        
+class SphericalCamera(_FoV_):
+    def __init__(self):
+        _FoV_.__init__(self)
+        # Observation volume
+        self.observation_volume = self._observation_volume_()    
 
 class DummyCamera(_FoV_):
     def __init__(self,  fov_x_deg=64, fov_y_deg=50, fov_far_m=3):
