@@ -58,9 +58,13 @@ def kf_update_x(x, pred_z, z, kalman_gain, INPLACE=True):
     
     #residuals = np.repeat([z], pred_z.shape[0], 0)
     #blas.daxpy(-1, pred_z, residuals)
-    residuals = z - pred_z
+    residuals = np.asanyarray(z - pred_z, order='C')
     # Update the state
-    blas.dgemv(kalman_gain, residuals, beta=np.array([1.0]), y=upd_state)
+    try:
+        blas.dgemv(kalman_gain, residuals, beta=np.array([1.0]), y=upd_state)
+    except AssertionError as assert_err:
+        print assert_err
+        raise RuntimeError("Error in kf_update_x")
     
     return upd_state, residuals
     

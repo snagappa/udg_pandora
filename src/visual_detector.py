@@ -38,6 +38,7 @@ except AttributeError as attr_err:
         raise rospy.exceptions.ROSException(
             "Cannot initialise feature extractors")
 
+FOV_FAR = 3.0
 
 def merge_points(weights, states, covs, merge_threshold=1.):
     num_remaining_components = weights.shape[0]
@@ -292,7 +293,7 @@ class VisualDetector:
             raise rospy.ROSException("Could not reset the number of features for slam")
         
         slam_features.camera.fromCameraInfo(*self.image_buffer.get_camera_info())
-        
+        slam_features.camera.set_near_far_fov(fov_far=FOV_FAR)
         # Create Publisher
         slam_features.pub = rospy.Publisher("/visual_detector2/features",
                                             PointCloud2)
@@ -421,12 +422,12 @@ class VisualDetector:
         else:
             print "no features found"
             points_range = np.empty(0, dtype=np.int32)
-        points3d = points3d[points_range <= 5]
+        points3d = points3d[points_range <= FOV_FAR]
         
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        covs = np.repeat([np.eye(3)*0.1], points3d.shape[0], axis=0)
-        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs)
+        covs = np.repeat([np.eye(3)*0.2], points3d.shape[0], axis=0)
+        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=3.)
         print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
         if points3d_covs.shape[0]:

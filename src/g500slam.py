@@ -40,10 +40,11 @@ try:
     import navigation_g500.msg
 except:
     pass
-
+import visual_detector
+import traceback
 
 USE_COLA_TOPICS =  True
-USE_GPS = True
+USE_GPS = False
 SIMULATOR = True
 
 
@@ -80,7 +81,7 @@ from featuredetector import cameramodels
 INVALID_ALTITUDE = -32665
 SAVITZKY_GOLAY_COEFFS = [0.2,  0.1,  0. , -0.1, -0.2]
 
-UKF_ALPHA = 0.2
+UKF_ALPHA = 0.4
 UKF_BETA = 2
 UKF_KAPPA = 0
 
@@ -261,6 +262,7 @@ class G500_SLAM():
                 
             # Publish data every 500 ms
             rospy.timer.Timer(rospy.Duration(0.2), self.publish_data)
+            rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
             rospy.timer.Timer(rospy.Duration(8), self.slam_housekeeping)
             # Callback to print vehicle state and weight
             #rospy.timer.Timer(rospy.Duration(10), self.debug_print)
@@ -278,7 +280,8 @@ class G500_SLAM():
         except:
             print "Error occurred initialising camera from camera_info"
             print "Loading camera_info from disk"
-            print "G500_SLAM:INIT_ROS():\n", sys.exc_info
+            exc_info = sys.exc_info()
+            print "G500_SLAM:INIT_ROS():\n", traceback.print_tb(exc_info[2])
             camera_info_pickle = (
                 roslib.packages.find_resource("udg_pandora", "camera_info.p"))
             if len(camera_info_pickle):
@@ -296,10 +299,11 @@ class G500_SLAM():
                 _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
                                                   right_tf_frame+str_idx)
                 # Set the far field of view
-                _map_.sensors.camera.set_near_far_fov(fov_far=_map_.vars.far_fov)
+                _map_.sensors.camera.set_near_far_fov(fov_far=visual_detector.FOV_FAR)
         except:
             print "Error occurred initialising stereo camera, using dummycamera"
-            print "G500_SLAM:INIT_ROS():\n", sys.exc_info
+            exc_info = sys.exc_info()
+            print "G500_SLAM:INIT_ROS():\n", traceback.print_tb(exc_info[2])
             for _map_ in self.slam_worker.vehicle.maps:
                 _map_.sensors.camera = cameramodels.DummyCamera()
         
@@ -343,7 +347,7 @@ class G500_SLAM():
     
     
     def update_gps(self, gps):
-        if (gps.data_quality >= 1) and (gps.latitude_hemisphere >= 0) and \
+        if USE_GPS and (gps.data_quality >= 1) and (gps.latitude_hemisphere >= 0) and \
         (gps.longitude_hemisphere >= 0):
             config = self.config
             config.last_time.gps = copy.copy(gps.header.stamp)
@@ -354,8 +358,10 @@ class G500_SLAM():
                     print "GPS initialised"
                     config.gps_data = True
                     [config.init.north, config.init.east] = \
-                            np.mean(np.array(config.gps_init_samples_list), 
+                            np.median(np.array(config.gps_init_samples_list), 
                                       axis=0)
+                    print "Unregistering GPS subscription"
+                    self.ros.subs.gps.unregister()
             else:
                 config.gps_init_samples_list.pop(0)
                 config.gps_init_samples_list.append([gps.north, gps.east])
@@ -380,7 +386,8 @@ class G500_SLAM():
                             self.slam_worker.resample()
                             print "Updated with GPS"
                     except:
-                        print "GPS UPDATE ERROR:\n", sys.exc_info()
+                        exc_info = sys.exc_info()
+                        print "GPS UPDATE ERROR:\n", traceback.print_tb(exc_info[2])
                     finally:
                         self.__LOCK__.release()
                     #self.publish_data()
@@ -453,7 +460,8 @@ class G500_SLAM():
                 self.ros.last_update_time = config.last_time.dvl
                 self.slam_worker.resample()
             except:
-                print "DVL UPDATE ERROR:\n", sys.exc_info()
+                exc_info = sys.exc_info()
+                print "DVL UPDATE ERROR:\n", traceback.print_tb(exc_info[2])
             finally:
                 self.__LOCK__.release()
             #self.publish_data()
@@ -482,7 +490,8 @@ class G500_SLAM():
                 self.vehicle.pose_position[2] = svs_data[2]
                 self.slam_worker.vehicle.states[:, 2] = svs_data[2]
             except:
-                print "G500_SLAM:UPDATE_SVS():\n", sys.exc_info
+                exc_info = sys.exc_info()
+                print "G500_SLAM:UPDATE_SVS():\n", traceback.print_tb(exc_info[2])
             finally:
                 self.__LOCK__.release()
             return
@@ -497,7 +506,8 @@ class G500_SLAM():
                 self.slam_worker.vehicle.states[:, 2] = self.vehicle.pose_position[2]
                 self.ros.last_update_time = config.last_time.svs
         except:
-            print "G500_SLAM:UPDATE_SVS():\n", sys.exc_info
+            exc_info = sys.exc_info()
+            print "G500_SLAM:UPDATE_SVS():\n", traceback.print_tb(exc_info[2])
         finally:
             self.__LOCK__.release()
         #self.publish_data()
@@ -559,7 +569,8 @@ class G500_SLAM():
                 self.ros.last_update_time = imu.header.stamp
                 ###############################################################
             except:
-                print "G500_SLAM:UPDATE_IMU():\n", sys.exc_info
+                exc_info = sys.exc_info()
+                print "G500_SLAM:UPDATE_IMU():\n", traceback.print_tb(exc_info[2])
             finally:
                 self.__LOCK__.release()
             #self.publish_data()
@@ -597,7 +608,10 @@ class G500_SLAM():
             self.ros.last_update_time = pcl_msg.header.stamp
         except:
             print "Error occurred while updating features"
-            print "G500_SLAM:UPDATE_FEATURES():\n", sys.exc_info
+            exc_info = sys.exc_info()
+            print "G500_SLAM:UPDATE_FEATURES():\n", traceback.print_tb(exc_info[2])
+            traceback.print_tb(exc_info[2])
+            
             #code.interact(local=locals())
         finally:
             self.__LOCK__.release()
@@ -607,7 +621,8 @@ class G500_SLAM():
         try:
             self.slam_worker.compress_maps()
         except:
-            print "G500_SLAM:SLAM_HOUSEKEEPING():\n", sys.exc_info
+            exc_info = sys.exc_info()
+            print "G500_SLAM:SLAM_HOUSEKEEPING():\n", traceback.print_tb(exc_info[2])
         finally:
             self.__LOCK__.release()
         
@@ -642,7 +657,30 @@ class G500_SLAM():
             time_now = time_now.to_sec()
             self.slam_worker.predict(np.array(pose_angle), time_now)
             return True
-            
+    
+    def publish_transforms(self, *args, **kwargs):
+        timestamp = rospy.Time.now()
+        world_frame_id = "world"
+        platform_orientation = self.vehicle.pose_orientation
+        br = tf.TransformBroadcaster()
+        # Publish stereo_camera tf relative to each slam particle
+        zero_orientation = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
+        nparticles = self.slam_worker.vars.nparticles
+        for particle_idx in range(nparticles):
+            str_particle_idx = str(particle_idx)
+            child_name = "slam_sensor" + str_particle_idx
+            child_right_name = "slam_sensor_right" + str_particle_idx
+            parent_name = "slam_base" + str_particle_idx
+            # Publish parent particle
+            parent_state = self.slam_worker.vehicle.states[particle_idx, :3]
+            if not np.any(np.isnan(parent_state)):
+                br.sendTransform(tuple(parent_state), platform_orientation,
+                                 timestamp, parent_name, world_frame_id)
+                br.sendTransform((0.0, -0.06, -0.7), zero_orientation,
+                                 timestamp, child_name, parent_name)
+                br.sendTransform((0.0, 0.12, 0.0), zero_orientation,
+                                 timestamp, child_right_name, child_name)
+        
     
     def publish_data(self, *args, **kwargs):
         if not self.config.init.init:
@@ -713,23 +751,6 @@ class G500_SLAM():
         pcl_msg.header.stamp = timestamp
         pcl_msg.header.frame_id = world_frame_id
         self.ros.map.publisher.publish(pcl_msg)
-        
-        # Publish stereo_camera tf relative to each slam particle
-        zero_orientation = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
-        nparticles = self.slam_worker.vars.nparticles
-        for particle_idx in range(nparticles):
-            str_particle_idx = str(particle_idx)
-            child_name = "slam_sensor" + str_particle_idx
-            child_right_name = "slam_sensor_right" + str_particle_idx
-            parent_name = "slam_base" + str_particle_idx
-            # Publish parent particle
-            parent_state = self.slam_worker.vehicle.states[particle_idx, :3]
-            br.sendTransform(tuple(parent_state), platform_orientation,
-                             timestamp, parent_name, world_frame_id)
-            br.sendTransform((0.0, -0.06, -0.7), zero_orientation,
-                             timestamp, child_name, parent_name)
-            br.sendTransform((0.0, 0.12, 0.0), zero_orientation,
-                             timestamp, child_right_name, parent_name)
         
         
         #print "Landmarks at: "

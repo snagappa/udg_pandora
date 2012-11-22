@@ -283,7 +283,7 @@ class _FoV_(object):
         Calculate the probability distribution for the clutter at the given
         points
         """
-        pd = self._pdf_detection_(points1, points2, **kwargs).astype(np.bool)
+        #pd = self._pdf_detection_(points1, points2, **kwargs).astype(np.bool)
         clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0])
         #clutter_pdf[pd == 0] = 1
         return clutter_pdf
@@ -524,16 +524,16 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Determines the probability of detection for points specified according
         to (north, east, down) coordinate system relative to the world.
         """
-        margin = kwargs.get("margin", 1e-2)
+        margin = kwargs.get("margin", 1e-1)
         # Convert points from (n,e,d) to camera (right, up, far)
         idx_visible = np.arange(rel_points1.shape[0])
         rel_points1 = rel_points1[:, [1, 2, 0]]
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
-        idx_visible = idx_visible[rel_points1[idx_visible, 2] > self.fov_near]
+        idx_visible = idx_visible[rel_points1[idx_visible, 2] > (self.fov_near+margin)]
         if idx_visible.shape[0] == 0: return pd
         # Check far plane
-        idx_visible = idx_visible[rel_points1[idx_visible, 2] < self.fov_far]
+        idx_visible = idx_visible[rel_points1[idx_visible, 2] < (self.fov_far-margin)]
         if idx_visible.shape[0] == 0: return pd
         # Frustum planes
         # Scale pd according to distance from the plane
@@ -544,8 +544,8 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
             idx_visible = idx_visible[valid_idx]
             scale_factor = scale_factor[valid_idx]
             dot_product = np.abs(dot_product[valid_idx])
-            scale_idx = dot_product < 0.2
-            scale_factor[scale_idx] *= dot_product[scale_idx]/0.2
+            scale_idx = dot_product < margin
+            scale_factor[scale_idx] *= dot_product[scale_idx]/margin
             if idx_visible.shape[0] == 0: return pd
         pd[idx_visible] = scale_factor
         #pd[points[:, 2] < self.fov_near] = 0

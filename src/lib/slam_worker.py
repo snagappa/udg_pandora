@@ -17,10 +17,11 @@ from lib.common.kalmanfilter import kf_predict_cov
 from lib.common.kalmanfilter import np_kf_update_cov, kf_update_cov, kf_update_x
 from collections import namedtuple
 import copy
-#import code
+import code
 import threading
 from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
 import sys
+import traceback
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -60,16 +61,16 @@ class GMPHD(object):
         # Prune components less than this weight
         self.vars.prune_threshold = 1e-3
         # Merge components  closer than this threshold
-        self.vars.merge_threshold = 0.5
+        self.vars.merge_threshold = 2
         # Maximum number of components to track
         self.vars.max_num_components = 150
         # Intensity of new targets
-        self.vars.birth_intensity = 5e-2
+        self.vars.birth_intensity = 1e-1
         # Intensity of clutter in the scene
-        self.vars.clutter_intensity = 0.1
+        self.vars.clutter_intensity = 1
         # Probability of detection of targets in the FoV
         self.vars.pd = 0.9
-        self.vars.far_fov = 3.0
+        #self.vars.far_fov = 5.0
         #self.vars.ps = 1.0
         
         # Temporary variables to speed up some processing across different functions
@@ -85,7 +86,8 @@ class GMPHD(object):
             self.sensors.camera = cameramodels.StereoCameraModel()
         except:
             print "Error initialising camera models, using dummy camera"
-            print "GMPHD:__INIT__():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:__INIT__():\n", traceback.print_tb(exc_info[2])
             self.sensors.camera = cameramodels.DummyCamera()
         self.sensors.camera.set_const_pd(self.vars.pd)
     
@@ -97,7 +99,7 @@ class GMPHD(object):
         try:
             new_object.weights = self.weights.copy()
             new_object.states = self.states.copy()
-            new_object.covs = self.states.copy()
+            new_object.covs = self.covs.copy()
             new_object.parent_ned = self.parent_ned.copy()
             new_object.parent_rpy = self.parent_rpy.copy()
             new_object._estimate_ = self.estimate()
@@ -106,7 +108,8 @@ class GMPHD(object):
             new_object.flags.LOCK = threading.RLock()
             new_object.sensors.camera = copy.deepcopy(self.sensors.camera)
         except:
-            print "GMPHD:COPY():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:COPY():\n", traceback.print_tb(exc_info[2])
         finally:
             self.flags.LOCK.release()
         return new_object
@@ -124,7 +127,8 @@ class GMPHD(object):
             self.states = ptr_states
             self.covs = ptr_covs
         except:
-            print "GMPHD:SET_STATES():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:SET_STATES():\n", traceback.print_tb(exc_info[2])
         finally:
             self.flags.LOCK.release()
     
@@ -139,7 +143,8 @@ class GMPHD(object):
             self.parent_ned = parent_ned.copy()
             self.parent_rpy = parent_rpy.copy()
         except:
-            print "GMPHD:SET_PARENT():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:SET_PARENT():\n", traceback.print_tb(exc_info[2])
         finally:
             self.flags.LOCK.release()
     
@@ -181,20 +186,15 @@ class GMPHD(object):
         self.flags.ESTIMATE_IS_VALID = False
         # Container for slam parent update
         slam_info = STRUCT()
-        slam_info.likelihood = 1
+        slam_info.likelihood = 1.
         num_observations, z_dim = (observations.shape + (3,))[0:2]
         
         if not self.weights.shape[0]:
+            #print "nothing to update"
             return slam_info
-        
-        #detection_probability = self.camera_pd(self.parent_ned, 
-        #                                       self.parent_rpy, self.states)
-        rel_states = self.sensors.camera.from_world_coords(self.states)
-        detection_probability = self.sensors.camera.pdf_detection(self.states, 
-                                                                  margin=0)
-        rel_states = np.asarray(rel_states[0], order='C')
-        detection_probability[detection_probability<0.5] = 0
-        clutter_pdf = self.camera_clutter(observations)
+        camera = self.sensors.camera
+        detection_probability = camera.pdf_detection(self.states, margin=0)
+        clutter_pdf = camera.pdf_clutter(observations)
         clutter_intensity = self.vars.clutter_intensity*clutter_pdf
         
         self.flags.LOCK.acquire()
@@ -210,7 +210,7 @@ class GMPHD(object):
             updated.covs = [self.covs]
             
             # Do the update only for detected landmarks
-            detected_indices = detection_probability >= 0
+            detected_indices = detection_probability > 0
             detected = STRUCT()
             detected.weights = ( prev_weights[detected_indices]*
                                  detection_probability[detected_indices] )
@@ -227,11 +227,7 @@ class GMPHD(object):
                 # observation-updates
                 if observations.shape[0]:
                     h_mat = relative_rot_mat(self.parent_rpy)
-                    # Predicted observation from the current states
-                    #pred_z = self.sensors.camera.relative(self.parent_ned, 
-                    #    self.parent_rpy, detected.states)
-                    #pred_z = self.sensors.camera.from_world_coords(detected.states)[0]
-                    pred_z = rel_states
+                    pred_z = self.sensors.camera.observations(detected.states)[0]
                     observation_noise = observation_noise[0]
                     detected.covs, kalman_info = kf_update_cov(detected.covs, 
                                                                h_mat, 
@@ -273,7 +269,7 @@ class GMPHD(object):
                     updated.covs += [detected.covs.copy()]
                     #print upd_weights.sum()
             else:
-                slam_info.sum__clutter_with_pd_updwt = np.array(clutter_intensity)
+                slam_info.sum__clutter_with_pd_updwt = np.ones(num_observations)
             
             self.weights = np.concatenate(updated.weights)
             self.states = np.concatenate(updated.states)
@@ -285,7 +281,8 @@ class GMPHD(object):
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
         except:
             print "error in update"
-            print "GMPHD:UPDATE():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:UPDATE():\n", traceback.print_tb(exc_info[2])
             #code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
@@ -303,7 +300,8 @@ class GMPHD(object):
                 states = self.states.copy()
                 covs = self.covs.copy()
             except:
-                print "GMPHD:ESTIMATE():\n", sys.exc_info()
+                exc_info = sys.exc_info()
+                print "GMPHD:ESTIMATE():\n", traceback.print_tb(exc_info[2])
             finally:
                 self.flags.LOCK.release()
             valid_targets = weights>0.5
@@ -362,7 +360,8 @@ class GMPHD(object):
                     self.states.shape[0] == 
                     self.covs.shape[0]), "Lost states!!"
         except:
-            print "GMPHD:PRUNE():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:PRUNE():\n", traceback.print_tb(exc_info[2])
         finally:
             self.flags.LOCK.release()
     
@@ -387,7 +386,8 @@ class GMPHD(object):
                     # Stereo camera - get relative position for left and right
                     detected_idx = camera.pdf_detection(self.states)
                 except:
-                    print "GMPHD:MERGE_FOV():\n", sys.exc_info()
+                    exc_info = sys.exc_info()
+                    print "GMPHD:MERGE_FOV():\n", traceback.print_tb(exc_info[2])
                     rel_states = camera.relative(self.parent_ned, self.parent_rpy,
                                              self.states)
                     detected_idx = camera._pdf_detection_(rel_states)
@@ -444,7 +444,8 @@ class GMPHD(object):
                             np.vstack((unmerged_cvs, np.array(merged_cvs))))
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
         except:
-            print "GMPHD:MERGE_FOV():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:MERGE_FOV():\n", traceback.print_tb(exc_info[2])
         finally:
             self.flags.LOCK.release()
         
@@ -492,7 +493,8 @@ class GMPHD(object):
                             np.array(merged_sts), np.array(merged_cvs))
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
         except:
-            print "GMPHD:MERGE():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:MERGE():\n", traceback.print_tb(exc_info[2])
         finally:
             self.flags.LOCK.release()
         
@@ -520,7 +522,9 @@ class GMPHD(object):
             self.covs = np.vstack((self.covs, covs))
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
         except:
-            print "GMPHD:APPEND():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:APPEND():\n", traceback.print_tb(exc_info[2])
+            code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
     
@@ -582,7 +586,8 @@ class GMPHD(object):
                     birth_st = self.sensors.camera.to_world_coords(birth_features)
                 except:
                     print "tf conversion to world coords failed!"
-                    print "GMPHD:CMAERA_BIRTH():\n", sys.exc_info()
+                    exc_info = sys.exc_info()
+                    print "GMPHD:CAMERA_BIRTH():\n", traceback.print_tb(exc_info[2])
                     birth_st = self.sensors.camera.absolute(parent_ned, parent_rpy, 
                                                             birth_features)
                 if features_cv is None:
@@ -604,7 +609,8 @@ class GMPHD(object):
             pdf_detection = camera.pdf_detection(features_abs)
         except:
             print "Error calling camera pdf_detection()"
-            print "GMPHD:CAMERA_PD():\n", sys.exc_info()
+            exc_info = sys.exc_info()
+            print "GMPHD:CAMERA_PD():\n", traceback.print_tb(exc_info[2])
             #code.interact(local=dict(locals().items() + globals().items()))
             features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
             pdf_detection = camera._pdf_detection_(features_rel)
@@ -869,9 +875,11 @@ class PHDSLAM(object):
             features_noise = np.empty((0, 3, 3))
         slam_info = [self.vehicle.maps[i].iterate(features_pos, features_noise) 
             for i in range(self.vars.nparticles)]
-        slam_weight_update = np.array([slam_info[i].likelihood])
+        slam_weight_update = np.array([slam_info[i].likelihood
+            for i in range(self.vars.nparticles)])
         self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
-        
+        self.vehicle.weights /= self.vehicle.weights.sum()
+    
     def compress_maps(self, *args, **kwargs):
         """compress_maps(self, *args, **kwargs)
         Merge all possible landmarks in the maps
@@ -914,12 +922,13 @@ class PHDSLAM(object):
         # Check if we have particle depletion
         if (resample_threshold > self.vars.resample_threshold):
             return
+        print "Resampling"
         # Otherwise we need to resample
         resample_index = misctools.get_resample_index(self.vehicle.weights)
         # self.states is a numpy array so the indexing operation forces a copy
         self.vehicle.weights = np.ones(nparticles, dtype=float)/nparticles
-        self.vehicle.states = self.vehicle.states[resample_index]
-        self.vehicle.covs = self.vehicle.covs[resample_index]
+        self.vehicle.states = np.asanyarray(self.vehicle.states[resample_index], order='C')
+        self.vehicle.covs = np.asanyarray(self.vehicle.covs[resample_index], order='C')
         self.vehicle.maps = [self.vehicle.maps[i].copy() 
             for i in resample_index]
         

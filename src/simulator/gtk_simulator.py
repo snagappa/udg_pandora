@@ -246,6 +246,7 @@ class gtk_slam_sim:
                                                           camera_info_right)
             self.vehicle.sensors.camera.set_tf_frame(left_tf_frame,
                                                      right_tf_frame)
+            self.vehicle.sensors.camera.set_near_far_fov(fov_far=self.vehicle.fov.far_m)
         except:
             print "Could not find ROS camera_info, defaulting to dummycamera"
             self.vehicle.sensors.camera = (
