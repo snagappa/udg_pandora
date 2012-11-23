@@ -334,16 +334,19 @@ class GMPHD(object):
         #              self._estimate_.state.copy(), 
         #              self._estimate_.covariance.copy())
     
-    def prune(self):
+    def prune(self, override_threshold=None):
         """phd.prune()
         Remove landmarks in the map with low weights.
         """
         self.flags.LOCK.acquire()
         try:
-            if self.vars.prune_threshold <= 0 or (not self.weights.shape[0]):
+            threshold = self.vars.prune_threshold
+            if not override_threshold is None:
+                threshold = override_threshold
+            if threshold <= 0 or (not self.weights.shape[0]):
                 return
             self.flags.ESTIMATE_IS_VALID = False
-            valid_idx = self.weights >= self.vars.prune_threshold
+            valid_idx = self.weights >= threshold
             self.weights = self.weights[valid_idx]
             self.states = self.states[valid_idx]
             self.covs = self.covs[valid_idx]
@@ -543,6 +546,7 @@ class GMPHD(object):
         slam_info = self.update(observations, obs_noise)
         if observations.shape[0]:
             self.birth(observations, obs_noise, APPEND=True)
+        self.prune(override_threshold=1e-5)
         self.merge_fov()
         self.estimate()
         self.prune()

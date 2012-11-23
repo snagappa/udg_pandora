@@ -166,7 +166,7 @@ def merge_states(wt, x, P):
     #P_copy = P + blas.dger(residual, residual)
     
     # method 3:
-    P_copy = P + [residual[np.newaxis,i].T * residual[np.newaxis,i] 
+    P_copy = P + [np.dot(residual[np.newaxis,i].T, residual[np.newaxis,i])
         for i in range(residual.shape[0])]
     
     #merged_P = np.array(
