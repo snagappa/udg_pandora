@@ -19,7 +19,7 @@ from collections import namedtuple
 import copy
 import code
 import threading
-from lib.common.misctools import STRUCT, rotation_matrix, relative_rot_mat
+from lib.common.misctools import STRUCT, rotation_matrix #, relative_rot_mat
 import sys
 import traceback
 
@@ -226,7 +226,11 @@ class GMPHD(object):
                 # Covariance update part of the Kalman update is common to all 
                 # observation-updates
                 if observations.shape[0]:
-                    h_mat = relative_rot_mat(self.parent_rpy)
+                    # Observations will appear at position given by opposite
+                    # rotation of the parent
+                    h_mat = np.asarray(
+                        rotation_matrix(-self.parent_rpy)[np.newaxis], 
+                        order='C') #relative_rot_mat(self.parent_rpy)
                     pred_z = self.sensors.camera.observations(detected.states)[0]
                     observation_noise = observation_noise[0]
                     detected.covs, kalman_info = kf_update_cov(detected.covs, 
@@ -334,25 +338,35 @@ class GMPHD(object):
         #              self._estimate_.state.copy(), 
         #              self._estimate_.covariance.copy())
     
-    def prune(self, override_threshold=None):
+    def prune(self, override_prune_threshold=None, 
+              override_max_num_components=None):
         """phd.prune()
         Remove landmarks in the map with low weights.
         """
         self.flags.LOCK.acquire()
         try:
-            threshold = self.vars.prune_threshold
-            if not override_threshold is None:
-                threshold = override_threshold
-            if threshold <= 0 or (not self.weights.shape[0]):
-                return
-            self.flags.ESTIMATE_IS_VALID = False
-            valid_idx = self.weights >= threshold
-            self.weights = self.weights[valid_idx]
-            self.states = self.states[valid_idx]
-            self.covs = self.covs[valid_idx]
-            # Prune to the maximum number of components
+            # Get the threshold for weight based pruning
+            prune_threshold = self.vars.prune_threshold
+            if not override_prune_threshold is None:
+                prune_threshold = override_prune_threshold
             max_num_components = self.vars.max_num_components
-            if valid_idx.shape[0] > max_num_components:
+            if not override_max_num_components is None:
+                max_num_components = override_max_num_components
+            # Check if we need to prune
+            if ((not self.weights.shape[0]) or 
+                ((prune_threshold <= 0) and 
+                 (self.weights.shape[0] < max_num_components))):
+                return
+            
+            self.flags.ESTIMATE_IS_VALID = False
+            if prune_threshold > 0:
+                valid_idx = self.weights >= prune_threshold
+                self.weights = self.weights[valid_idx]
+                self.states = self.states[valid_idx]
+                self.covs = self.covs[valid_idx]
+            
+            # Prune to the maximum number of components
+            if self.weights.shape[0] > max_num_components:
                 # Sort in ascending order and 
                 # select the last max_num_components states
                 idx = self.weights.argsort()[-max_num_components:]
@@ -542,13 +556,22 @@ class GMPHD(object):
             merge()
             prune()
         """
+        # Predict
         self.predict()
+        # Update
         slam_info = self.update(observations, obs_noise)
+        # Remove states with very low weights, but keep all the rest
+        self.prune(override_prune_threshold=self.vars.prune_threshold/10, 
+                   override_max_num_components=np.inf)
+        # Add birth terms
         if observations.shape[0]:
             self.birth(observations, obs_noise, APPEND=True)
-        self.prune(override_threshold=1e-5)
+        # Merge states in the field of view - too expensive to merge whole
+        # state space
         self.merge_fov()
+        # Generate vehicle state and map estimates
         self.estimate()
+        # Perform normal prune
         self.prune()
         return slam_info
     
