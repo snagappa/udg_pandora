@@ -29,6 +29,19 @@ FLANN_INDEX_LSH    = 6
 tflistener = None
 TF_AVAILABLE = False
 
+
+def get_transform(target_frame, source_frame, timestamp=None):
+    """get_transform(target_frame, source_frame, timestamp=None)->mat44
+    Get transformation matrix using tf
+    """
+    point = PointStamped()
+    if not timestamp is None:
+        point.header.stamp = timestamp
+    point.header.frame_id = source_frame
+    
+    mat44 = tflistener.asMatrix(target_frame, point.header)
+    return mat44
+
 def transform_numpy_array(target_frame, source_frame, numpy_points,
                           timestamp=None, ROTATE_BEFORE_TRANSLATE=True):
     assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
@@ -37,15 +50,13 @@ def transform_numpy_array(target_frame, source_frame, numpy_points,
     if numpy_points.shape[0] == 0:
         return np.empty(0)
     
-    point = PointStamped()
-    if not timestamp is None:
-        point.header.stamp = timestamp
-    #else:
-    #    point.header.stamp = rospy.Time.now()
-    point.header.frame_id = source_frame
-    
     arr_len = numpy_points.shape[0]
-    mat44 = tflistener.asMatrix(target_frame, point.header)
+    try:
+        mat44 = get_transform(target_frame, source_frame, timestamp)
+    except:
+        sys_exc = sys.exc_info()
+        print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", sys_exc[2]
+        return np.empty(0, dtype=numpy_points.dtype)
     
     if ROTATE_BEFORE_TRANSLATE:
         homogenous_points = np.hstack((numpy_points, np.ones((arr_len, 1))))
@@ -322,6 +333,18 @@ class _FoV_(object):
         return (transform_numpy_array(target_frame, source_frame, numpy_points,
                                      ROTATE_BEFORE_TRANSLATE=True),)
     
+    def rotation_matrix(self):
+        """rotation_matrix(self) -> rot_mat
+        returns the 3x3 rotation matrix of the sensor with respect to the world
+        """
+        return get_transform(self.tfFrame, "world")[:3, :3]
+    
+    def inv_rotation_matrix(self):
+        """rotation_matrix(self) -> rot_mat
+        returns the 3x3 rotation matrix of the world with respect to the sensor
+        """
+        return get_transform("world", self.tfFrame)[:3, :3]
+    
     def relative(self, target_coord_NED, target_coord_RPY, world_points_NED):
         if not world_points_NED.shape[0]: return np.empty(0)
         relative_position = world_points_NED - target_coord_NED
@@ -339,13 +362,19 @@ class _FoV_(object):
     def observations(self, points):
         rel_states = self.from_world_coords(points)
         return rel_states
-        
+    
+    def observation_jacobian(self):
+        return self.inv_rotation_matrix()
+    
+
 class SphericalCamera(_FoV_):
     def __init__(self):
         _FoV_.__init__(self)
         # Observation volume
-        self.observation_volume = self._observation_volume_()    
+        self.observation_volume = self._observation_volume_()
+    
 
+"""
 class DummyCamera(_FoV_):
     def __init__(self,  fov_x_deg=64, fov_y_deg=50, fov_far_m=3):
         _FoV_.__init__(self)
@@ -414,7 +443,7 @@ class DummyCamera(_FoV_):
         assert (((points1.ndim == 2) and (points1.shape[1] == 3)) or
                 (np.prod(points1.shape) == 0)), "points1 must be a Nx3 ndarray"
         return self.z_prob(points1[:,0])
-    
+"""    
 
 class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def __init__(self):

@@ -125,6 +125,7 @@ class gtk_slam_sim:
         self.simulator = STRUCT()
         self.simulator.RUNNING = False
         self.simulator.ABORT = False
+        self.simulator.LOOP_WAYPOINTS = False
         
         self.viewer = STRUCT()
         self.viewer.size = STRUCT()
@@ -156,7 +157,7 @@ class gtk_slam_sim:
         self.viewer.textview.vehicle_rpy = self.glade.get_object("vehicle_rpy")
         self.viewer.textview.landmark_count = (
             self.glade.get_object("landmark_count"))
-        fontdesc = pango.FontDescription("monospace 10")
+        fontdesc = pango.FontDescription("monospace 9")
         self.viewer.textview.vehicle_xyz.modify_font(fontdesc)
         self.viewer.textview.vehicle_rpy.modify_font(fontdesc)
         self.viewer.textview.landmark_count.modify_font(fontdesc)
@@ -193,11 +194,14 @@ class gtk_slam_sim:
         self.timers.update_visible_landmarks.add_callback(
             self.update_visible_landmarks)
         self.timers.update_visible_landmarks.start()
-        # ROS publisher
+        # ROS publisher - use ROS timer since it might be using a simulated clock
+        #self.timers.publisher = (
+        #    self.viewer.figure.canvas.new_timer(interval=500))
+        #self.timers.publisher.add_callback(self.publish_visible_landmarks)
+        #self.timers.publisher.start()
         self.timers.publisher = (
-            self.viewer.figure.canvas.new_timer(interval=500))
-        self.timers.publisher.add_callback(self.publish_visible_landmarks)
-        self.timers.publisher.start()
+            rospy.timer.Timer(rospy.Duration(0.5), 
+                              self.publish_visible_landmarks))
         
         self.glade.get_object("MainWindow").show_all()
         
@@ -404,12 +408,12 @@ class gtk_slam_sim:
     
     def _start_sim_(self):
         try:
-            rospy.wait_for_service("/cola2_control/goto", timeout=5)
+            rospy.wait_for_service("/cola2_control/goto_local", timeout=5)
         except rospy.ROSException:
             print "Could not execute path"
             return
         try:
-            goto_wp = rospy.ServiceProxy("/cola2_control/goto", Goto)
+            goto_wp = rospy.ServiceProxy("/cola2_control/goto_local", Goto)
             waypoints = self.scene.waypoints
             waypoint_index = 0
             
@@ -420,13 +424,15 @@ class gtk_slam_sim:
                     self.simulator.ABORT = False
                     return
                 goto_wp_req = GotoRequest()
-                goto_wp_req.north = this_wp[0]
-                goto_wp_req.east = this_wp[1]
+                goto_wp_req.north_lat = this_wp[0]
+                goto_wp_req.east_lon = this_wp[1]
                 goto_wp_req.z = this_wp[2]
                 goto_wp_req.tolerance = 1.0
                 response = goto_wp(goto_wp_req)
                 print response
                 waypoint_index += 1
+                if self.simulator.LOOP_WAYPOINTS:
+                    waypoint_index = waypoint_index % len(waypoints)
         except rospy.ROSException:
             self.simulator.RUNNING = False
             self.simulator.ABORT = False
@@ -435,6 +441,9 @@ class gtk_slam_sim:
     def stop_sim(self, widget):
         self.simulator.ABORT = True
         print "Simulation will end when vehicle reaches next waypoint..."
+    
+    def toggle_loop_waypoints(self, widget):
+        self.simulator.LOOP_WAYPOINTS = not self.simulator.LOOP_WAYPOINTS
     
     def update_position(self, odom):
         #print "updating position"
@@ -540,12 +549,16 @@ class gtk_slam_sim:
             self.simple_estimator.north_east_depth, 2)
         numlandmarks_true = str(len(self.scene.landmarks))
         numlandmarks_est = str(self.estimator.landmarks.shape[0])
+        slam_err_n = np.abs(e_north-north)
+        slam_err_e = np.abs(e_east-east)
+        slam_err = (slam_err_n**2 + slam_err_e**2)**0.5
+        nav_err_n = np.abs(se_north-north)
+        nav_err_e = np.abs(se_east-east)
+        nav_err = (nav_err_n**2 + nav_err_e**2)**0.5
         text_numlandmarks = ("Landmarks: " + 
             numlandmarks_est + "/" + numlandmarks_true +
-            ",  SLAM Pos Err: (%.2f, " % float(np.abs(e_north-north)) +
-            "%.2f)" % float(np.abs(e_east-east)) + 
-            "Nav Pos Err: (%.2f, " % np.abs(se_north-north) + 
-            "%.2f)" % np.abs(se_east-east))
+            ", ERR (N, E)/Tot: slam (%.2f, %.2f)/%.2f, nav (%.2f, %.2f)/%.2f") % (
+            slam_err_n, slam_err_e, slam_err, nav_err_n, nav_err_e, nav_err)
         self.viewer.textview.landmark_count.get_buffer().set_text(text_numlandmarks)
     
     def update_visible_landmarks(self, *args, **kwargs):

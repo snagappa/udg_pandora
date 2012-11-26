@@ -19,7 +19,7 @@ from collections import namedtuple
 import copy
 import code
 import threading
-from lib.common.misctools import STRUCT, rotation_matrix #, relative_rot_mat
+from lib.common.misctools import STRUCT, rotation_matrix
 import sys
 import traceback
 
@@ -65,7 +65,7 @@ class GMPHD(object):
         # Maximum number of components to track
         self.vars.max_num_components = 150
         # Intensity of new targets
-        self.vars.birth_intensity = 1e-1
+        self.vars.birth_intensity = 1e-2
         # Intensity of clutter in the scene
         self.vars.clutter_intensity = 1
         # Probability of detection of targets in the FoV
@@ -85,10 +85,10 @@ class GMPHD(object):
         try:
             self.sensors.camera = cameramodels.StereoCameraModel()
         except:
-            print "Error initialising camera models, using dummy camera"
+            print "Error initialising camera models"
             exc_info = sys.exc_info()
             print "GMPHD:__INIT__():\n", traceback.print_tb(exc_info[2])
-            self.sensors.camera = cameramodels.DummyCamera()
+            
         self.sensors.camera.set_const_pd(self.vars.pd)
     
     def copy(self):
@@ -229,8 +229,8 @@ class GMPHD(object):
                     # Observations will appear at position given by opposite
                     # rotation of the parent
                     h_mat = np.asarray(
-                        rotation_matrix(-self.parent_rpy)[np.newaxis], 
-                        order='C') #relative_rot_mat(self.parent_rpy)
+                        self.sensors.camera.observation_jacobian[np.newaxis], 
+                        order='C')
                     pred_z = self.sensors.camera.observations(detected.states)[0]
                     observation_noise = observation_noise[0]
                     detected.covs, kalman_info = kf_update_cov(detected.covs, 
@@ -287,7 +287,6 @@ class GMPHD(object):
             print "error in update"
             exc_info = sys.exc_info()
             print "GMPHD:UPDATE():\n", traceback.print_tb(exc_info[2])
-            #code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
         return slam_info
@@ -367,6 +366,7 @@ class GMPHD(object):
             
             # Prune to the maximum number of components
             if self.weights.shape[0] > max_num_components:
+                print "Hit maximum number of components, pruning..."
                 # Sort in ascending order and 
                 # select the last max_num_components states
                 idx = self.weights.argsort()[-max_num_components:]
@@ -541,7 +541,6 @@ class GMPHD(object):
         except:
             exc_info = sys.exc_info()
             print "GMPHD:APPEND():\n", traceback.print_tb(exc_info[2])
-            code.interact(local=locals())
         finally:
             self.flags.LOCK.release()
     
@@ -638,7 +637,6 @@ class GMPHD(object):
             print "Error calling camera pdf_detection()"
             exc_info = sys.exc_info()
             print "GMPHD:CAMERA_PD():\n", traceback.print_tb(exc_info[2])
-            #code.interact(local=dict(locals().items() + globals().items()))
             features_rel = camera.relative(parent_ned, parent_rpy, features_abs)
             pdf_detection = camera._pdf_detection_(features_rel)
         return pdf_detection
@@ -790,7 +788,6 @@ class PHDSLAM(object):
             np.dot(trans_mat[0], self.vehicle.states.T).T, order='C')
         self.vehicle.states = pred_states
         # Predict covariance
-        #code.interact(local=locals())
         self.vehicle.covs = kf_predict_cov(self.vehicle.covs, trans_mat, 
                                           sc_process_noise)
         

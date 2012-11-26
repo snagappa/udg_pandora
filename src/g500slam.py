@@ -44,7 +44,7 @@ import visual_detector
 import traceback
 
 USE_COLA_TOPICS =  True
-USE_GPS = False
+USE_GPS = True
 SIMULATOR = True
 
 
@@ -81,7 +81,7 @@ from featuredetector import cameramodels
 INVALID_ALTITUDE = -32665
 SAVITZKY_GOLAY_COEFFS = [0.2,  0.1,  0. , -0.1, -0.2]
 
-UKF_ALPHA = 0.4
+UKF_ALPHA = 0.3
 UKF_BETA = 2
 UKF_KAPPA = 0
 
@@ -147,6 +147,7 @@ class G500_SLAM():
         sigma_states = self._make_sigma_states_(self.slam_worker, 
                 mean_state[np.newaxis])
         self.slam_worker.set_states(states=sigma_states)
+        print "Set new sigma states:\n", self.slam_worker.vehicle.states
     
     def _make_sigma_states_(self, slam_worker, mean_state):
         # Generate covariance
@@ -290,23 +291,23 @@ class G500_SLAM():
                     pickle.load(open(camera_info_pickle, "rb")))
             else:
                 camera_info_left, camera_info_right = None, None
-        try:
-            for _map_, idx in zip(self.slam_worker.vehicle.maps, 
-                                  range(len(self.slam_worker.vehicle.maps))):
-                _map_.sensors.camera.fromCameraInfo(camera_info_left,
-                                                    camera_info_right)
-                str_idx = str(idx)
-                _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
-                                                  right_tf_frame+str_idx)
-                # Set the far field of view
-                _map_.sensors.camera.set_near_far_fov(fov_far=visual_detector.FOV_FAR)
+        #try:
+        for _map_, idx in zip(self.slam_worker.vehicle.maps, 
+                              range(len(self.slam_worker.vehicle.maps))):
+            _map_.sensors.camera.fromCameraInfo(camera_info_left,
+                                                camera_info_right)
+            str_idx = str(idx)
+            _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
+                                              right_tf_frame+str_idx)
+            # Set the far field of view
+            _map_.sensors.camera.set_near_far_fov(fov_far=visual_detector.FOV_FAR)
+        """
         except:
             print "Error occurred initialising stereo camera, using dummycamera"
             exc_info = sys.exc_info()
             print "G500_SLAM:INIT_ROS():\n", traceback.print_tb(exc_info[2])
-            for _map_ in self.slam_worker.vehicle.maps:
-                _map_.sensors.camera = cameramodels.DummyCamera()
-        
+            raise rospy.ROSException("Unable to initialise camera")
+        """
         return ros
         
     def reset_navigation(self, req):
@@ -593,11 +594,13 @@ class G500_SLAM():
             slam_features = self.ros.pcl_helper.from_pcl(pcl_msg)
             # We can now access the points as slam_features[i]
             self.slam_worker.update_features(slam_features)
+            
             # Shift the states so that the central state is equal to the mean
-            state_est = self.slam_worker.estimate()
-            state_delta = (self.slam_worker.vehicle.states[0, 0:3] - 
-                           state_est.vehicle.ned.state)
-            self.slam_worker.vehicle.states[:, 0:3] += state_delta
+            #state_est = self.slam_worker.estimate()
+            #state_delta = (self.slam_worker.vehicle.states[0, 0:3] - 
+            #               state_est.vehicle.ned.state)
+            #self.slam_worker.vehicle.states[:, 0:3] += state_delta
+            
             # Copy the particle state to the PHD parent state
             parent_ned = np.array(self.slam_worker.vehicle.states[:, 0:3])
             self.slam_worker._copy_state_to_map_(parent_ned)
@@ -611,8 +614,6 @@ class G500_SLAM():
             exc_info = sys.exc_info()
             print "G500_SLAM:UPDATE_FEATURES():\n", traceback.print_tb(exc_info[2])
             traceback.print_tb(exc_info[2])
-            
-            #code.interact(local=locals())
         finally:
             self.__LOCK__.release()
         
