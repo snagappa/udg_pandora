@@ -25,7 +25,10 @@
 # ROS imports
 import roslib 
 roslib.load_manifest('udg_pandora')
-roslib.load_manifest("navigation_g500")
+try:
+    roslib.load_manifest("navigation_g500")
+except:
+    pass
 import rospy
 import tf
 import PyKDL
