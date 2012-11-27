@@ -340,37 +340,3 @@ if __name__ == '__main__':
 #        rospy.spin()
 
     except rospy.ROSInterruptException: pass
-
-
-
-
-"""
- def kf_update_cov(covariance, H, R):
-   upd_covariance = covariance.copy()
-   covariance_copy = covariance
-   
-   # Comput PH^T
-   p_ht = dot(covariance, H.T)
-   # Compute HPH^T + R
-   hp_ht_pR = dot(H, p_ht) + R
-   
-   inv_S = squeeze(asarray(matrix(hp_ht_pR).I))
-    
-    
-   # Compute the Cholesky decomposition
-   # chol_S = linalg.cholesky(hp_ht_pR)
-   # Compute the inverse of the square root
-   # inv_sqrt_S = array(linalg.inv(chol_S), order='C')
-   # and the inverse
-   # inv_S = dot(inv_sqrt_S.T, inv_sqrt_S)
-   
-   # Kalman gain
-   kalman_gain = dot(p_ht, inv_S)
-   
-   # Update the covariance
-   k_h = dot(kalman_gain, H)
-   upd_covariance -= dot(k_h, covariance_copy)
-
-   return upd_covariance, kalman_gain
-
-"""
