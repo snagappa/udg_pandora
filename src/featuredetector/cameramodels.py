@@ -16,6 +16,7 @@ import copy
 import code
 from geometry_msgs.msg import PointStamped
 import sys
+import traceback
 
 default_float = "float64"
 
@@ -55,7 +56,8 @@ def transform_numpy_array(target_frame, source_frame, numpy_points,
         mat44 = get_transform(target_frame, source_frame, timestamp)
     except:
         sys_exc = sys.exc_info()
-        print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", sys_exc[2]
+        print "Error converting from %s to %s" % (source_frame, target_frame)
+        print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", traceback.print_tb(sys_exc[2])
         return np.empty(0, dtype=numpy_points.dtype)
     
     if ROTATE_BEFORE_TRANSLATE:
@@ -608,7 +610,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         clutter_pdf[pd == False] = 1
         return clutter_pdf
     
-    def set_tf_frame(self, frame_id):
+    def set_tf_frame(self, frame_id, *args):
         self.tfFrame = frame_id
         self.tf_frame = frame_id
     

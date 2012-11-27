@@ -210,6 +210,7 @@ class G500_SLAM():
     def init_ros(self, name):
         ros = self.ros
         ros.name = name
+        self.publish_transforms()
         ros.last_update_time = rospy.Time.now()
         ros.NO_LOCK_ACQUIRE = 0
         

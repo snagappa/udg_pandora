@@ -24,6 +24,7 @@ from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import threading
 import copy
+import tf
 
 # Check if ORB/SURF detector is available
 try:
@@ -73,29 +74,36 @@ def merge_points(weights, states, covs, merge_threshold=1.):
     
     return np.array(merged_wts), np.array(merged_sts), np.array(merged_cvs)
 
+
 class stereo_image_buffer(object):
-    def __init__(self, rostopic_camera_root):
+    def __init__(self, rostopic_camera_root="", image_sub_topic="image_rect"):
         self._image_messages_ = [None, None]
-        self._cv_images_ = [None, None]
+        #self._cv_images_ = [None, None]
         self._message_time_ = rospy.Time(0)
         # Convert between sensor_msgs Image anc CV image
         self.ros2cvimg = image_converter()
-        #self.subscriptions = STRUCT()
-        self._camera_info_topic_ = (
-            [rostopic_camera_root+"/left/camera_info",
-             rostopic_camera_root+"/right/camera_info"])
-        self._image_raw_topic_ = (
-            [rostopic_camera_root+"/left/image_color",
-             rostopic_camera_root+"/right/image_color"])
         
-        try:
-            self._camera_info_ = (
-                [rospy.wait_for_message(cam_info_topic, CameraInfo, 5)
-                 for cam_info_topic in self._camera_info_topic_])
-        except rospy.ROSException:
-            rospy.logfatal("Could not read camera parameters")
-            raise rospy.exceptions.ROSException(
-                    "Could not read camera parameters")
+        # Initialise topics as None
+        self._camera_info_topic_ = [None, None]
+        self._image_topic_ = [None, None]
+        self._camera_info_ = (None, None)
+        
+        # Create the topic names we need to subscribe to
+        if ((type(rostopic_camera_root) is str) and 
+            (type(image_sub_topic) is str)):
+            # Strip trailing '/'
+            rostopic_camera_root = rostopic_camera_root.rstrip("/")
+            # Strip leading '/'
+            image_sub_topic = image_sub_topic.lstrip("/")
+            self._camera_info_topic_ = (
+                [rostopic_camera_root+"/left/camera_info",
+                 rostopic_camera_root+"/right/camera_info"])
+            self._image_topic_ = (
+                [rostopic_camera_root+"/left/"+image_sub_topic,
+                 rostopic_camera_root+"/right/"+image_sub_topic])
+        
+        # Try to subscribe to the camera info
+        self._cam_info_from_topics_()
         
         # List of callbacks and rates
         self._callbacks_ = {}
@@ -104,9 +112,27 @@ class stereo_image_buffer(object):
         self._lock_ = threading.Lock()
         
         # Subscribe to left and right images
+        self._subscribe_()
+    
+    def _cam_info_from_topics_(self):
+        self._camera_info_ = [None, None]
+        try:
+            self._camera_info_ = tuple(
+                [rospy.wait_for_message(cam_info_topic, CameraInfo, 2)
+                 for cam_info_topic in self._camera_info_topic_])
+        except rospy.ROSException:
+            rospy.logerr("Could not read camera parameters")
+            #raise rospy.exceptions.ROSException(
+            #        "Could not read camera parameters")
+    
+    def fromCameraInfo(self, camera_info_left, camera_info_right=None):
+        self._camera_info_ = tuple([copy.deepcopy(_info_) 
+            for _info_ in (camera_info_left, camera_info_right)])
+    
+    def _subscribe_(self):
         self._img_sub_ = [
             message_filters.Subscriber(_sub_image_raw_, Image)
-            for _sub_image_raw_ in self._image_raw_topic_]
+            for _sub_image_raw_ in self._image_topic_]
         self.timesync = message_filters.TimeSynchronizer(self._img_sub_, 10)
         self.timesync.registerCallback(self.update_images)
     
@@ -171,11 +197,14 @@ class stereo_image_buffer(object):
         else:
             return self._camera_info_
     
-    #get
 
 class VisualDetector:
     def __init__(self, name):
         self.name = name
+        self.rostopic_cam_root = "/stereo_front"
+        self.image_sub_topic = "image_rect"
+        self.publish_transforms()
+        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         self.geometric_detector = GeometricDetector('geometric_detector')
         
         # Create Subscriber
@@ -198,16 +227,16 @@ class VisualDetector:
         # ROS image message to cvimage convertor
         self.ros2cvimg = image_converter()
         
-        rostopic_cam_root = "/stereo_front"
-        IS_STEREO = True
+        IS_STEREO = False
         # Initialise image buffer
-        self.image_buffer = stereo_image_buffer(rostopic_cam_root)
+        self.image_buffer = stereo_image_buffer(self.rostopic_cam_root,
+                                                self.image_sub_topic)
         
         # Initialise panel detector
-        template_image_file = "uwsim_panel_template3.png"
+        template_image_file = "test0_real_panel_tpl.png"
         
         panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], 
-                                  [0.8, -0.5, 0], [-0.8, -0.5, 0]])
+                                  [0.8, -0.5, 0], [-0.8, -0.5, 0]])/2
         panel_update_rate = 4
         self.panel = STRUCT()
         self.panel.br = TransformBroadcaster()
@@ -224,7 +253,16 @@ class VisualDetector:
         num_slam_features = 100
         self.init_slam_feature_detector(slam_features_update_rate, 
                                         num_features=num_slam_features)
-        
+    
+    def publish_transforms(self, *args, **kwargs):
+        timestamp = rospy.Time.now()
+        zero_orientation = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
+        br = tf.TransformBroadcaster()
+        br.sendTransform((0.0, -0.06, -0.7), zero_orientation,
+            timestamp, self.rostopic_cam_root, "girona500")
+        br.sendTransform((0.0, 0.12, 0.0), zero_orientation,
+            timestamp, self.rostopic_cam_root+"_right", self.rostopic_cam_root)
+    
     def init_panel_detector(self, panel_template_file, panel_corners, 
                             IS_STEREO=False, panel_update_rate=None):
         panel = self.panel
@@ -252,7 +290,7 @@ class VisualDetector:
         # Get camera info msg and initialise camera
         cam_info = self.image_buffer.get_camera_info()
         panel.detector.init_camera(*cam_info)
-        
+        panel.detector.camera.set_tf_frame(self.rostopic_cam_root, self.rostopic_cam_root+"_right")
         # Set template
         panel.detector.set_template(template_image, panel_corners)
         self.panel.callback_id = None
@@ -389,7 +427,7 @@ class VisualDetector:
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.panel.br.sendTransform(tuple(panel_position),
                 panel_orientation_quaternion, 
-                time_now, "panel_position", "stereo_front")
+                time_now, "panel_position", self.rostopic_cam_root)
         #print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
     

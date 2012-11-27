@@ -313,8 +313,12 @@ class Stereo_detector(Detector):
         detected = status[0] or status[1]
         # Compute the weighted average of the pose
         total_inliers = (num_inliers*status).sum()
-        position = np.squeeze((obj_trans[0]*status[0]*num_inliers[0] +
+        try:
+            position = np.squeeze((obj_trans[0]*status[0]*num_inliers[0] +
                     tf_obj_trans*status[1]*num_inliers[1])/total_inliers)
+        except:
+            print "tf failed!"
+            return 0, np.zeros(3), np.zeros(3)
         orientation = (obj_rpy[0]*status[0]*num_inliers[0] +
                        obj_rpy[1]*status[1]*num_inliers[1])/total_inliers
         return detected, position, orientation
