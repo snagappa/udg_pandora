@@ -216,7 +216,7 @@ def mvnpdf(x, mu, sigma):
     #else:
     #    residual = x.copy(order='c')
     #blas.daxpy(-1.0, mu, residual)
-    residual = x-mu
+    residual = np.asarray(x-mu, order='C')
     #if x.shape[0] == 1:
     #    x = np.repeat(x, mu.shape[0], 0)
     #residual = x-mu

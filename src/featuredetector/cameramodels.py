@@ -261,6 +261,11 @@ class _FoV_(object):
         self.pd = pd
     
     def _pdf_detection_(self, rel_points1, rel_points2=None, **kwargs):
+        """_pdf_detection_(self, rel_points1, rel_points2=None, **kwargs)->pd
+        Returns the probability of detection for points lying between two
+        spheres specified by fov_near and fov_far. Points are specified
+        according to the camera coordinate system.
+        """
         euclid_distance = np.power(np.power(rel_points1, 2).sum(axis=1), 0.5)
         pd = np.zeros(rel_points1.shape[0])
         pd[np.logical_and(self.fov_near < euclid_distance, 
@@ -269,8 +274,8 @@ class _FoV_(object):
     
     def pdf_detection(self, points, **kwargs):
         """pdf_detection(self, points) -> pd
-        Returns the probability of detection for points between the spheres of
-        radius fov_near and fov_far.
+        Returns the probability of detection for points specified according to 
+        world co-ordinates.
         """
         if points.shape[0] == 0:
             return np.empty(0)
@@ -300,15 +305,6 @@ class _FoV_(object):
         clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0])
         #clutter_pdf[pd == 0] = 1
         return clutter_pdf
-    
-    def _perform_tf_(self, target_frame, pcl_msg, RETURN_NP_ARRAY=False):
-        print "CALLING _PERFORM_TF_"
-        pcl_tf_points = tflistener.transformPointCloud(target_frame, 
-                                                            pcl_msg)
-        if RETURN_NP_ARRAY:
-            return self.pcl_helper.from_pcl(pcl_tf_points)
-        else:
-            return pcl_tf_points
     
     def set_tf_frame(self, frame_id):
         self.tfFrame = frame_id
@@ -347,18 +343,18 @@ class _FoV_(object):
         """
         return get_transform("world", self.tfFrame)[:3, :3]
     
-    def relative(self, target_coord_NED, target_coord_RPY, world_points_NED):
-        if not world_points_NED.shape[0]: return np.empty(0)
-        relative_position = world_points_NED - target_coord_NED
+    def relative(self, target_coord_XYZ, target_coord_RPY, world_points_XYZ):
+        if not world_points_XYZ.shape[0]: return np.empty(0)
+        relative_position = world_points_XYZ - target_coord_XYZ
         rot_matrix = np.array([rotation_matrix(-target_coord_RPY)], order='C')
         relative_position = blas.dgemv(rot_matrix, relative_position)
         return relative_position
     
-    def absolute(self, source_coord_NED, source_coord_RPY, source_points_NED):
-        if not source_points_NED.shape[0]: return np.empty(0)
+    def absolute(self, source_coord_XYZ, source_coord_RPY, source_points_XYZ):
+        if not source_points_XYZ.shape[0]: return np.empty(0)
         rot_matrix = np.array([rotation_matrix(source_coord_RPY)], order='C')
-        absolute_position = (blas.dgemv(rot_matrix, source_points_NED) + 
-                             source_coord_NED)
+        absolute_position = (blas.dgemv(rot_matrix, source_points_XYZ) + 
+                             source_coord_XYZ)
         return absolute_position
     
     def observations(self, points):
@@ -375,77 +371,6 @@ class SphericalCamera(_FoV_):
         # Observation volume
         self.observation_volume = self._observation_volume_()
     
-
-"""
-class DummyCamera(_FoV_):
-    def __init__(self,  fov_x_deg=64, fov_y_deg=50, fov_far_m=3):
-        _FoV_.__init__(self)
-        self.fov_x_deg = fov_x_deg
-        self.fov_y_deg = fov_y_deg
-        self.fov_far_m = fov_far_m
-        self.tmp = lambda: 0
-        self.precalc()
-    
-    def set_x_y_far(self, x_deg=None, y_deg=None, far_m=None):
-        if not x_deg == None:
-            self.fov_x_deg = x_deg
-        if not y_deg == None:
-            self.fov_y_deg = y_deg
-        if not far_m == None:
-            self.fov_far_m = far_m
-        self.precalc()
-        
-    def precalc(self):
-        self.tmp.fov_x_rad = self.fov_x_deg * np.pi/180.0
-        self.tmp.fov_y_rad = self.fov_y_deg * np.pi/180.0
-        # Take cosine of half the angle
-        self.tmp.tan_x = np.tan(self.tmp.fov_x_rad/2)
-        self.tmp.tan_y = np.tan(self.tmp.fov_y_rad/2)
-        self.tmp._test_dists_ = np.arange(0.05, self.fov_far_m, 0.05)
-        self.tmp._test_dists_area_ = 4*self.get_rect__half_width_height(self.tmp._test_dists_).prod(axis=1)
-        self.tmp._proportional_area_ = self.tmp._test_dists_area_/self.tmp._test_dists_area_.sum()
-        self.tmp._proportional_vol_ = self.tmp._test_dists_area_*0.05/(0.33*self.tmp._test_dists_area_[-1]*self.fov_far_m)
-    
-    def is_visible(self, points1_xyz, points2_xyz=None, **kwargs):
-        if not points1_xyz.shape[0]:
-            return np.array([], dtype=np.bool)
-        test_distances = points1_xyz[:, 0].copy()
-        xy_limits = self.get_rect__half_width_height(test_distances)
-        is_inside_rect = self.__inside_rect__(xy_limits, points1_xyz[:,1:3])
-        return (is_inside_rect*((0 < test_distances)*np.logical_and(1.0<test_distances, test_distances<self.fov_far_m)))
-        
-    def __inside_rect__(self, half_rect__width_height, xy):
-        bool_is_inside = ((-half_rect__width_height<xy)*(xy<half_rect__width_height)).all(axis=1)
-        return bool_is_inside
-        
-    def fov_vertices_2d(self):
-        x_delta = self.fov_far_m*self.tmp.tan_x
-        return np.array([[0, 0], [-x_delta, self.fov_far_m], [x_delta, self.fov_far_m]])
-        
-    def get_rect__half_width_height(self, far):
-        return np.array([far*self.tmp.tan_x, far*self.tmp.tan_y]).T
-        
-    def z_prob(self, far):
-        #z_idx = abs(self.tmp._test_dists_[:, np.newaxis] - far).argmin(axis=0)
-        #return self.tmp._proportional_vol_[z_idx].copy()
-        
-        return (1/(self.tmp._test_dists_area_[-1]*self.fov_far_m/3))*np.ones(far.shape[0])
-        
-    def pdf_detection(self, points1, points2=None, **kwargs):
-        if not points1.shape[0]:
-            return np.empty(0)
-        # Transform points to local frame
-        visible_features_idx = np.array(self.is_visible(points1), 
-                                        dtype=np.float)
-        # Take the distance rather than the square?
-        dist_from_ref = np.sum(points1[:,[0, 1]]**2, axis=1)
-        return np.exp(-dist_from_ref*0.005)*0.99*visible_features_idx
-        
-    def pdf_clutter(self, points1, points2=None, **kwargs):
-        assert (((points1.ndim == 2) and (points1.shape[1] == 3)) or
-                (np.prod(points1.shape) == 0)), "points1 must be a Nx3 ndarray"
-        return self.z_prob(points1[:,0])
-"""    
 
 class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def __init__(self):
@@ -551,14 +476,12 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         return obs_volume
     
     def _pdf_detection_(self, rel_points1, rel_points2=None, **kwargs):
-        """pdf_detection(self, points, <margin=1e-2>) -> pd
+        """pdf_detection(self, points, <margin=1e-1>) -> pd
         Determines the probability of detection for points specified according
-        to (north, east, down) coordinate system relative to the world.
+        to the camera coordinate system.
         """
         margin = kwargs.get("margin", 1e-1)
-        # Convert points from (n,e,d) to camera (right, up, far)
         idx_visible = np.arange(rel_points1.shape[0])
-        rel_points1 = rel_points1[:, [1, 2, 0]]
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
         idx_visible = idx_visible[rel_points1[idx_visible, 2] > (self.fov_near+margin)]
@@ -579,13 +502,6 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
             scale_factor[scale_idx] *= dot_product[scale_idx]/margin
             if idx_visible.shape[0] == 0: return pd
         pd[idx_visible] = scale_factor
-        #pd[points[:, 2] < self.fov_near] = 0
-        #pd[points[:, 2] > self.fov_far] = 0
-        #pixels = self.project3dToPixel(points)
-        #pd[pixels[:, 0] < px_margin] = 0
-        #pd[pixels[:, 0] > (self.width+px_margin)] = 0
-        #pd[pixels[:, 1] < px_margin] = 0
-        #pd[pixels[:, 1] > (self.height+px_margin)] = 0
         return pd
     
     def _create_normals_(self):
@@ -836,10 +752,15 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
         """
-        
-        num_features = self.get_detector_num_features()
         try:
-            self.set_detector_num_features(np.max([num_features*10, 2000]))
+            num_features = self.get_detector_num_features()
+        except UnboundLocalError:
+            pass
+        try:
+            try:
+                self.set_detector_num_features(np.min([num_features*10, 2000]))
+            except UnboundLocalError:
+                pass
             for (idx, _im_) in zip((0, 1), (image_left, image_right)):
                 #self.images[idx].raw = _im_.copy()
                 (images[idx].keypoints, images[idx].descriptors) = (
@@ -866,7 +787,7 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 # Valid matches are those where y co-ordinate of p1 and p2 are
                 # almost equal
                 y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
-                valid_disparity_mask = y_diff < 6.0
+                valid_disparity_mask = y_diff < 3.0
                 # Select keypoints and descriptors which satisfy disparity
                 pts_l = pts_l[valid_disparity_mask]
                 kp_l = kp_l[valid_disparity_mask]
@@ -887,7 +808,10 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
         except:
             print sys.exc_info()
         finally:
-            self.set_detector_num_features(num_features)
+            try:
+                self.set_detector_num_features(num_features)
+            except UnboundLocalError:
+                pass
         #print "Found (%s, %s) keypoints" % (len(images[0].keypoints), len(images[1].keypoints))
         return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
     

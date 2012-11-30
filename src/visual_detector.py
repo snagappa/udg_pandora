@@ -12,7 +12,7 @@ from udg_pandora.msg import Detection
 import hwu_meta_data.metaclient as metaclient
 from detector import GeometricDetector
 import cv2
-#import code
+import code
 import objdetect
 from cvbridge_wrapper import image_converter
 import numpy as np
@@ -25,6 +25,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 import threading
 import copy
 import tf
+import pickle
 
 # Check if ORB/SURF detector is available
 try:
@@ -118,12 +119,29 @@ class stereo_image_buffer(object):
         self._camera_info_ = [None, None]
         try:
             self._camera_info_ = tuple(
-                [rospy.wait_for_message(cam_info_topic, CameraInfo, 2)
+                [rospy.wait_for_message(cam_info_topic, CameraInfo, 5)
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
-            #raise rospy.exceptions.ROSException(
-            #        "Could not read camera parameters")
+            camera_pickle_file = "bumblebee.p"
+            print "Loading information from "+camera_pickle_file
+            camera_info_pickle = roslib.packages.find_resource("udg_pandora",
+                camera_pickle_file)
+            if len(camera_info_pickle):
+                camera_info_pickle = camera_info_pickle[0]
+                try:
+                    self._camera_info_ = tuple(
+                        pickle.load(open(camera_info_pickle, "rb")))
+                except IOError:
+                    print "Failed to load camera information!"
+                    rospy.logfatal("Could not read camera parameters")
+                    raise rospy.exceptions.ROSException(
+                        "Could not read camera parameters")
+            else:
+                print "Failed to load camera information!"
+                rospy.logfatal("Could not read camera parameters")
+                raise rospy.exceptions.ROSException(
+                    "Could not read camera parameters")
     
     def fromCameraInfo(self, camera_info_left, camera_info_right=None):
         self._camera_info_ = tuple([copy.deepcopy(_info_) 
@@ -201,7 +219,7 @@ class stereo_image_buffer(object):
 class VisualDetector:
     def __init__(self, name):
         self.name = name
-        self.rostopic_cam_root = "/stereo_front"
+        self.rostopic_cam_root = "/stereo_down"
         self.image_sub_topic = "image_rect"
         self.publish_transforms()
         rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
@@ -227,7 +245,6 @@ class VisualDetector:
         # ROS image message to cvimage convertor
         self.ros2cvimg = image_converter()
         
-        IS_STEREO = False
         # Initialise image buffer
         self.image_buffer = stereo_image_buffer(self.rostopic_cam_root,
                                                 self.image_sub_topic)
@@ -240,6 +257,7 @@ class VisualDetector:
         panel_update_rate = 4
         self.panel = STRUCT()
         self.panel.br = TransformBroadcaster()
+        IS_STEREO = False
         self.init_panel_detector( 
             template_image_file, panel_corners, IS_STEREO, panel_update_rate)
         self._enablePanelValveDetectionSrv_()
@@ -253,15 +271,31 @@ class VisualDetector:
         num_slam_features = 100
         self.init_slam_feature_detector(slam_features_update_rate, 
                                         num_features=num_slam_features)
+        print "Completed initialisation"
     
     def publish_transforms(self, *args, **kwargs):
         timestamp = rospy.Time.now()
+        """
         zero_orientation = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
         br = tf.TransformBroadcaster()
         br.sendTransform((0.0, -0.06, -0.7), zero_orientation,
             timestamp, self.rostopic_cam_root, "girona500")
         br.sendTransform((0.0, 0.12, 0.0), zero_orientation,
             timestamp, self.rostopic_cam_root+"_right", self.rostopic_cam_root)
+        """
+        o_zero = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
+        # Publish stereo_camera tf
+        stereo_down = tf.TransformBroadcaster()
+        #o1 = tf.transformations.quaternion_from_euler(3.1416, 0.0, -1.57, 'sxyz')
+        o1 = tf.transformations.quaternion_from_euler(0.0, 0.0, -1.57, 'sxyz')
+        stereo_down.sendTransform((0.0, 0.0, 0.0), o1, timestamp, 'stereo_down', 'girona500')
+        stereo_down.sendTransform((0.0, 0.12, 0.0), o_zero, timestamp, 'stereo_down_right', 'stereo_down')
+        
+        # Publish stereo_camera tf
+        stereo_front = tf.TransformBroadcaster()
+        o2 = tf.transformations.quaternion_from_euler(-1.57, 0.0, -1.57, 'sxyz')
+        stereo_front.sendTransform((0.0, 0.0, -0.7), o2, timestamp, 'stereo_front', 'girona500')
+        stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, 'stereo_front_right', 'stereo_front')
     
     def init_panel_detector(self, panel_template_file, panel_corners, 
                             IS_STEREO=False, panel_update_rate=None):
@@ -308,13 +342,13 @@ class VisualDetector:
             metaclient.Publisher('/visual_detector2/panel_img_r', Image, {})]
     
     def init_slam_feature_detector(self, update_rate=1, num_features=50, 
-                                   hessian_threshold=30000):
+                                   hessian_threshold=3000):
         slam_features = self.slam_features
         slam_features.update_rate = update_rate
         
         # Initialise the detector and reset the number of features
         slam_features.camera = cameramodels.StereoCameraFeatureDetector(
-            feature_extractor=_default_feature_extractor_, GRID_ADAPTED=False)
+            feature_extractor=_default_feature_extractor_, GRID_ADAPTED=True)
         #if _default_feature_extractor_ is image_feature_extractor.Orb:
         #    slam_features.camera._featuredetector_.set_num_features(num_features)
         #elif _default_feature_extractor_ is image_feature_extractor.Surf:
@@ -323,11 +357,18 @@ class VisualDetector:
         #    rospy.logfatal("Could not reset the number of features for slam")
         #    raise rospy.ROSException("Could not reset the number of features for slam")
         
+        # Set the hessian threshold if possible
+        set_hessian_threshold = getattr(slam_features.camera._featuredetector_,
+                                        "set_hessian_threshold", None)
+        if not set_hessian_threshold is None:
+            print "Setting hessian threhosld to %s" % hessian_threshold
+            set_hessian_threshold(hessian_threshold)
+        
         try:
             slam_features.camera._featuredetector_.set_num_features(num_features)
-        except AssertionError as assert_err:
+        except (AssertionError, UnboundLocalError) as assert_err:
             print assert_err
-            rospy.logfatal("Failed to set number of features for slam feature detector")
+            rospy.logerr("Failed to set number of features for slam feature detector")
             raise rospy.ROSException("Could not reset the number of features for slam")
         
         slam_features.camera.fromCameraInfo(*self.image_buffer.get_camera_info())
@@ -452,21 +493,23 @@ class VisualDetector:
         time_now = rospy.Time.now()
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in img_msgs]
         points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r) = (
-            self.slam_features.camera.points3d_from_img(*cvimage))
+            self.slam_features.camera.points3d_from_img(*cvimage, ratio_threshold=0.6))
         if points3d.shape[0]:
             points_range = np.sqrt((points3d**2).sum(axis=1))
-            # Convert from image space to (relative) north, east, down
-            points3d = points3d[:, [2, 0, 1]]
         else:
             print "no features found"
             points_range = np.empty(0, dtype=np.int32)
+        print "Found %s features at stage 1" % points3d.shape[0]
+        #code.interact(local=locals())
+        print "Average distance = %s" % np.mean(points3d, axis=0)
         points3d = points3d[points_range <= FOV_FAR]
-        
+        points_range = points_range[points_range <= FOV_FAR]
+        print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        covs = np.repeat([np.eye(3)*0.2], points3d.shape[0], axis=0)
+        covs = np.repeat([np.eye(3)*0.01], points3d.shape[0], axis=0)*points_range[:, np.newaxis, np.newaxis]
         _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=3.)
-        print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
+        print "Detected %s (%s) features at:" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
         if points3d_covs.shape[0]:
             points3d_covs = points3d_covs[:, range(3), range(3)]

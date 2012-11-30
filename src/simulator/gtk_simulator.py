@@ -52,19 +52,9 @@ import pickle
 LANDMARKS = "landmarks"
 WAYPOINTS = "waypoints"
 
-#def _ned_to_xyz_(pts_array):
-#    is_empty = (np.prod(pts_array.shape) == 0)
-#    assert (((pts_array.ndim == 2) and (pts_array.shape[1] == 3)) or
-#            is_empty), "ned_array must be an Nx3 numpy array"
-#    if is_empty:
-#        return np.empty(0)
-#    tf_pts_array = pts_array.copy()
-#    #tf_pts_array[:, 2] *= -1
-#    tf_pts_array = tf_pts_array[:, [0, 2, 1]]
-#    return tf_pts_array
-#
-#_xyz_to_ned_ = _ned_to_xyz_
-
+#sensor orientation: "front" or "down"
+SENSOR_ORIENTATION = "down"
+CAMERA_ROOT = "/stereo_down"
 
 class gtk_slam_sim:
     def __init__(self):
@@ -84,10 +74,7 @@ class gtk_slam_sim:
         self.vehicle.fov.y_deg = 50
         self.vehicle.fov.far_m = 3
         self.vehicle.sensors = STRUCT()
-        try:
-            self.vehicle.sensors.camera = cameramodels.StereoCameraModel()
-        except:
-            print "Error initialising camera models, will use dummy camera"
+        self.vehicle.sensors.camera = cameramodels.StereoCameraModel()
         
         self.vehicle.visible_landmarks = STRUCT()
         self.vehicle.visible_landmarks.abs = np.empty(0)
@@ -206,11 +193,15 @@ class gtk_slam_sim:
         self.glade.get_object("MainWindow").show_all()
         
     def init_ros(self):
+        # Publish transforms
+        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         # Create Subscriber
         rospy.Subscriber("/dataNavigator", Odometry, self.update_position)
         # Create Publisher
         self.ros.pcl_publisher = rospy.Publisher("/slamsim/features",
                                                  PointCloud2)
+        self.ros.abs_pcl_publisher = rospy.Publisher("/slamsim/truth",
+                                                     PointCloud2)
         self.ros.pcl_helper = misctools.pcl_xyz_cov()
         #field_name = ['x', 'y', 'z', 'sigma_x', 'sigma_y', 'sigma_z']
         #field_offset = range(0, 24, 4)
@@ -231,9 +222,9 @@ class gtk_slam_sim:
         right_tf_frame = "sim_sensor_right"
         try:
             camera_info_left = rospy.wait_for_message(
-                "/stereo_front/left/camera_info", CameraInfo, 5)
+                CAMERA_ROOT+"/left/camera_info", CameraInfo, 5)
             camera_info_right = rospy.wait_for_message(
-                "/stereo_front/right/camera_info", CameraInfo, 5)
+                CAMERA_ROOT+"/right/camera_info", CameraInfo, 5)
         except:
             print "Error occurred initialising camera from camera_info"
             print "Loading camera_info from disk"
@@ -390,10 +381,11 @@ class gtk_slam_sim:
                              self.vehicle.north_east_depth[0])
         east_lim = np.round(self.viewer.size.width*np.array([-1, 1]) + 
                             self.vehicle.north_east_depth[1])
-        
-        landmarks *= [2*self.viewer.size.height, 2*self.viewer.size.width, 0.2]
-        landmarks += [north_lim[0], east_lim[0], 
-                      self.viewer.NED_spinbutton.depth]
+        min_depth = 2.0
+        max_depth = 4.0
+        depth_lim = np.array([min_depth, max_depth])
+        landmarks *= [2*self.viewer.size.height, 2*self.viewer.size.width, np.diff(depth_lim)]
+        landmarks += [north_lim[0], east_lim[0], min_depth]
         self.scene.landmarks = landmarks.tolist()
         if self.scene.mode == LANDMARKS:
             self.scene.__current_list__ = self.scene.landmarks
@@ -466,26 +458,7 @@ class gtk_slam_sim:
         self.print_position()
         self.print_numlandmarks()
         self.update_visible_landmarks()
-        
-        #Publish TF
-        br = tf.TransformBroadcaster()
-        br.sendTransform(
-            (odom.pose.pose.position.x, 
-             odom.pose.pose.position.y, 
-                odom.pose.pose.position.z),
-            tf.transformations.quaternion_from_euler(*orientation),
-            odom.header.stamp, 
-            "sim_girona", 
-            "world")
-        
-        # Publish stereo_camera tf relative to slam girona
-        o2 = tf.transformations.quaternion_from_euler(0, 0.0, 0, 'sxyz')
-        br.sendTransform((0.0, -0.06, -0.7), o2, odom.header.stamp,
-                         'sim_sensor', "sim_girona")
-        o3 = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0, 'sxyz')
-        br.sendTransform((0.0, 0.12, 0.0), o3, odom.header.stamp,
-                         'sim_sensor_right', 'sim_sensor')
-        
+    
     def estimator_update_position(self, nav):
         #print "updating position"
         # received a new position, update the viewer
@@ -568,28 +541,8 @@ class gtk_slam_sim:
         try:
             landmarks = np.array(self.scene.landmarks)
             camera = self.vehicle.sensors.camera
-            #try:
-            # Stereo camera - get relative position for left and right
-            """
-            _relative_landmarks_ = camera.from_world_coords((landmarks))
-            relative_landmarks = [(_relative_landmarks_[0]),
-                                  (_relative_landmarks_[1])]
-            # Check which landmarks are visible
-            visible_landmarks_idx = camera.is_visible_relative2sensor(relative_landmarks[0],
-                                                      relative_landmarks[1],
-                                                      margin=0)
-            # We only track in the left image frame
-            relative_landmarks = relative_landmarks[0]
-            """
             visible_landmarks_idx = camera.is_visible(landmarks)
             relative_landmarks = camera.observations(landmarks[visible_landmarks_idx])[0]
-#            except:
-#                print "Could not use tf for transformation"
-#                relative_landmarks = camera.relative(self.vehicle.north_east_depth, 
-#                                                     self.vehicle.roll_pitch_yaw, 
-#                                                     landmarks)
-#                visible_landmarks_idx = camera.is_visible_relative2sensor(relative_landmarks)
-            ##relative_landmarks = self.vehicle.sensors.camera.from_world_coords(_ned_to_xyz_(landmarks))
             self.vehicle.visible_landmarks.abs = landmarks[visible_landmarks_idx]
             self.vehicle.visible_landmarks.rel = relative_landmarks
             
@@ -687,19 +640,53 @@ class gtk_slam_sim:
         #else:
         #    rel_landmarks = np.empty(0)
         
+        timestamp = rospy.Time.now()
         if rel_landmarks.shape[0] and clutter_landmarks.shape[0]:
             rel_landmarks = np.vstack((rel_landmarks, clutter_landmarks))
         elif clutter_landmarks.shape[0]:
             rel_landmarks = clutter_landmarks
         pcl_msg = self.ros.pcl_helper.to_pcl(rel_landmarks)
-        pcl_msg.header.stamp = rospy.Time.now()
+        pcl_msg.header.stamp = timestamp
         pcl_msg.header.frame_id = self.vehicle.sensors.camera.tfFrame
         # and publish visible landmarks
         self.ros.pcl_publisher.publish(pcl_msg)
+        # Publish ground truth
+        all_landmarks = np.array(self.scene.landmarks)
+        if all_landmarks.shape[0]:
+            abs_pcl_msg = self.ros.pcl_helper.to_pcl(np.hstack((all_landmarks, np.zeros((all_landmarks.shape[0], 3)))))
+        else:
+            abs_pcl_msg = self.ros.pcl_helper.to_pcl(np.empty(0))
+        abs_pcl_msg.header.stamp = timestamp
+        abs_pcl_msg.header.frame_id = "world"
+        self.ros.abs_pcl_publisher.publish(abs_pcl_msg)
         print "Visible Landmarks (abs):"
         print abs_landmarks
         print "Publishing:"
         print rel_landmarks #self.vehicle.visible_landmarks.rel
+    
+    def publish_transforms(self, *args, **kwargs):
+        timestamp = rospy.Time.now()
+        #Publish TF
+        br = tf.TransformBroadcaster()
+        br.sendTransform(
+            tuple(self.vehicle.north_east_depth),
+            tf.transformations.quaternion_from_euler(*self.vehicle.roll_pitch_yaw),
+            timestamp, "sim_girona", "world")
+        
+        # Publish stereo_camera tf relative to slam girona
+        o_zero = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0, 'sxyz')
+        o_st_down = tf.transformations.quaternion_from_euler(0.0, 0.0, -1.57, 'sxyz')
+        o_st_front = tf.transformations.quaternion_from_euler(-1.57, 0.0, -1.57, 'sxyz')
+        if "down" in SENSOR_ORIENTATION:
+            o_sensor = o_st_down
+        elif "front" in SENSOR_ORIENTATION:
+            o_sensor = o_st_front
+        else:
+            raise rospy.ROSException("sensor orientation undefined")
+        br.sendTransform((0.0, 0.0, -0.7), o_sensor, timestamp,
+                         'sim_sensor', 'sim_girona')
+        br.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp,
+                         'sim_sensor_right', 'sim_sensor')
     
     def set_damage(self):
         self.viewer.LOCK.acquire()
