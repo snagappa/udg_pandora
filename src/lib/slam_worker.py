@@ -517,8 +517,8 @@ class GMPHD(object):
         self.prune(override_prune_threshold=self.vars.prune_threshold/10, 
                    override_max_num_components=np.inf)
         # Add birth terms
-        #if observations.shape[0]:
-        #    self.birth(observations, obs_noise, APPEND=True)
+        if observations.shape[0]:
+            self.birth(observations, obs_noise, APPEND=True)
         # Merge states in the field of view - too expensive to merge whole
         # state space
         self.merge_fov()
@@ -702,8 +702,8 @@ class PHDSLAM(object):
         
         scale_matrix = np.vstack((rot_mat*delta_t/2, delta_t*np.eye(3)))
         sc_process_noise = np.dot(scale_matrix, 
-            np.dot(process_noise, scale_matrix.T)).squeeze() \
-            + delta_t/10*np.eye(6)
+            np.dot(process_noise, scale_matrix.T)).squeeze() #\
+            #+ delta_t/10*np.eye(6)
         return trans_mat, sc_process_noise
     
     def _copy_state_to_map_(self, parent_ned=None, ctrl_input=None, rot_matrix=None):
@@ -849,10 +849,10 @@ class PHDSLAM(object):
         slam_weight_update = np.array([slam_info[i].likelihood
             for i in range(self.vars.nparticles)])
         # Create birth terms
-        if features.shape[0]:
-            b_wt, b_st, b_cv = self.vehicle.maps[0].birth(features_pos, 
-                features_noise, APPEND=False)
-            nothing = [_map_.append(b_wt, b_st, b_cv) for _map_ in self.vehicle.maps]
+        #if features.shape[0]:
+        #    b_wt, b_st, b_cv = self.vehicle.maps[0].birth(features_pos, 
+        #        features_noise, APPEND=False)
+        #    nothing = [_map_.append(b_wt, b_st, b_cv) for _map_ in self.vehicle.maps]
         self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
         self.vehicle.weights /= self.vehicle.weights.sum()
         print "post update weights = ", self.vehicle.weights

@@ -33,7 +33,7 @@ import rospy
 import tf
 import PyKDL
 import math
-#import code
+import code
 import copy
 import threading
 import sys
@@ -105,10 +105,12 @@ class G500_SLAM():
         self.config = get_g500_config()
         
         # Main SLAM worker
-        self.slam_particles = 5
+        self.slam_particles = 9
+        self.sigma_mean = np.zeros(4)
+        self.sigma_pts_mask = np.array([1, 1, 0, 1, 1, 0], dtype=np.bool)
         self.slam_worker = self.init_slam()
         try:
-            self.create_sigma_states(np.zeros(2))
+            self.create_sigma_states(self.sigma_mean, self.sigma_pts_mask)
         except AssertionError as assert_err:
             print assert_err
             rospy.loginfo("Failed to set sigma states")
@@ -147,7 +149,8 @@ class G500_SLAM():
             dvl_w_R=np.eye(3)*self.config.dvl_water_covariance)
         return slam_worker
         
-    def create_sigma_states(self, mean_state):
+    def create_sigma_states(self, mean_state=np.zeros(2),
+                            mask=np.array([1, 1, 0, 0, 0, 0], dtype=np.bool)):
         assert mean_state.ndim == 1, "mean_state must have shape (N)"
         assert mean_state.shape[0] <= self.slam_worker.vars.ndims, (
             "mean_state must have dimension <= %s" % mean_state.shape[0])
@@ -155,27 +158,29 @@ class G500_SLAM():
         assert num_sigma_states == self.slam_particles, (
             "Number of sigma states and particles is incompatible")
         sigma_states = self._make_sigma_states_(self.slam_worker, 
-                mean_state[np.newaxis])
+                mean_state[np.newaxis], mask)
         self.slam_worker.set_states(states=sigma_states)
         print "Set new sigma states:\n", self.slam_worker.vehicle.states
     
-    def _make_sigma_states_(self, slam_worker, mean_state):
+    def _make_sigma_states_(self, slam_worker, mean_state, mask):
         # Generate covariance
         sc_process_noise = \
-            slam_worker.trans_matrices(np.zeros(3), 1.0)[1] + \
-            slam_worker.trans_matrices(np.zeros(3), 0.01)[1]
+            slam_worker.trans_matrices(np.zeros(3), 1.0)[1] +0.1*np.eye(6)#+ \
+            #slam_worker.trans_matrices(np.zeros(3), 0.01)[1]
         state_dim = mean_state.shape[1]
         num_sigma_states = 2*state_dim + 1
         # Create sigma states over dimensions specified by mean_state
         sigma_states = (
             sigma_pts(mean_state, 
-                      sc_process_noise[0:state_dim, 0:state_dim].copy(), 
+                      (sc_process_noise[mask, :][:, mask]).copy(), 
                       _alpha=UKF_ALPHA, _beta=UKF_BETA, _kappa=UKF_KAPPA)[0])
         # Pad with zeros to achieve state dimension 6
-        sigma_states = np.array(np.hstack((sigma_states, 
-            np.zeros((num_sigma_states, 
-            self.slam_worker.vars.ndims-state_dim)))), order='C')
-        return sigma_states
+        pad_sigma_states = np.zeros((num_sigma_states, self.slam_worker.vars.ndims))
+        pad_sigma_states[:, mask] = sigma_states
+        #sigma_states = np.array(np.hstack((sigma_states, 
+        #    np.zeros((num_sigma_states, 
+        #    self.slam_worker.vars.ndims-state_dim)))), order='C')
+        return pad_sigma_states
     
     def init_config(self):
         config = self.config
@@ -334,9 +339,10 @@ class G500_SLAM():
     def reset_navigation(self, req):
         print "Resetting navigation..."
         rospy.loginfo("%s: Reset Navigation", self.ros.name)
-        num_sigma_dims = (self.slam_particles-1)/2
+        #num_sigma_dims = (self.slam_particles-1)/2
         try:
-            self.create_sigma_states(np.zeros(num_sigma_dims))
+            #self.create_sigma_states(np.zeros(num_sigma_dims))
+            self.create_sigma_states(self.sigma_mean, self.sigma_pts_mask)
         except AssertionError as assert_err:
             print assert_err
             rospy.loginfo("Failed to set sigma states")
@@ -345,8 +351,11 @@ class G500_SLAM():
         
     def set_navigation(self, req):
         print "Setting new navigation..."
+        sigma_mean = self.sigma_mean.copy()
+        sigma_mean[[0, 1]] = [req.north, req.east]
         try:
-            self.create_sigma_states(np.array([req.north, req.east]))
+            #self.create_sigma_states(np.array([req.north, req.east]))
+            self.create_sigma_states(self.sigma_mean, self.sigma_pts_mask)
         except AssertionError as assert_err:
             print assert_err
             rospy.loginfo("Failed to set sigma states")
@@ -618,7 +627,7 @@ class G500_SLAM():
             # We can now access the points as slam_features[i]
             self.slam_worker.update_features(slam_features)
             eff_nparticles = 1/np.power(self.slam_worker.vehicle.weights, 2).sum()
-            if eff_nparticles < 0:
+            if eff_nparticles:# < 1.5:
                 # Shift the states so that the central state is equal to the mean
                 state_est = self.slam_worker.estimate()
                 state_delta = (self.slam_worker.vehicle.states[0, 0:3] - 
@@ -629,10 +638,10 @@ class G500_SLAM():
                 # Copy the particle state to the PHD parent state
                 parent_ned = np.array(self.slam_worker.vehicle.states[:, 0:3])
                 self.slam_worker._copy_state_to_map_(parent_ned)
-            # All particles now have equal weight
-            nparticles = self.slam_worker.vars.nparticles
-            self.slam_worker.vehicle.weights = (
-                1.0/nparticles*np.ones(nparticles))
+                # All particles now have equal weight
+                nparticles = self.slam_worker.vars.nparticles
+                self.slam_worker.vehicle.weights = (
+                    1.0/nparticles*np.ones(nparticles))
             self.ros.last_update_time = pcl_msg.header.stamp
         except:
             print "Error occurred while updating features"
