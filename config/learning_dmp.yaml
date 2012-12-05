@@ -1,0 +1,14 @@
+learning/dmp/nbData : 500
+learning/dmp/nbDataRepro : 500
+learning/dmp/nbDataExport : 3000
+learning/dmp/nbVar: 3
+learning/dmp/nbStates : 3
+learning/dmp/kV : 15
+learning/dmp/kP : 300
+learning/dmp/dt : 0.01
+learning/dmp/kPmin : 250
+learning/dmp/kPmax : 350
+learning/dmp/alpha : 2.0
+learning/dmp/demonstration_file : trajectory_demonstration
+learning/dmp/demonstrations : [ 0, 1, 2, 3, 4, 5, 6, 7 ] 
+learning/dmp/export_filename : learned_data.txt

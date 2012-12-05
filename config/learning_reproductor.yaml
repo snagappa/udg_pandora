@@ -1,0 +1,4 @@
+learning/reproductor/parameters : learned_data.txt
+learning/reproductor/alpha : 2
+learning/reproductor/s : 1
+learning/reproductor/interval_time : 0.0012
