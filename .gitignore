@@ -12,3 +12,10 @@ srv_gen/
 src/udg_pandora
 matlab/
 downloaded_v*
+*.mtl
+*.blend
+*.txt
+*.csv
+*.obj
+*.stl
+*.3ds
