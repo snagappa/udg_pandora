@@ -89,6 +89,23 @@
       <y>0</y>
     </orientation>
 
+<virtualCamera>
+      <name>usb_cam</name>
+      <relativeTo>base</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.0</x>
+        <y>0.0</y>
+        <z>-0.7</z>
+      </position>
+      <orientation>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+    <frameId> usb_cam </frameId>
+    </virtualCamera>
     
 <rangeSensor>
       <name>sonar</name>
@@ -259,6 +276,11 @@
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
 
+    <VirtualCameraToROSImage>
+      <cameraName>usb_cam</cameraName>
+      <imageTopic> /usb_cam/image_raw </imageTopic>
+      <infoTopic> /usb_cam/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
 
     <RangeSensorToROSRange>
       <name>sonar</name>
