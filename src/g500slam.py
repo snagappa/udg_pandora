@@ -627,12 +627,16 @@ class G500_SLAM():
             # We can now access the points as slam_features[i]
             self.slam_worker.update_features(slam_features)
             eff_nparticles = 1/np.power(self.slam_worker.vehicle.weights, 2).sum()
-            if eff_nparticles:# < 1.5:
+            if eff_nparticles < 1.5:
                 # Shift the states so that the central state is equal to the mean
                 state_est = self.slam_worker.estimate()
                 state_delta = (self.slam_worker.vehicle.states[0, 0:3] - 
                                state_est.vehicle.ned.state)
                 self.slam_worker.vehicle.states[:, 0:3] += state_delta
+                max_wt_idx = self.slam_worker.vehicle.weights.argmax()
+                self.slam_worker.vehicle.maps = [
+                    self.slam_worker.vehicle.maps[max_wt_idx].copy()
+                    for count in range(self.slam_particles)]
                 print "Moving states..."
                 print "State Delta = ", state_delta
                 # Copy the particle state to the PHD parent state
