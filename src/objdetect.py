@@ -55,7 +55,7 @@ class Detector(object):
         # Image of the current scene
         self._scene_ = None
         # Set up FLANN matcher
-        self.flann_ratio_threshold = 0.6
+        self.flann_ratio_threshold = 0.75
         
         # Filter for the template and scene
         self.filter_kernel = phasecorr.log_filter_kernel(13)

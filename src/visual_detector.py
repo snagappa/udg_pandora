@@ -119,7 +119,7 @@ class stereo_image_buffer(object):
         self._camera_info_ = [None, None]
         try:
             self._camera_info_ = tuple(
-                [rospy.wait_for_message(cam_info_topic, CameraInfo, 5)
+                [rospy.wait_for_message(cam_info_topic, CameraInfo, 10)
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
@@ -219,7 +219,7 @@ class stereo_image_buffer(object):
 class VisualDetector:
     def __init__(self, name):
         self.name = name
-        self.rostopic_cam_root = "/stereo_down"
+        self.rostopic_cam_root = "/stereo_front"
         self.image_sub_topic = "image_rect"
         self.publish_transforms()
         rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
@@ -250,14 +250,14 @@ class VisualDetector:
                                                 self.image_sub_topic)
         
         # Initialise panel detector
-        template_image_file = "test0_real_panel_tpl.png"
+        template_image_file = "simulator_panel.png"
         
         panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], 
                                   [0.8, -0.5, 0], [-0.8, -0.5, 0]])/2
-        panel_update_rate = 4
+        panel_update_rate = 2
         self.panel = STRUCT()
         self.panel.br = TransformBroadcaster()
-        IS_STEREO = False
+        IS_STEREO = True
         self.init_panel_detector( 
             template_image_file, panel_corners, IS_STEREO, panel_update_rate)
         self._enablePanelValveDetectionSrv_()
@@ -384,9 +384,9 @@ class VisualDetector:
             metaclient.Publisher('/visual_detector2/features_img_r', Image, {})]
         
         # Register the callback
-        slam_features.callback_id = (
-            self.image_buffer.register_callback(self.detect_slam_features,
-                                                slam_features.update_rate))
+        #slam_features.callback_id = (
+        #    self.image_buffer.register_callback(self.detect_slam_features,
+        #                                        slam_features.update_rate))
     
     def enablePanelValveDetectionSrv(self, req):
         #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
