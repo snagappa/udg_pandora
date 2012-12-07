@@ -2,7 +2,7 @@
 
 import numpy as np
 import cv2
-from lib.common.misctools import STRUCT
+from misctools import STRUCT
 FFT_MOD_FFTW = "fftw3"
 FFT_MOD_ANFFT = "anfft"
 try:

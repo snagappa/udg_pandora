@@ -22,12 +22,17 @@
 #       
 #      
 
+import roslib
+roslib.load_manifest('udg_pandora')
+
 import blas
 import numpy as np
 from scipy import weave
 from sensor_msgs.msg import PointCloud2, PointField
 import pc2wrapper
 import cv2
+from cv_bridge import CvBridge, CvBridgeError
+import sys
 #from operator import mul, add
 #import code
 
@@ -48,6 +53,147 @@ class STRUCT(object):
         if type(var) is np.ndarray:
             dtype += ", " + str(var.dtype) + ", " + str(var.shape)
         return dtype
+    
+
+FLANN_INDEX_KDTREE = 1  # bug: flann enums are missing
+FLANN_INDEX_LSH    = 6
+
+class FlannMatcher(object):
+    """
+    Wrapper class for using the Flann matcher. Attempts to use the new 
+    FlannBasedMatcher interface, but uses the fallback flann_Index if this is
+    unavailable.
+    """
+    def __init__(self, DESCRIPTOR_IS_BINARY=False):
+        if DESCRIPTOR_IS_BINARY:
+            self.PARAMS = dict(algorithm = FLANN_INDEX_LSH,
+                               table_number = 6, # 12
+                               key_size = 12,     # 20
+                               multi_probe_level = 1) #2
+        else:
+            self.PARAMS = dict(algorithm = FLANN_INDEX_KDTREE, 
+                                       trees = 5)
+        self.NEW_FLANN_MATCHER = False
+        try:
+            # Use the cv2 FlannBasedMatcher if available
+            # bug : need to pass empty dict (#1329)        
+            self._flann_ = cv2.FlannBasedMatcher(self.PARAMS, {})  
+            self.NEW_FLANN_MATCHER = True
+        except AttributeError as attr_err:
+            print attr_err
+            print "Could not initialise FlannBasedMatcher, using fallback"
+    
+    def knnMatch(self, queryDescriptors, trainDescriptors, k=2, mask=None, 
+                 compactResult=None):
+        """
+        knnMatch(queryDescriptors, trainDescriptors, k, mask=None, 
+                 compactResult=None) -> idx1, idx2, distance
+        Returns k best matches between queryDescriptors indexed by idx1 and 
+        trainDescriptors indexed by idx2. Distance between the descriptors is
+        given by distance, a Nxk ndarray.
+        """
+        if self.NEW_FLANN_MATCHER:
+            matches = self._flann_.knnMatch(queryDescriptors, 
+                                            trainDescriptors, k) #2
+            # Extract the distance and indices from the list of matches
+            num_descriptors = len(queryDescriptors)
+            # Default distance is one
+            distance = np.ones((num_descriptors, k))
+            idx2 = np.zeros((num_descriptors, k), dtype=np.int)
+            #try:
+            for m_count in range(num_descriptors):
+                this_match_dist_idx = [(_match_.distance, _match_.trainIdx)
+                    for _match_ in matches[m_count]]
+                # Only proceed if we have a match, otherwise leave defaults
+                if this_match_dist_idx:
+                    (this_match_dist, 
+                     this_match_idx) = zip(*this_match_dist_idx)
+                    this_match_len = len(this_match_dist)
+                    distance[m_count, 0:this_match_len] = this_match_dist
+                    idx2[m_count, 0:this_match_len] = this_match_idx
+                    if this_match_len < k:
+                        distance[m_count, this_match_len:] = (
+                            distance[m_count, this_match_len-1])
+                        idx2[m_count, this_match_len:] = (
+                            idx2[m_count, this_match_len-1])
+            #except as exc_err:
+            #    print "error occurred while matching descriptors"
+            #    code.interact(local=locals())
+        else:
+            self._flann_ = cv2.flann_Index(trainDescriptors, self.PARAMS)
+            # Perform nearest neighbours search
+            # bug: need to provide empty dict for params
+            idx2, distance = self._flann_.knnSearch(queryDescriptors, k, 
+                                                    params={})
+        idx1 = np.arange(len(queryDescriptors))
+        return idx1, idx2, distance
+    
+    def detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, ratio):
+        """
+        detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, ratio)
+        Returns pt1, pt2, valid_idx1, valid_idx2
+        """
+        try:
+            idx1, idx2, distance = self.knnMatch(obj_desc, scene_desc, 2)
+        except:
+            print "Error occurred computing knnMatch"
+            print sys.exc_info()
+            idx1 = np.empty(0, dtype=np.int)
+            idx2 = np.empty((0, 2), dtype=np.int)
+            distance = np.zeros((0, 2))
+        
+        # Use only good matches
+        mask = distance[:, 0] < (distance[:, 1] * ratio)
+        mask[idx2[:, 1] == -1] = False
+        valid_idx1 = idx1[mask]
+        idx2 = idx2[:, 0]
+        valid_idx2 = idx2[mask]
+        match_kp1, match_kp2 = [], []
+        for (_idx1_, _idx2_) in zip(valid_idx1, valid_idx2):
+            match_kp1.append(obj_kp[_idx1_])
+            match_kp2.append(scene_kp[_idx2_])
+        pts_1 = np.asarray([kp.pt for kp in match_kp1], dtype=np.float32)
+        pts_2 = np.asarray([kp.pt for kp in match_kp2], dtype=np.float32)
+        #kp_pairs = zip(match_kp1, match_kp2)
+        return pts_1, pts_2, valid_idx1, valid_idx2, (idx1, idx2, mask) #, kp_pairs
+    
+
+class image_converter:
+    def __init__(self):
+        """image_converter() -> converter
+        Create object to convert sensor_msgs.msg.Image type to cv_image
+        """
+        self.bridge = CvBridge()
+        self._cv_image_ = None;
+    
+    def cvimage(self, data, COLOUR_FMT=None): #or set format to 'passthrough'?
+        """cvimage(self, data, COLOUR_FMT=None) -> cv_image
+        Convert data from ROS sensor_msgs Image type to OpenCV using the 
+        specified colour format
+        """
+        try:
+            if COLOUR_FMT is None:
+                cv_image = self.bridge.imgmsg_to_cv(data)
+            else:
+                cv_image = self.bridge.imgmsg_to_cv(data, COLOUR_FMT)
+        except CvBridgeError, e:
+            self._cv_image_ = None
+            print e
+        self._cv_image_ = cv_image
+        return self._cv_image_
+        
+    def cvimagegray(self, data):
+        """cvimage(self, data, COLOUR_FMT=None) -> cv_image
+        Convert data from ROS sensor_msgs Image type to OpenCV with colour
+        format "mono8"
+        """
+        return self.cvimage(data, 'mono8') # Use 'rgb8' instead?
+    
+    def img_msg(self, cvim, encoding="passthrough"):
+        """img_msg(self, cvim, encoding="passthrough") -> imgmsg
+        Convert OpenCV image to ROS sensor_msgs Image
+        """
+        return self.bridge.cv_to_imgmsg(cvim, encoding)
     
 
 class pcl_msg_helper(object):

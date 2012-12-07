@@ -7,15 +7,16 @@ Created on Mon Sep 10 13:28:00 2012
 import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
-from featuredetector import image_feature_extractor
+
 import phasecorr
 import cv2
 import numpy as np
 import code
 #import copy
 from scipy import weave
-from lib.common.misctools import STRUCT, estimate_rigid_transform_3d
-from featuredetector import cameramodels
+from misctools import STRUCT, estimate_rigid_transform_3d
+import cameramodels
+import image_feature_extractor
 import tf
 #from matplotlib import pyplot
 #from lib.common.misctools import cartesian_to_spherical as c2s

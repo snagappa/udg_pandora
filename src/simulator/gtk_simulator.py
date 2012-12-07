@@ -40,13 +40,12 @@ from cola2_control.srv import Goto, GotoRequest
 import rospy
 import tf
 from sensor_msgs.msg import PointCloud2, CameraInfo
-from lib.common import misctools
+from lib import misctools, cameramodels
 import threading
 import numpy as np
 #import copy
 import code
-from lib.common.misctools import STRUCT
-from featuredetector import cameramodels
+from lib.misctools import STRUCT
 import pickle
 
 LANDMARKS = "landmarks"

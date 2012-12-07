@@ -13,12 +13,12 @@ import hwu_meta_data.metaclient as metaclient
 from detector import GeometricDetector
 import cv2
 import code
-import objdetect
-from cvbridge_wrapper import image_converter
+from lib import objdetect
 import numpy as np
-from featuredetector import cameramodels, image_feature_extractor
 import message_filters
-from lib.common.misctools import STRUCT, pcl_xyz_cov, approximate_mahalanobis, merge_states
+from lib.misctools import STRUCT, pcl_xyz_cov, approximate_mahalanobis, \
+    merge_states, image_converter
+from lib import cameramodels, image_feature_extractor
 from tf import TransformBroadcaster
 from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import PoseWithCovarianceStamped
@@ -216,10 +216,10 @@ class stereo_image_buffer(object):
             return self._camera_info_
     
 
-class VisualDetector:
+class VisualDetector(object):
     def __init__(self, name):
         self.name = name
-        self.rostopic_cam_root = "/stereo_front"
+        self.rostopic_cam_root = "/stereo_down"
         self.image_sub_topic = "image_rect"
         self.publish_transforms()
         rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
@@ -348,7 +348,7 @@ class VisualDetector:
         
         # Initialise the detector and reset the number of features
         slam_features.camera = cameramodels.StereoCameraFeatureDetector(
-            feature_extractor=_default_feature_extractor_, GRID_ADAPTED=True)
+            feature_extractor=image_feature_extractor.Surf, GRID_ADAPTED=False)
         #if _default_feature_extractor_ is image_feature_extractor.Orb:
         #    slam_features.camera._featuredetector_.set_num_features(num_features)
         #elif _default_feature_extractor_ is image_feature_extractor.Surf:
@@ -363,6 +363,8 @@ class VisualDetector:
         if not set_hessian_threshold is None:
             print "Setting hessian threhosld to %s" % hessian_threshold
             set_hessian_threshold(hessian_threshold)
+        slam_features.camera._featuredetector_.set_nOctaves(7)
+        slam_features.camera._featuredetector_.make_grid_adapted()
         
         try:
             slam_features.camera._featuredetector_.set_num_features(num_features)
@@ -384,9 +386,9 @@ class VisualDetector:
             metaclient.Publisher('/visual_detector2/features_img_r', Image, {})]
         
         # Register the callback
-        #slam_features.callback_id = (
-        #    self.image_buffer.register_callback(self.detect_slam_features,
-        #                                        slam_features.update_rate))
+        slam_features.callback_id = (
+            self.image_buffer.register_callback(self.detect_slam_features,
+                                                slam_features.update_rate))
     
     def enablePanelValveDetectionSrv(self, req):
         #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 

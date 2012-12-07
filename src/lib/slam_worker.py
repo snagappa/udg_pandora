@@ -10,16 +10,15 @@ USE_CYTHON = False
 
 
 import numpy as np
-from lib.common import misctools, blas
+import misctools, blas
 #from featuredetector import sensors, tf
-from featuredetector import cameramodels
-from lib.common.kalmanfilter import kf_predict_cov
-from lib.common.kalmanfilter import np_kf_update_cov, kf_update_cov, kf_update_x
+import cameramodels
+from kalmanfilter import kf_predict_cov, np_kf_update_cov, kf_update_cov, kf_update_x
 from collections import namedtuple
 import copy
 import code
 import threading
-from lib.common.misctools import STRUCT, rotation_matrix
+from misctools import STRUCT, rotation_matrix
 import sys
 import traceback
 
