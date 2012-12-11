@@ -435,7 +435,7 @@ class VisualDetector(object):
     def detect_panel(self, *args):
         #self.panel.sub.unregister()
         time_now = rospy.Time.now()
-        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in args]
+        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
         self.panel.detector.detect(*cvimage)
         #self.panel.detector.show()
         panel_detected, panel_position, panel_orientation = (
@@ -490,10 +490,9 @@ class VisualDetector(object):
         #return True
         
     def detect_slam_features(self, *args):
-        img_msgs = [copy.deepcopy(args[0]), copy.deepcopy(args[1])]
         #time_now = args[0].header.stamp
         time_now = rospy.Time.now()
-        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in img_msgs]
+        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
         points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r) = (
             self.slam_features.camera.points3d_from_img(*cvimage, ratio_threshold=0.6))
         if points3d.shape[0]:

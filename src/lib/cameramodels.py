@@ -667,7 +667,7 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             # Use the flann matcher to match keypoints
             im_left = images[0]
             im_right = images[1]
-            if len(im_left.keypoints) and len(im_right.keypoints):
+            if (len(im_left.keypoints) > 2) and (len(im_right.keypoints) > 2):
                 match_result = self._flann_matcher_.detect_and_match(
                     im_left.keypoints, im_left.descriptors,
                     im_right.keypoints, im_right.descriptors, ratio_threshold)
