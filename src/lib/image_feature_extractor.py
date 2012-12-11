@@ -172,6 +172,20 @@ class Orb(_feature_detector_):
         num_features = self._detector_.getInt("nFeatures")
         return num_features
     
+    def set_nLevels(self, nLevels):
+        self._detector_.setInt("nLevels", nLevels)
+    
+    def get_nLevels(self):
+        nLevels = self._detector_.getInt("nLevels")
+        return nLevels
+    
+    def set_scaleFactor(self, scaleFactor):
+        self._detector_.setDouble("scaleFactor", scaleFactor)
+    
+    def get_scaleFactor(self):
+        scaleFactor = self._detector_.getDouble("scaleFactor")
+        return scaleFactor
+    
 
 class Freak(_feature_detector_):
     def __init__(self, *args, **kwargs):

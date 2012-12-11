@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # ROS imports
-import roslib 
+import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2
@@ -26,6 +26,7 @@ import threading
 import copy
 import tf
 import pickle
+import itertools
 
 # Check if ORB/SURF detector is available
 try:
@@ -52,21 +53,21 @@ def merge_points(weights, states, covs, merge_threshold=1.):
         max_wt_state = states[np.newaxis, max_wt_index]
         max_wt_cov = covs[np.newaxis, max_wt_index]
         mahalanobis_fn = approximate_mahalanobis
-        mahalanobis_dist = mahalanobis_fn(max_wt_state, max_wt_cov, 
+        mahalanobis_dist = mahalanobis_fn(max_wt_state, max_wt_cov,
                                           states)
-        merge_list_indices = ( np.where(mahalanobis_dist <= 
+        merge_list_indices = ( np.where(mahalanobis_dist <=
                                             merge_threshold)[0] )
-        retain_idx = ( np.where(mahalanobis_dist > 
+        retain_idx = ( np.where(mahalanobis_dist >
                                             merge_threshold)[0] )
         new_wt, new_st, new_cv = merge_states(
-                                        weights[merge_list_indices], 
+                                        weights[merge_list_indices],
                                         states[merge_list_indices],
                                         covs[merge_list_indices])
         merged_wts += [new_wt]
         merged_sts += [new_st]
         merged_cvs += [new_cv]
         # Remove merged states from the list
-        #retain_idx = misctools.gen_retain_idx(self.weights.shape[0], 
+        #retain_idx = misctools.gen_retain_idx(self.weights.shape[0],
         #                                      merge_list_indices)
         weights = weights[retain_idx]
         states = states[retain_idx]
@@ -83,14 +84,14 @@ class stereo_image_buffer(object):
         self._message_time_ = rospy.Time(0)
         # Convert between sensor_msgs Image anc CV image
         self.ros2cvimg = image_converter()
-        
+
         # Initialise topics as None
         self._camera_info_topic_ = [None, None]
         self._image_topic_ = [None, None]
         self._camera_info_ = (None, None)
         
         # Create the topic names we need to subscribe to
-        if ((type(rostopic_camera_root) is str) and 
+        if ((type(rostopic_camera_root) is str) and
             (type(image_sub_topic) is str)):
             # Strip trailing '/'
             rostopic_camera_root = rostopic_camera_root.rstrip("/")
@@ -114,7 +115,7 @@ class stereo_image_buffer(object):
         
         # Subscribe to left and right images
         self._subscribe_()
-    
+        
     def _cam_info_from_topics_(self):
         self._camera_info_ = [None, None]
         try:
@@ -144,7 +145,7 @@ class stereo_image_buffer(object):
                     "Could not read camera parameters")
     
     def fromCameraInfo(self, camera_info_left, camera_info_right=None):
-        self._camera_info_ = tuple([copy.deepcopy(_info_) 
+        self._camera_info_ = tuple([copy.deepcopy(_info_)
             for _info_ in (camera_info_left, camera_info_right)])
     
     def _subscribe_(self):
@@ -168,7 +169,7 @@ class stereo_image_buffer(object):
         self._lock_.acquire()
         self._last_callback_id_ += 1
         time_delay = None if rate is None else rospy.Duration(1./rate)
-        self._callbacks_[self._last_callback_id_] = {"callback":callback, 
+        self._callbacks_[self._last_callback_id_] = {"callback":callback,
                                                      "timedelay":time_delay,
                                                      "lasttime":rospy.Time(0),
                                                      "block":0}
@@ -192,7 +193,7 @@ class stereo_image_buffer(object):
             try:
                 callback_info = self._callbacks_[_callback_]
                 if ((not callback_info["block"]) and
-                    (callback_info["timedelay"] is None or 
+                    (callback_info["timedelay"] is None or
                     self._message_time_ - callback_info["lasttime"] >= callback_info["timedelay"])):
                     threads.append(threading.Thread(target=self._thread_wrapper_, args=(callback_info,)))
                     threads[-1].start()
@@ -226,7 +227,7 @@ class VisualDetector(object):
         self.geometric_detector = GeometricDetector('geometric_detector')
         
         # Create Subscriber
-        #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
+        #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage)
         #nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
         
         # Create publisher
@@ -249,17 +250,29 @@ class VisualDetector(object):
         self.image_buffer = stereo_image_buffer(self.rostopic_cam_root,
                                                 self.image_sub_topic)
         
+        ######################### Panel Templates #########################
         # Initialise panel detector
-        template_image_file = "simulator_panel.png"
+        # For real panel:
+        #template_image_file = ["real_panel_close_crop2.png",
+        #                       "real_panel_mid_crop2.png"]
+        #template_mask_file = ["real_panel_close_crop2_mask.png",
+        #                      "real_panel_mid_crop2_mask.png"]
         
-        panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0], 
+        # For simulator:
+        template_image_file = ["simulator_panel.png"]
+        template_mask_file = []
+        
+        ######################### Panel Templates #########################
+        
+        panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0],
                                   [0.8, -0.5, 0], [-0.8, -0.5, 0]])/2
         panel_update_rate = 2
         self.panel = STRUCT()
         self.panel.br = TransformBroadcaster()
-        IS_STEREO = True
-        self.init_panel_detector( 
-            template_image_file, panel_corners, IS_STEREO, panel_update_rate)
+        IS_STEREO = False
+        self.init_panel_detector(template_image_file, panel_corners,
+            template_mask_file, IS_STEREO, panel_update_rate)
+        # Enable panel detection by default
         self._enablePanelValveDetectionSrv_()
         # Initialise valve detector
         #self.valve = STRUCT()
@@ -269,7 +282,7 @@ class VisualDetector(object):
         self.slam_features = STRUCT()
         slam_features_update_rate = None
         num_slam_features = 100
-        self.init_slam_feature_detector(slam_features_update_rate, 
+        self.init_slam_feature_detector(slam_features_update_rate,
                                         num_features=num_slam_features)
         print "Completed initialisation"
     
@@ -297,22 +310,12 @@ class VisualDetector(object):
         stereo_front.sendTransform((0.0, 0.0, -0.7), o2, timestamp, 'stereo_front', 'girona500')
         stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, 'stereo_front_right', 'stereo_front')
     
-    def init_panel_detector(self, panel_template_file, panel_corners, 
-                            IS_STEREO=False, panel_update_rate=None):
+    def init_panel_detector(self, template_file_list, panel_corners,
+                            template_mask_file_list=[], IS_STEREO=False,
+                            panel_update_rate=None):
         panel = self.panel
         panel.init = False
-        # Read template image
-        template_image_file = (
-            roslib.packages.find_resource("udg_pandora", panel_template_file))
-        if len(template_image_file):
-            template_image_file = template_image_file[0]
-            template_image = cv2.imread(template_image_file, cv2.CV_8UC1)
-        else:
-            rospy.logerr("Could not locate panel template")
-            raise rospy.exceptions.ROSException(
-                    "Could not locate panel template")
         
-        # Subscriptions
         if IS_STEREO:
             panel.detector = objdetect.Stereo_detector(
                 feat_detector=_default_feature_extractor_)
@@ -320,13 +323,43 @@ class VisualDetector(object):
             panel.detector = objdetect.Detector(
                 feat_detector=_default_feature_extractor_)
         # Set number of features from detector
-        panel.detector.set_detector_num_features(2000)
+        panel.detector.set_detector_num_features(4000)
+        try:
+            panel.detector.camera._featuredetector_.set_scaleFactor(1.1)
+            panel.detector.camera._featuredetector_.set_nLevels(10)
+        except:
+            print "Error setting scaleFactor and nLevels"
+        
         # Get camera info msg and initialise camera
         cam_info = self.image_buffer.get_camera_info()
         panel.detector.init_camera(*cam_info)
         panel.detector.camera.set_tf_frame(self.rostopic_cam_root, self.rostopic_cam_root+"_right")
         # Set template
-        panel.detector.set_template(template_image, panel_corners)
+        panel.detector.set_corners3d(panel_corners)
+        # Read template image
+        for panel_template_file, panel_template_mask_file in (
+            itertools.izip_longest(template_file_list, template_mask_file_list)):
+            template_image_file = (
+                roslib.packages.find_resource("udg_pandora", panel_template_file))
+            if len(template_image_file):
+                template_image_file = template_image_file[0]
+                template_image = cv2.imread(template_image_file, cv2.CV_8UC1)
+            else:
+                rospy.logerr("Could not locate panel template")
+                raise rospy.exceptions.ROSException(
+                        "Could not locate panel template")
+            
+            # Read template mask
+            template_mask = None
+            if not template_mask_file_list is None:
+                template_mask_file = (roslib.packages.find_resource(
+                    "udg_pandora", panel_template_mask_file))
+            if len(template_mask_file):
+                template_mask_file = template_mask_file[0]
+                template_mask = cv2.imread(template_mask_file, cv2.CV_8UC1)
+
+            panel.detector.add_to_template(template_image, template_mask)
+        
         self.panel.callback_id = None
         self.panel.update_rate = panel_update_rate
         
@@ -338,10 +371,10 @@ class VisualDetector(object):
         panel.pose_msg_pub = metaclient.Publisher('/slam_landmarks/panel_position', PoseWithCovarianceStamped, {})
         # Publish image of detected panel
         self.panel.img_pub = [
-            metaclient.Publisher('/visual_detector2/panel_img_l', Image, {}), 
+            metaclient.Publisher('/visual_detector2/panel_img_l', Image, {}),
             metaclient.Publisher('/visual_detector2/panel_img_r', Image, {})]
     
-    def init_slam_feature_detector(self, update_rate=1, num_features=50, 
+    def init_slam_feature_detector(self, update_rate=1, num_features=50,
                                    hessian_threshold=3000):
         slam_features = self.slam_features
         slam_features.update_rate = update_rate
@@ -382,7 +415,7 @@ class VisualDetector(object):
         
         # Publish image with detected keypoints
         self.slam_features.img_pub = [
-            metaclient.Publisher('/visual_detector2/features_img_l', Image, {}), 
+            metaclient.Publisher('/visual_detector2/features_img_l', Image, {}),
             metaclient.Publisher('/visual_detector2/features_img_r', Image, {})]
         
         # Register the callback
@@ -391,7 +424,7 @@ class VisualDetector(object):
                                                 slam_features.update_rate))
     
     def enablePanelValveDetectionSrv(self, req):
-        #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage) 
+        #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage)
         self._enablePanelValveDetectionSrv_()
         print "Enabled panel detection"
         return std_srvs.srv.EmptyResponse()
@@ -401,8 +434,8 @@ class VisualDetector(object):
         self.panel.callback_id = (
             self.image_buffer.register_callback(self.detect_panel,
                                                 self.panel.update_rate))
-        #self.panel.sub = rospy.Subscriber("/stereo_camera/left/image_raw", 
-        #                                  sensor_msgs.msg.Image, 
+        #self.panel.sub = rospy.Subscriber("/stereo_camera/left/image_raw",
+        #                                  sensor_msgs.msg.Image,
         #                                  self.detect_panel)
     
     def enableValveDetectionSrv(self, req):
@@ -410,7 +443,6 @@ class VisualDetector(object):
     
     def enableChainDetectionSrv(self, req):
         pass
-    
     
     def disablePanelValveDetectionSrv(self, req):
         #if not self.panel.sub is None:
@@ -420,14 +452,11 @@ class VisualDetector(object):
         print "Disabled panel detection"
         return std_srvs.srv.EmptyResponse()
     
-    
     def disableValveDetectionSrv(self, req):
         pass
     
-    
     def disableChainDetectionSrv(self, req):
         pass
-    
     
     def updateImage(self, img):
         pass
@@ -441,11 +470,11 @@ class VisualDetector(object):
         panel_detected, panel_position, panel_orientation = (
             self.panel.detector.location())
         panel_rpy = panel_orientation[[2, 0, 1]]
-        panel_detected = (panel_detected and 
+        panel_detected = (panel_detected and
             self._check_valid_panel_orientation_(panel_rpy))
         panel_orientation_quaternion = quaternion_from_euler(*panel_rpy)
         self.panel.detection_msg.detected = panel_detected
-        (self.panel.detection_msg.position.position.x, 
+        (self.panel.detection_msg.position.position.x,
          self.panel.detection_msg.position.position.y,
          self.panel.detection_msg.position.position.z) = panel_position
         (self.panel.detection_msg.position.orientation.x,
@@ -458,7 +487,7 @@ class VisualDetector(object):
         self.panel.pub.publish(self.panel.detection_msg)
         # Publish image of detected panel
         scenes = self.panel.detector.get_scene()
-        img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_)) 
+        img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_))
                    for _scene_ in scenes]
         for idx in range(len(img_msg)):
             img_msg[idx].header.stamp = time_now
@@ -469,7 +498,7 @@ class VisualDetector(object):
             self.panel.pose_msg.header.stamp = time_now
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.panel.br.sendTransform(tuple(panel_position),
-                panel_orientation_quaternion, 
+                panel_orientation_quaternion,
                 time_now, "panel_position", self.rostopic_cam_root)
         #print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
@@ -488,7 +517,7 @@ class VisualDetector(object):
         #else:
         #    return True
         #return True
-        
+    
     def detect_slam_features(self, *args):
         #time_now = args[0].header.stamp
         time_now = rospy.Time.now()
@@ -527,7 +556,7 @@ class VisualDetector(object):
             cvimage[0][pts_l[:, 1], pts_l[:, 0]] = 255
         if pts_r.shape[0]:
             cvimage[1][pts_r[:, 1], pts_r[:, 0]] = 255
-        img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_)) 
+        img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_))
                    for _scene_ in cvimage]
         for idx in range(len(img_msg)):
             img_msg[idx].header.stamp = time_now
@@ -538,7 +567,7 @@ class VisualDetector(object):
         vehicle_orientation = [nav.orientation.roll, nav.orientation.pitch, nav.orientation.yaw]
         d = self.geometric_detector.detectObjects(vehicle_pose, vehicle_orientation)
         for i in range(len(d)):
-            if d[i].detected:       
+            if d[i].detected:
                 if i == 0:
                     self.pub_valve_panel.publish(d[i])
                 elif i == 1:
@@ -546,9 +575,10 @@ class VisualDetector(object):
                 else:
                     self.pub_chain.publish(d[i])
     
+
 if __name__ == '__main__':
     try:
         rospy.init_node('visual_detector')
         visual_detector = VisualDetector(rospy.get_name())
-        rospy.spin() 
+        rospy.spin()
     except rospy.ROSInterruptException: pass

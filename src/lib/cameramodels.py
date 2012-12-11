@@ -560,8 +560,8 @@ class _CameraFeatureDetector_(object):
         self._featuredetector_ = feature_extractor(**kwargs)
         self._flann_matcher_ = FlannMatcher(self._featuredetector_.DESCRIPTOR_IS_BINARY)
     
-    def get_features(self, image):
-        (keypoints, descriptors) = self._featuredetector_.get_features(image)
+    def get_features(self, image, mask=None):
+        (keypoints, descriptors) = self._featuredetector_.get_features(image, mask)
         return keypoints, descriptors
     
     def detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, 

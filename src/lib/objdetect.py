@@ -28,6 +28,7 @@ class Detector(object):
     def __init__(self, feat_detector=image_feature_extractor.orb):
         self._object_ = STRUCT()
         self._object_.template = None
+        self._object_.template_mask = None
         # Corners of the 3d object
         self._object_.corners_3d = None
         # Corners of the object in the template image
@@ -64,7 +65,7 @@ class Detector(object):
     def init_camera(self, camera_info, *dummy_args):
         self.camera.fromCameraInfo(camera_info)
     
-    def set_template(self, template_im=None, corners_3d=None):
+    def set_template(self, template_im=None, corners_3d=None, template_mask=None):
         """
         Define a new template and corners of the object in the world.
         """
@@ -72,13 +73,18 @@ class Detector(object):
         if not template_im is None:
             template_im = self.process_images((template_im,))[0]
             self._object_.template = template_im
+            self._object_.template_mask = template_mask
             (self._object_.keypoints, self._object_.descriptors) = \
-                self.camera.get_features(self._object_.template)
+                self.camera.get_features(self._object_.template,
+                                         self._object_.template_mask)
             height, width = self._object_.template.shape[:2]
             self._object_.corners_2d = np.float32([[0, 0], 
                                                    [width, 0], 
                                                    [width, height], 
                                                    [0, height]])
+        self.set_corners3d(corners_3d)
+    
+    def set_corners3d(self, corners_3d):
         if not corners_3d is None:
             assert_err_msg = "corners must a Nx3 ndarray, N>=4"
             assert type(corners_3d) is np.ndarray, assert_err_msg
@@ -87,11 +93,35 @@ class Detector(object):
                    (corners_3d.shape[0]>3), assert_err_msg
             self._object_.corners_3d = corners_3d
     
+    def add_to_template(self, template_im=None, template_mask=None):
+        if template_im is None or self._object_.corners_3d is None:
+            print "Unable to add to template!"
+            return
+        if self._object_.template is None:
+            self.set_template(template_im, template_mask=template_mask)
+        else:
+            template_im = self.process_images((template_im,))[0]
+            orig_tpl_shape = self._object_.template.shape
+            #extra_tpl_shape = np.asarray(template_im.shape)
+            #scalefactor = orig_tpl_shape/extra_tpl_shape
+            template_im = cv2.resize(template_im, orig_tpl_shape[::-1])
+            template_mask = cv2.resize(template_mask, orig_tpl_shape[::-1])
+            (extra_keypoints, extra_descriptors) = \
+                self.camera.get_features(template_im, template_mask)
+            if extra_descriptors is None or extra_descriptors.shape[0] == 0:
+                print "No keypoints in extra template"
+                return
+            #for _kp_ in extra_keypoints:
+            #    _kp_.pt = tuple(np.asarray(_kp_.pt)*scalefactor)
+            self._object_.keypoints += extra_keypoints
+            self._object_.descriptors = np.vstack((self._object_.descriptors, extra_descriptors))
+    
     def process_images(self, images=()):
         assert type(images) is tuple, "Images must be a tuple"
-        #return [self._binarise_(cv2.filter2D(_im_, -1, self.log_kernel), 
-        #                        self._object_.intensity_threshold) 
+        #return [self._binarise_(cv2.filter2D(_im_, -1, self.log_kernel),
+        #                        self._object_.intensity_threshold)
         #        for _im_ in images]
+        #return [self._sharpen_(_im_) for _im_ in images]
         return list(images)
     
     def _binarise_(self, im, intensity_threshold):
@@ -103,7 +133,11 @@ class Detector(object):
     def _sharpen_(self, im, filter_size=(5, 5), alpha=1.5, beta=-0.5):
         sm_im = cv2.GaussianBlur(im, filter_size, 0)
         return cv2.addWeighted(im, alpha, sm_im, beta, 1.0)
-        
+    
+    def _log_filter_(self, im):
+        log_im = cv2.filter2D(im, -1, self.filter_kernel)
+        return log_im
+    
     def _detect_(self, im_scene):
         if self._object_.template is None:
             print "object template is not set!"
@@ -120,14 +154,14 @@ class Detector(object):
                                                   self.flann_ratio_threshold)
         pts_1, pts_2 = dam_result[0:2]
         status, h_mat, num_inliers, inliers_status = (
-            self.camera.find_homography(pts_1, pts_2, 
+            self.camera.find_homography(pts_1, pts_2,
             min_inliers=self._object_.min_correspondences))
         return status, h_mat, num_inliers, inliers_status
     
     def detect(self, im_scene, *dummy_args):
         """
         detect(self, im_scene) -> None
-        Detects object by matching features and calculating the homography 
+        Detects object by matching features and calculating the homography
         matrix from the template and current scene.
         """
         self._scene_ = im_scene
@@ -138,7 +172,7 @@ class Detector(object):
         self._object_.num_inliers = num_inliers
         self._object_.inliers_status = inliers_status
         return status
-        
+    
     def homography(self):
         """
         Return the estimated homography matrix
@@ -147,24 +181,24 @@ class Detector(object):
     
     def location(self):
         """
-        Return detected (bool), relative position (x, y, z) and 
+        Return detected (bool), relative position (x, y, z) and
         orientation (RPY) of the object.
         """
         # From http://en.wikipedia.org/wiki/Camera_resectioning#Extrinsic_parameters
-        # "T is not the position of the camera. It is the position of 
-        # the origin of the world coordinate system expressed in 
-        # coordinates of the camera-centered coordinate system. The 
-        # position, C, of the camera expressed in world coordinates is 
+        # "T is not the position of the camera. It is the position of
+        # the origin of the world coordinate system expressed in
+        # coordinates of the camera-centered coordinate system. The
+        # position, C, of the camera expressed in world coordinates is
         # C = -R^{-1}T = -R^T T (since R is a rotation matrix)."
         #camera_centre = np.dot(-(cv2.Rodrigues(rvec)[0].T), tvec)
         detected = False
         if self._object_.status:
             # Project the corners of the template onto the scene
             self.obj_corners = cv2.perspectiveTransform(
-                self._object_.corners_2d.reshape(1, -1, 2), 
+                self._object_.corners_2d.reshape(1, -1, 2),
                 self._object_.h_mat).reshape(-1, 2)
             # Solve perspective n-point
-            retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d, 
+            retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d,
                 self.obj_corners, self.camera.camera_matrix(), np.empty(0))
             # Convert the rotation vector to RPY
             r_mat = cv2.Rodrigues(rvec)[0]
@@ -177,7 +211,7 @@ class Detector(object):
                 detected = True
                 # Plot outline on image
                 corners = self.obj_corners.astype(np.int32)
-                cv2.polylines(self.get_scene(0), [corners], 
+                cv2.polylines(self.get_scene(0), [corners],
                               True, (255, 255, 255), 4)
         else:
             self.obj_trans = np.zeros(3)
@@ -201,7 +235,7 @@ class Detector(object):
     #    #    print "No detection."
     #    if not self._scene_ is None:
     #        cv2.imshow("panel-detect", self._scene_)
-            
+    
 
 class Stereo_detector(Detector):
     def __init__(self, feat_detector=image_feature_extractor.orb):
@@ -221,8 +255,8 @@ class Stereo_detector(Detector):
         self.camera_half_baseline = (
             np.abs(proj_matrix[1, 0, 3]/proj_matrix[1, 0, 0])/2)
     
-    def set_template(self, template_im=None, corners_3d=None):
-        super(Stereo_detector, self).set_template(template_im, corners_3d)
+    def set_template(self, template_im=None, corners_3d=None, template_mask=None):
+        super(Stereo_detector, self).set_template(template_im, corners_3d, template_mask)
         if len(self._object_.keypoints) == 0:
             rospy.logfatal("No keypoints detected in template image")
             raise rospy.ROSException("No keypoints detected in template image")
@@ -233,7 +267,7 @@ class Stereo_detector(Detector):
         keypoints_normalised -= 0.5
         # Find size of the template by taking the difference of the corners
         template_size = np.max(np.abs(np.diff(corners_3d, axis=0)), axis=0)
-        keypoints_3d = np.hstack((keypoints_normalised, 
+        keypoints_3d = np.hstack((keypoints_normalised,
             np.zeros((keypoints_normalised.shape[0], 1))))
         keypoints_3d *= template_size
         self._object_.keypoints_3d = keypoints_3d
@@ -241,7 +275,7 @@ class Stereo_detector(Detector):
     def detect(self, im_scene_l, im_scene_r):
         """
         detect(self, im_scene) -> None
-        Detects object by matching features and calculating the homography 
+        Detects object by matching features and calculating the homography
         matrix from the template and current scene.
         """
         # Set affine transformation and status to false
@@ -252,14 +286,14 @@ class Stereo_detector(Detector):
         self.obj_rpy = np.zeros(3)
         self.obj_trans = np.zeros(3)
         self.obj_corners = np.empty(0)
-        
+
         # Threshold the image
         self._scene_ = self.process_images((im_scene_l, im_scene_r))
-        
+
         if self._object_.template is None:
             print "object template is not set!"
             return None
-        
+
         status_l, h_mat_l, num_inliers_l, inliers_status_l = self._detect_(im_scene_l)
         status_r, h_mat_r, num_inliers_r, inliers_status_r = self._detect_(im_scene_r)
         self._object_.status = [status_l, status_r]
@@ -269,7 +303,7 @@ class Stereo_detector(Detector):
     
     def location(self):
         """
-        Return detected (bool), relative position (x, y, z) and 
+        Return detected (bool), relative position (x, y, z) and
         orientation (RPY) of the object.
         """
         status = self._object_.status
@@ -282,11 +316,11 @@ class Stereo_detector(Detector):
         for idx in range(2):
             if status[idx]:
                 _obj_corners_ = cv2.perspectiveTransform(
-                    self._object_.corners_2d.reshape(1, -1, 2), 
+                    self._object_.corners_2d.reshape(1, -1, 2),
                     h_mat[idx]).reshape(-1, 2)
                 # Solve perspective n-point
                 _retval_, _rvec_, _tvec_ = cv2.solvePnP(
-                    self._object_.corners_3d, _obj_corners_, 
+                    self._object_.corners_3d, _obj_corners_,
                     self.camera.camera_matrix(), np.empty(0))
                 # Convert the rotation vector to RPY
                 _r_mat_ = cv2.Rodrigues(_rvec_)[0]
@@ -298,7 +332,7 @@ class Stereo_detector(Detector):
                 else:
                     # Plot the bounding box
                     corners = _obj_corners_.astype(np.int32)
-                    cv2.polylines(self.get_scene(idx), [corners], 
+                    cv2.polylines(self.get_scene(idx), [corners],
                                   True, (255, 255, 255), 4)
             else:
                 _obj_corners_ = np.zeros((1, 3))
@@ -307,7 +341,7 @@ class Stereo_detector(Detector):
             obj_corners.append(_obj_corners_)
             obj_trans.append(np.squeeze(_tvec_))
             obj_rpy.append(_rpy_)
-        
+
         # Convert the translation from the right image to the left
         tf_obj_trans = self.camera.left.from_world_coords(
             self.camera.right.to_world_coords(obj_trans[1][np.newaxis]))[0]
@@ -350,7 +384,7 @@ def _estimateAffine3D_(src_points, dst_points):
         np_points_to = dst_points.astype(np.float32)
     else:
         np_points_to = dst_points
-    
+
     affine_3d = np.zeros((3, 4), dtype=np.float64)
     inliers = []
     num_inliers = 0
@@ -387,7 +421,7 @@ num_inliers = inliers.size();
 retval = result;
 """
     ros_root = "/opt/ros/fuerte/"
-    python_vars = ["np_points_from", "np_points_to", "affine_3d", 
+    python_vars = ["np_points_from", "np_points_to", "affine_3d",
                    "retval", "num_inliers"]
     weave.inline(fn_code, python_vars, support_code=header_code,
                  libraries=["opencv_calib3d"],
