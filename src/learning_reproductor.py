@@ -41,7 +41,7 @@ class learningReproductor :
         
         rospy.Subscriber('/arm/pose_stamped', PoseStamped , self.updateArmPosition )
 
-        rospy.loginfo('Configuration Loaded')
+        rospy.loginfo('Configuration ' str(name)   ' Loaded ')
 
 
     def getConfig(self) :
