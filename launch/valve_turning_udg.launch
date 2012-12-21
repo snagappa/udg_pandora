@@ -36,7 +36,7 @@
   	</node>
 
 	<!-- Load G500 components -->
- 	<include if="$(arg enableLandmarks)" file="$(find cola2_detection)/launch/ar_landmark.launch"/>
+ 	<include if="$(arg enableLandmarks)" file="$(find cola2_detection)/launch/ar_landmark_sim.launch"/>
 	
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
