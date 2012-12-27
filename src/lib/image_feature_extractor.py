@@ -186,7 +186,10 @@ class Orb(_feature_detector_):
         scaleFactor = self._detector_.getDouble("scaleFactor")
         return scaleFactor
     
-
+class FastOrb(_feature_detector_):
+    def __init__(self, *args, **kwargs):
+        super(FastOrb, self).__init__("FAST", "ORB", *args, **kwargs)
+    
 class Freak(_feature_detector_):
     def __init__(self, *args, **kwargs):
         super(Freak, self).__init__("FAST", "FREAK", *args, **kwargs)

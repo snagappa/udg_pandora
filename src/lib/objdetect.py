@@ -147,6 +147,8 @@ class Detector(object):
         proc_im_scene = self.process_images((im_scene,))[0]
         (keypoints_scene, descriptors_scene) = (
             self.camera.get_features(proc_im_scene))
+        #for _kp_ in keypoints_scene:
+        #    self._scene_[_kp_.pt[1], _kp_.pt[0]] = 255
         dam_result = self.camera.detect_and_match(self._object_.keypoints,
                                                   self._object_.descriptors,
                                                   keypoints_scene,
@@ -171,6 +173,8 @@ class Detector(object):
         self._object_.h_mat = h_mat
         self._object_.num_inliers = num_inliers
         self._object_.inliers_status = inliers_status
+        #if not h_mat is None and len(h_mat):
+        #    print "|H| = ", np.linalg.det(h_mat)
         return status
     
     def homography(self):
@@ -200,6 +204,7 @@ class Detector(object):
             # Solve perspective n-point
             retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d,
                 self.obj_corners, self.camera.camera_matrix(), np.empty(0))
+                #np.asarray(self.camera.distortionCoeffs()))
             # Convert the rotation vector to RPY
             r_mat = cv2.Rodrigues(rvec)[0]
             self.obj_rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
@@ -210,9 +215,9 @@ class Detector(object):
             else:
                 detected = True
                 # Plot outline on image
-                corners = self.obj_corners.astype(np.int32)
-                cv2.polylines(self.get_scene(0), [corners],
-                              True, (255, 255, 255), 4)
+                #corners = self.obj_corners.astype(np.int32)
+                #cv2.polylines(self.get_scene(0), [corners],
+                #              True, (255, 255, 255), 4)
         else:
             self.obj_trans = np.zeros(3)
             self.obj_rpy = np.zeros(3)

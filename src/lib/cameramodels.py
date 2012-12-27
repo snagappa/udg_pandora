@@ -379,7 +379,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Determines the probability of detection for points specified according
         to the camera coordinate system.
         """
-        margin = kwargs.get("margin", 1e-1)
+        margin = kwargs.get("margin", 3e-1)
         idx_visible = np.arange(rel_points1.shape[0])
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
@@ -591,7 +591,7 @@ class _CameraFeatureDetector_(object):
         return pts_1, pts_2, valid_idx1, valid_idx2 #, kp_pairs
     
     def find_homography(self, pts_1, pts_2, method=cv2.RANSAC, 
-                                       ransacReprojThreshold=5.0,
+                                       ransacReprojThreshold=3.0,
                                        min_inliers=10):
         """find_homography(self, pts_1, pts_2, method=cv2.RANSAC,
         ransacReprojThreshold=5.0, min_inliers=10) 
@@ -678,7 +678,7 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             
             # Only proceed if there are matches
             if pts_l.shape[0]:
-                print "matches found"
+                #print "matches found"
                 kp_l = np.asarray(im_left.keypoints)[idx_l]
                 desc_l = np.asarray(im_left.descriptors)[idx_l]
                 kp_r = np.asarray(im_right.keypoints)[idx_r]

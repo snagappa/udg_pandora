@@ -27,6 +27,14 @@ import copy
 import tf
 import pickle
 import itertools
+from lib.cameramodels import transform_numpy_array
+import time
+
+USE_SIMULATOR = False
+if USE_SIMULATOR:
+    ROSTOPIC_CAM_ROOT = "/stereo_front"
+else:
+    ROSTOPIC_CAM_ROOT = "/stereo_camera"
 
 # Check if ORB/SURF detector is available
 try:
@@ -120,7 +128,7 @@ class stereo_image_buffer(object):
         self._camera_info_ = [None, None]
         try:
             self._camera_info_ = tuple(
-                [rospy.wait_for_message(cam_info_topic, CameraInfo, 10)
+                [rospy.wait_for_message(cam_info_topic, CameraInfo, 2)
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
@@ -220,7 +228,7 @@ class stereo_image_buffer(object):
 class VisualDetector(object):
     def __init__(self, name):
         self.name = name
-        self.rostopic_cam_root = "/stereo_down"
+        self.rostopic_cam_root = ROSTOPIC_CAM_ROOT
         self.image_sub_topic = "image_rect"
         self.publish_transforms()
         rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
@@ -229,11 +237,18 @@ class VisualDetector(object):
         # Create Subscriber
         #sub = metaclient.Subscriber("VisualDetectorInput", std_msgs.msg.Empty, {}, self.updateImage)
         #nav = metaclient.Subscriber("/cola2_navigation/nav_sts", NavSts, {}, self.updateNavigation)
+        self.valve = STRUCT()
+        self.valve.sub = metaclient.Subscriber("/visual_detector2/valve_panel", Detection, {}, self.detect_valves)
         
         # Create publisher
         self.pub_valve_panel = metaclient.Publisher('/visual_detector/valve_panel', Detection,{})
         self.pub_valve = metaclient.Publisher('/visual_detector/valve', Detection, {})
         self.pub_chain = metaclient.Publisher('/visual_detector/chain', Detection, {})
+        self.valve.pub = STRUCT()
+        self.valve.pub.img = metaclient.Publisher("/visual_detector2/valve_img", Image, {})
+        for valve_count in range(6):
+            setattr(self.valve.pub, "v"+str(valve_count),
+                    metaclient.Publisher('/visual_detector2/valve'+str(valve_count), Detection, {}))
         
         #Create services
         self.enable_panel_valve_detection = metaclient.Service('/visual_detector/enable_panel_valve_detection', std_srvs.srv.Empty, self.enablePanelValveDetectionSrv, {})
@@ -252,23 +267,26 @@ class VisualDetector(object):
         
         ######################### Panel Templates #########################
         # Initialise panel detector
-        # For real panel:
-        #template_image_file = ["real_panel_close_crop2.png",
-        #                       "real_panel_mid_crop2.png"]
-        #template_mask_file = ["real_panel_close_crop2_mask.png",
-        #                      "real_panel_mid_crop2_mask.png"]
-        
-        # For simulator:
-        template_image_file = ["simulator_panel.png"]
-        template_mask_file = []
+        if not USE_SIMULATOR:
+            # For new real panel:
+            template_image_file = ["rp2_close3.png"]
+            template_mask_file = ["rp2_close3_mask.png"]
+            
+            # For old real panel:
+            #template_image_file = ["real_panel_close_crop2.png", "real_panel_mid_crop2.png"]
+            #template_mask_file = ["real_panel_close_crop2_mask.png", "real_panel_mid_crop2_mask.png"]
+        else:
+            # For simulator:
+            template_image_file = ["simulator_panel.png"]
+            template_mask_file = []
         
         ######################### Panel Templates #########################
         
         panel_corners = np.array([[-0.8, 0.5, 0], [0.8, 0.5, 0],
                                   [0.8, -0.5, 0], [-0.8, -0.5, 0]])/2
-        panel_update_rate = 2
+        panel_update_rate = None
         self.panel = STRUCT()
-        self.panel.br = TransformBroadcaster()
+        self.tf_broadcaster = TransformBroadcaster()
         IS_STEREO = False
         self.init_panel_detector(template_image_file, panel_corners,
             template_mask_file, IS_STEREO, panel_update_rate)
@@ -282,8 +300,9 @@ class VisualDetector(object):
         self.slam_features = STRUCT()
         slam_features_update_rate = None
         num_slam_features = 100
-        self.init_slam_feature_detector(slam_features_update_rate,
-                                        num_features=num_slam_features)
+        #self.init_slam_feature_detector(slam_features_update_rate,
+        #                                num_features=num_slam_features,
+        #                                hessian_threshold=None)
         print "Completed initialisation"
     
     def publish_transforms(self, *args, **kwargs):
@@ -300,15 +319,15 @@ class VisualDetector(object):
         # Publish stereo_camera tf
         stereo_down = tf.TransformBroadcaster()
         #o1 = tf.transformations.quaternion_from_euler(3.1416, 0.0, -1.57, 'sxyz')
-        o1 = tf.transformations.quaternion_from_euler(0.0, 0.0, -1.57, 'sxyz')
-        stereo_down.sendTransform((0.0, 0.0, 0.0), o1, timestamp, 'stereo_down', 'girona500')
-        stereo_down.sendTransform((0.0, 0.12, 0.0), o_zero, timestamp, 'stereo_down_right', 'stereo_down')
+        o1 = tf.transformations.quaternion_from_euler(3.14, 0.0, -1.57, 'sxyz')
+        stereo_down.sendTransform((0.0, 0.0, 0.0), o1, timestamp, '/stereo_down', '/girona500')
+        stereo_down.sendTransform((0.0, 0.12, 0.0), o_zero, timestamp, '/stereo_down_right', '/stereo_down')
         
         # Publish stereo_camera tf
         stereo_front = tf.TransformBroadcaster()
-        o2 = tf.transformations.quaternion_from_euler(-1.57, 0.0, -1.57, 'sxyz')
-        stereo_front.sendTransform((0.0, 0.0, -0.7), o2, timestamp, 'stereo_front', 'girona500')
-        stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, 'stereo_front_right', 'stereo_front')
+        o2 = tf.transformations.quaternion_from_euler(1.57, 0.0, 1.57, 'sxyz')
+        stereo_front.sendTransform((0.6, 0.0, 0.2), o2, timestamp, '/stereo_front', '/girona500')
+        stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, '/stereo_front_right', '/stereo_front')
     
     def init_panel_detector(self, template_file_list, panel_corners,
                             template_mask_file_list=[], IS_STEREO=False,
@@ -325,8 +344,8 @@ class VisualDetector(object):
         # Set number of features from detector
         panel.detector.set_detector_num_features(4000)
         try:
-            panel.detector.camera._featuredetector_.set_scaleFactor(1.1)
-            panel.detector.camera._featuredetector_.set_nLevels(10)
+            panel.detector.camera._featuredetector_.set_scaleFactor(1.06)
+            panel.detector.camera._featuredetector_.set_nLevels(16)
         except:
             print "Error setting scaleFactor and nLevels"
         
@@ -375,7 +394,7 @@ class VisualDetector(object):
             metaclient.Publisher('/visual_detector2/panel_img_r', Image, {})]
     
     def init_slam_feature_detector(self, update_rate=1, num_features=50,
-                                   hessian_threshold=3000):
+                                   hessian_threshold=None):
         slam_features = self.slam_features
         slam_features.update_rate = update_rate
         
@@ -393,7 +412,7 @@ class VisualDetector(object):
         # Set the hessian threshold if possible
         set_hessian_threshold = getattr(slam_features.camera._featuredetector_,
                                         "set_hessian_threshold", None)
-        if not set_hessian_threshold is None:
+        if not set_hessian_threshold is None and not hessian_threshold is None:
             print "Setting hessian threhosld to %s" % hessian_threshold
             set_hessian_threshold(hessian_threshold)
         slam_features.camera._featuredetector_.set_nOctaves(7)
@@ -469,9 +488,17 @@ class VisualDetector(object):
         #self.panel.detector.show()
         panel_detected, panel_position, panel_orientation = (
             self.panel.detector.location())
-        panel_rpy = panel_orientation[[2, 0, 1]]
-        panel_detected = (panel_detected and
-            self._check_valid_panel_orientation_(panel_rpy))
+        panel_rpy = panel_orientation#[[2, 0, 1]]
+        valid_panel_orientation = self._check_valid_panel_orientation_(panel_rpy)
+        if valid_panel_orientation:
+            bbox_colour = (255, 255, 255)
+        else:
+            bbox_colour = (0, 0, 0)
+        if panel_detected:
+            corners = self.panel.detector.obj_corners.astype(np.int32)
+            cv2.polylines(self.panel.detector.get_scene(0), [corners],
+                          True, bbox_colour, 6)
+        panel_detected = (panel_detected and valid_panel_orientation)        
         panel_orientation_quaternion = quaternion_from_euler(*panel_rpy)
         self.panel.detection_msg.detected = panel_detected
         (self.panel.detection_msg.position.position.x,
@@ -485,6 +512,16 @@ class VisualDetector(object):
         
         self.panel.detection_msg.header.stamp = time_now
         self.panel.pub.publish(self.panel.detection_msg)
+        
+        if panel_detected:
+            # Panel orientation is screwy - only broadcast the yaw
+            # which is panel_orientation[1]
+            self.panel.pose_msg.header.stamp = time_now
+            self.panel.pose_msg_pub.publish(self.panel.pose_msg)
+            self.tf_broadcaster.sendTransform(tuple(panel_position),
+                panel_orientation_quaternion,
+                time_now, "/panel_position", "/stereo_front")#self.rostopic_cam_root)
+        
         # Publish image of detected panel
         scenes = self.panel.detector.get_scene()
         img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_))
@@ -492,22 +529,14 @@ class VisualDetector(object):
         for idx in range(len(img_msg)):
             img_msg[idx].header.stamp = time_now
             self.panel.img_pub[idx].publish(img_msg[idx])
-        if panel_detected:
-            # Panel orientation is screwy - only broadcast the yaw
-            # which is panel_orientation[1]
-            self.panel.pose_msg.header.stamp = time_now
-            self.panel.pose_msg_pub.publish(self.panel.pose_msg)
-            self.panel.br.sendTransform(tuple(panel_position),
-                panel_orientation_quaternion,
-                time_now, "panel_position", self.rostopic_cam_root)
         #print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
     
     def _check_valid_panel_orientation_(self, panel_rpy):
         # if panel_orientation{0,2} not close to zero, return false
         abs_rpy = np.abs(panel_rpy)
-        if ((abs_rpy[0] < 0.35 or (np.pi-abs_rpy[0]) < 0.35) and
-            (np.pi-abs_rpy[1] < 0.35)):
+        if (((abs_rpy[0] < 0.35) or ((np.pi-abs_rpy[0]) < 0.35))):
+            #and ((abs_rpy[1] < 0.35) or ((np.pi-abs_rpy[1]) < 0.35))):
             return True
         else:
             return False
@@ -518,6 +547,117 @@ class VisualDetector(object):
         #    return True
         #return True
     
+    def detect_valves(self, detection_msg):
+        panel_position = np.array([detection_msg.position.position.x,
+                                   detection_msg.position.position.y,
+                                   detection_msg.position.position.z])
+        # Get location of valves if closer than ~2m
+        # Panel positions (in m) are (relative to 0,0 centre):
+        #   left: (-0.5, +-0.25), centre: (0, +-0.25), right: (0.5, +-0.25)
+        # Stem length is 10-11cm, t-bar length is 10cm
+        scene = self.panel.detector.get_scene(0)
+        if detection_msg.detected and np.linalg.norm(panel_position) <= 2:
+            time.sleep(0.05)
+            time_now = rospy.Time.now()
+            valve_z = 0.11
+            valve_centre = np.array([[-0.25, -0.125, valve_z],
+                                     [-0.25, +0.125, valve_z],
+                                     [ 0.0, -0.125, valve_z],
+                                     [ 0.0, +0.125, valve_z],
+                                     [+0.25, -0.125, valve_z],
+                                     [+0.25, +0.125, valve_z]])
+            #valve_centre[:, :2] += np.squeeze(panel_position)[:2]
+            valve_rad = 0.05
+            valve_bbox = np.array([[-valve_rad, -valve_rad, 0],
+                                   [ valve_rad, -valve_rad, 0],
+                                   [ valve_rad,  valve_rad, 0],
+                                   [-valve_rad,  valve_rad, 0]])
+            valve_msg = Detection()
+            valve_msg.header.stamp = time_now
+            valve_msg.header.frame_id = "panel_position"
+            for valve_idx in range(6):
+                this_valve = valve_centre[valve_idx] + valve_bbox
+                # Convert points from panel to camera co-ordinates
+                this_valve_cc = transform_numpy_array("stereo_front", "panel_position", this_valve)
+                # Project the 3D points from camera coordinates to pixels
+                px_corners = self.panel.detector.camera.project3dToPixel(this_valve_cc)
+                px_corners = px_corners.astype(np.int32)
+                left, top = np.min(px_corners, axis=0)
+                right, bottom = np.max(px_corners, axis=0)
+                if left < 0 or top < 0 or right > scene.shape[1] or bottom > scene.shape[0]:
+                    pass
+                else:
+                    valve_im_bbox = (left, top, right, bottom)
+                    this_valve_orientation = self.detect_valve_orientation(
+                        scene, valve_im_bbox, HIGHLIGHT=True)
+                    if not this_valve_orientation is None:
+                        valve_msg.detected = True
+                        (valve_msg.position.position.x,
+                         valve_msg.position.position.y,
+                         valve_msg.position.position.z) = valve_centre[valve_idx]
+                        # Obtain rotation of the valve wrt the panel
+                        # TODO: Find a more robust way of doing this
+                        panel_rpy = np.asarray(tf.transformations.euler_from_quaternion(
+                            (detection_msg.position.orientation.x,
+                             detection_msg.position.orientation.y,
+                             detection_msg.position.orientation.z,
+                             detection_msg.position.orientation.w)))
+                        valve_rpy = (0, 0, this_valve_orientation - panel_rpy[2])
+                        valve_orientation_quaternion = tf.transformations.quaternion_from_euler(*valve_rpy)
+                        (valve_msg.position.orientation.x,
+                         valve_msg.position.orientation.y,
+                         valve_msg.position.orientation.z,
+                         valve_msg.position.orientation.w) = valve_orientation_quaternion
+                        v_pub = getattr(self.valve.pub, "v"+str(valve_idx))
+                        v_pub.publish(valve_msg)
+                        self.tf_broadcaster.sendTransform(tuple(valve_centre[valve_idx]),
+                            valve_orientation_quaternion, time_now,
+                            "valve"+str(valve_idx), "panel_position")
+                cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
+        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene))
+        self.valve.pub.img.publish(img_msg)
+    
+    def detect_valve_orientation(self, im, bbox=None, HIGHLIGHT=True,
+            CannyThreshold1=50, CannyThreshold2=100,
+            HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=10,
+            HoughMinLineLength=60, HoughMaxLineGap=10):
+        """detect_valve_orientation(self, im, bbox=None) -> theta
+        Estimate valve orientation using Hough transform:
+        Estimate the orientation of the valve in the image within the specified
+        bounding box (left, top, right, bottom) in pixels. If bbox==None, the
+        entire image is used.
+        """
+        im_box = im[np.ix_(np.arange(bbox[1], bbox[3]), 
+                           np.arange(bbox[0], bbox[2]))]
+        im_edges = cv2.Canny(im_box, CannyThreshold1, CannyThreshold2)
+        lines = np.squeeze(cv2.HoughLinesP(im_edges, HoughRho, HoughTheta,
+            HoughThreshold, minLineLength=HoughMinLineLength,
+            maxLineGap=HoughMaxLineGap))
+        # if multiple lines, choose the longest
+        if lines.ndim == 1:
+            valve_points = lines
+        elif lines.ndim == 2:
+            pts1 = lines[:, :2]
+            pts2 = lines[:, 2:]
+            line_lengths = np.sqrt(np.power(pts2 - pts1, 2).sum(axis=1))
+            valve_idx = line_lengths.argmax()
+            valve_points = lines[valve_idx]
+        else:
+            return None #raise ValueError
+        
+        v_pt1 = valve_points[:2]
+        v_pt2 = valve_points[2:]
+        delta_xy = v_pt2 - v_pt1
+        if HIGHLIGHT and valve_points.shape[0]:
+            if not bbox is None:
+                v_pt1 += [bbox[0], bbox[1]]
+                v_pt2 += [bbox[0], bbox[1]]
+            cv2.line(im, tuple(v_pt1), tuple(v_pt2), (255, 0, 0),4)
+        
+        # Get the angle using arctan
+        valve_orientation = np.arctan2(delta_xy[1], delta_xy[0])
+        return valve_orientation
+    
     def detect_slam_features(self, *args):
         #time_now = args[0].header.stamp
         time_now = rospy.Time.now()
@@ -527,19 +667,19 @@ class VisualDetector(object):
         if points3d.shape[0]:
             points_range = np.sqrt((points3d**2).sum(axis=1))
         else:
-            print "no features found"
+            #print "no features found"
             points_range = np.empty(0, dtype=np.int32)
         print "Found %s features at stage 1" % points3d.shape[0]
         #code.interact(local=locals())
         print "Average distance = %s" % np.mean(points3d, axis=0)
         points3d = points3d[points_range <= FOV_FAR]
         points_range = points_range[points_range <= FOV_FAR]
-        print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
+        #print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        covs = np.repeat([np.eye(3)*0.01], points3d.shape[0], axis=0)*points_range[:, np.newaxis, np.newaxis]
-        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=3.)
-        print "Detected %s (%s) features at:" % (points3d_states.shape[0], points3d.shape[0])
+        covs = np.repeat([np.array([2e-5, 2e-5, 1e-3])], points3d.shape[0], axis=0)*points_range[:, np.newaxis, np.newaxis]
+        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=3)
+        #print "Detected %s (%s) features at:" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
         if points3d_covs.shape[0]:
             points3d_covs = points3d_covs[:, range(3), range(3)]

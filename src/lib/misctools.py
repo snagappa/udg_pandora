@@ -77,7 +77,7 @@ class FlannMatcher(object):
         try:
             # Use the cv2 FlannBasedMatcher if available
             # bug : need to pass empty dict (#1329)        
-            self._flann_ = cv2.FlannBasedMatcher(self.PARAMS, {})  
+            self._flann_ = cv2.FlannBasedMatcher(self.PARAMS, {})
             self.NEW_FLANN_MATCHER = True
         except AttributeError as attr_err:
             print attr_err
