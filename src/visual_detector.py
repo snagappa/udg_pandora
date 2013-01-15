@@ -753,22 +753,10 @@ class VisualDetector(object):
 if __name__ == '__main__':
     try:
         rospy.init_node('visual_detector')
-        remap_camera_name = rospy.resolve_name("camera_root")
-        if remap_camera_name == "/camera_root":
-            print "Using default camera root: /stereo_camera"
-            print "Use camera_root:=new_camera_topic to change"
-            rostopic_cam_root = ROSTOPIC_CAM_ROOT
-        else:
-            print "Using new camera root: " + remap_camera_name
-            rostopic_cam_root = remap_camera_name
-        remap_image_name = rospy.resolve_name("image")
-        if remap_image_name == "/image":
-            print "Using default image subtopic: /image_rect"
-            print "Use image:=new_image_topic to change"
-            image_sub_topic = ROSTOPIC_CAM_SUB
-        else:
-            print "Using new image topic: " + remap_image_name
-            image_sub_topic = remap_image_name
+        remap_camera_name = rospy.resolve_name("stereo_camera")
+        rospy.loginfo("Using camera root: " + remap_camera_name)
+        remap_image_name = rospy.resolve_name("image_rect")
+        rospy.loginfo("Using image topic: " + remap_image_name)
         visual_detector = VisualDetector(rospy.get_name(), 
                                          remap_camera_name, remap_image_name)
         rospy.spin()
