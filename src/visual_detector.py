@@ -134,7 +134,7 @@ class stereo_image_buffer(object):
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
-            camera_pickle_file = "bumblebee_new.p"
+            camera_pickle_file = "bumblebee.p"
             print "Loading information from "+camera_pickle_file
             camera_info_pickle = roslib.packages.find_resource("udg_pandora",
                 camera_pickle_file)
@@ -301,18 +301,18 @@ class VisualDetector(object):
         self.init_panel_detector(template_image_file, panel_corners,
             template_mask_file, IS_STEREO, panel_update_rate)
         # Enable panel detection by default
-        #self._enablePanelValveDetectionSrv_()
+        self._enablePanelValveDetectionSrv_()
         # Initialise valve detector
         #self.valve = STRUCT()
         #self.valve.detector = objdetect.valve_detector()
         
         # Initialise feature detector for SLAM
         self.slam_features = STRUCT()
-        slam_features_update_rate = None
+        slam_features_update_rate = 1.
         num_slam_features = 100
-        self.init_slam_feature_detector(slam_features_update_rate,
-                                        num_features=num_slam_features,
-                                        hessian_threshold=None)
+        #self.init_slam_feature_detector(slam_features_update_rate,
+        #                                num_features=num_slam_features,
+        #                                hessian_threshold=500)
         print "Completed initialisation"
     
     def publish_transforms(self, *args, **kwargs):
@@ -330,14 +330,16 @@ class VisualDetector(object):
         stereo_down = tf.TransformBroadcaster()
         #o1 = tf.transformations.quaternion_from_euler(3.1416, 0.0, -1.57, 'sxyz')
         o1 = tf.transformations.quaternion_from_euler(0.0, 0.0, 1.57, 'sxyz')
-        stereo_down.sendTransform((0.0, 0.0, 0.0), o1, timestamp, '/stereo_down', '/girona500')
+        stereo_down.sendTransform((0.0, 0.0, 0.0), o1, timestamp, '/stereo_down', 'girona500')
         stereo_down.sendTransform((0.0, 0.12, 0.0), o_zero, timestamp, '/stereo_down_right', '/stereo_down')
         
         # Publish stereo_camera tf
         stereo_front = tf.TransformBroadcaster()
-        o2 = tf.transformations.quaternion_from_euler(-1.57, 0.0, -1.57, 'sxyz')
-        stereo_front.sendTransform((0.6, 0.0, 0.2), o2, timestamp, '/stereo_front', '/girona500')
+        o2 = tf.transformations.quaternion_from_euler(1.57, 0.0, 1.57, 'sxyz')
+        stereo_front.sendTransform((0.6, 0.0, 0.2), o2, timestamp, '/stereo_front', 'girona500')
         stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, '/stereo_front_right', '/stereo_front')
+        
+        
     
     def init_panel_detector(self, template_file_list, panel_corners,
                             template_mask_file_list=[], IS_STEREO=False,
@@ -397,11 +399,9 @@ class VisualDetector(object):
         panel.detection_msg = Detection()
         panel.pose_msg = PoseWithCovarianceStamped()
         panel.pose_msg.header.frame_id = "panel_centre"
-        panel.pose_msg_pub = metaclient.Publisher('/slam_landmarks/panel_centre', PoseWithCovarianceStamped, {})
+        panel.pose_msg_pub = metaclient.Publisher('/pose_ekf_slam/landmark_update', PoseWithCovarianceStamped, {})
         # Publish image of detected panel
-        self.panel.img_pub = [
-            metaclient.Publisher('/visual_detector2/panel_img_l', Image, {}),
-            metaclient.Publisher('/visual_detector2/panel_img_r', Image, {})]
+        self.panel.img_pub = metaclient.Publisher('/visual_detector2/panel_img', Image, {})
     
     def init_slam_feature_detector(self, update_rate=1, num_features=50,
                                    hessian_threshold=None):
@@ -506,8 +506,11 @@ class VisualDetector(object):
             bbox_colour = (0, 0, 0)
         if panel_detected:
             corners = self.panel.detector.obj_corners.astype(np.int32)
-            cv2.polylines(self.panel.detector.get_scene(0), [corners],
+            out_img = self.panel.detector.get_scene(0).copy()
+            cv2.polylines(out_img, [corners],
                           True, bbox_colour, 6)
+        else:
+            out_img = self.panel.detector.get_scene(0)
         panel_detected = (panel_detected and valid_panel_orientation)        
         panel_orientation_quaternion = quaternion_from_euler(*panel_rpy)
         self.panel.detection_msg.detected = panel_detected
@@ -527,18 +530,19 @@ class VisualDetector(object):
             # Panel orientation is screwy - only broadcast the yaw
             # which is panel_orientation[1]
             self.panel.pose_msg.header.stamp = time_now
+            cov = np.zeros((6, 6))
+            pos_diag_idx = range(3)
+            cov[pos_diag_idx, pos_diag_idx] = 0.01 #(((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2
+            self.panel.pose_msg.pose.covariance = cov.flatten().tolist()
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
                 time_now, "/panel_centre", "/stereo_front")#self.rostopic_cam_root)
-        
+            
         # Publish image of detected panel
-        scenes = self.panel.detector.get_scene()
-        img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_))
-                   for _scene_ in scenes]
-        for idx in range(len(img_msg)):
-            img_msg[idx].header.stamp = time_now
-            self.panel.img_pub[idx].publish(img_msg[idx])
+        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
+        img_msg.header.stamp = time_now
+        self.panel.img_pub.publish(img_msg)
         #print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
     
@@ -565,7 +569,7 @@ class VisualDetector(object):
         # Panel positions (in m) are (relative to 0,0 centre):
         #   left: (-0.5, +-0.25), centre: (0, +-0.25), right: (0.5, +-0.25)
         # Stem length is 10-11cm, t-bar length is 10cm
-        scene = self.panel.detector.get_scene(0)
+        scene = self.panel.detector.get_scene(0).copy()
         if detection_msg.detected and np.linalg.norm(panel_centre) <= 2:
             # Wait until transform becomes available
             try:
@@ -705,14 +709,14 @@ class VisualDetector(object):
         #print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        x_cov_base = 0.01 #(1e-2)**2
-        y_cov_base = 0.01 #(1e-2)**2
-        z_cov_base = 0.01 #(3e-2)**2
+        x_cov_base = (3e-2)**2
+        y_cov_base = (3e-2)**2
+        z_cov_base = (6e-2)**2
         points3d_scale = np.hstack((points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis]))
         covs = np.array([x_cov_base, y_cov_base, z_cov_base])*points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
-        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=2)
+        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=1)
         print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
         if points3d_covs.shape[0]:
