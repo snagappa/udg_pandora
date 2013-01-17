@@ -277,12 +277,15 @@ def mahalanobis(x, P, y):
     
 def approximate_mahalanobis(x, P, y):
     # Compute the mahalanobis distance using the diagonal of the matrix P
+    assert P.shape[0] == 1, "P must be a 1xNxN ndarray"
     assert P.shape[1] == P.shape[2], "P must be a square matrix"
-    select_diag_idx = xrange(P.shape[1])
+    select_diag_idx = range(P.shape[1])
     residual = x-y
-    diag_P = P[:, select_diag_idx, select_diag_idx]
+    #diag_P = P[:, select_diag_idx, select_diag_idx]
+    diag_P = P[0, select_diag_idx, select_diag_idx]
     p_times_residual = (1.0/diag_P)*residual
     distance = (residual*p_times_residual).sum(1)**0.5
+    #distance = (blas.ddot(residual, p_times_residual))**0.5
     return distance
 
 def merge_states(wt, x, P):

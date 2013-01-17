@@ -67,13 +67,14 @@ def blas_weaver(subroutine_string):
     
     fn_string = "__c_code__."+subroutine_string
     exec_string = ("weave.inline(" + 
+        #""" "Py_BEGIN_ALLOW_THREADS\\\n" + """ + fn_string+".code" + """ + " Py_END_ALLOW_THREADS\\\n" ,""" + 
         fn_string+".code, " + 
         fn_string+".python_vars" + 
         ", libraries=" + fn_string+".libraries" + 
         ", support_code=" + fn_string+".support_code" + 
         ", extra_compile_args=" + str(compile_args) + 
         ", include_dirs=" + str(include_dirs) +
-        ", library_dirs=" + str(include_dirs) +
+        ", library_dirs=" + str(library_dirs) +
         ", verbose=1" + ")" )
     return exec_string
 

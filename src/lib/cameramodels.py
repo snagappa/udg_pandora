@@ -282,6 +282,14 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         self.tfFrame = None
         _FoV_.__init__(self)
         self._normals_ = np.empty(0)
+        self._camera_info_ = None
+    
+    def copy(self):
+        new_camera = PinholeCameraModel()
+        if not self._camera_info_ is None:
+            new_camera.fromCameraInfo(self._camera_info_)
+        new_camera.set_tf_frame(self.tfFrame)
+        return new_camera
     
     def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0)
@@ -294,6 +302,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         """fromCameraInfo(msg) -> None
         Create camera model using the camera info message
         """
+        self._camera_info_ = msg
         super(PinholeCameraModel, self).fromCameraInfo(msg)
         self.tfFrame = msg.header.frame_id
         self.observation_volume = self._observation_volume_()
@@ -307,6 +316,8 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         using the camera :math:`P` matrix.
         This is the inverse of :meth:`projectPixelTo3dRay`.
         """
+        if not point.shape[0]:
+            return np.empty(0)
         src = np.empty((point.shape[0], 4), dtype=np.float64)
         src[:, :3] = point
         src[:, 3] = 1.0
@@ -379,7 +390,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Determines the probability of detection for points specified according
         to the camera coordinate system.
         """
-        margin = kwargs.get("margin", 3e-1)
+        margin = kwargs.get("margin", 0)
         idx_visible = np.arange(rel_points1.shape[0])
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
@@ -429,6 +440,9 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         self.tfFrame = frame_id
         self.tf_frame = frame_id
     
+    def get_tf_frame(self):
+        return (self.tfFrame,)
+    
 
 class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def __init__(self):
@@ -437,8 +451,17 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         self.right = PinholeCameraModel()
         _FoV_.__init__(self)
         self.tfFrame = None
+        self._camera_info_ = None
+    
+    def copy(self):
+        new_camera = StereoCameraModel()
+        if not self._camera_info_ is None:
+            new_camera.fromCameraInfo(self._camera_info_[0], self._camera_info_[1])
+        new_camera.set_tf_frame(self.left.tfFrame, self.right.tfFrame)
+        return new_camera
     
     def fromCameraInfo(self, left_msg, right_msg):
+        self._camera_info_ = (left_msg, right_msg)
         super(StereoCameraModel, self).fromCameraInfo(left_msg, right_msg)
         self.tfFrame = left_msg.header.frame_id
     
@@ -538,6 +561,9 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         self.tfFrame = left_frame_id
         self.left.set_tf_frame(left_frame_id)
         self.right.set_tf_frame(right_frame_id)
+    
+    def get_tf_frame(self):
+        return (self.left.tfFrame, self.right.tfFrame)
     
     def observations(self, states):
         rel_states = self.from_world_coords(states)
@@ -651,6 +677,8 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
         """
+        (images[0].keypoints, images[0].descriptors) = (
+            self.get_features(image_left))
         try:
             num_features = self.get_detector_num_features()
         except UnboundLocalError:
@@ -660,10 +688,14 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 self.set_detector_num_features(np.min([num_features*10, 2000]))
             except UnboundLocalError:
                 pass
+            """
             for (idx, _im_) in zip((0, 1), (image_left, image_right)):
                 #self.images[idx].raw = _im_.copy()
                 (images[idx].keypoints, images[idx].descriptors) = (
                 self.get_features(_im_))
+            """
+            (images[1].keypoints, images[1].descriptors) = (
+                self.get_features(image_right))
             # Use the flann matcher to match keypoints
             im_left = images[0]
             im_right = images[1]
