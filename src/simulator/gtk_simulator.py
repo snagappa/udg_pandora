@@ -582,6 +582,7 @@ class gtk_slam_sim:
         
     def publish_visible_landmarks(self, *args, **kwargs):
         self.update_visible_landmarks()
+        self.print_numlandmarks()
         self.vehicle.LOCK.acquire()
         try:
             rel_landmarks = self.vehicle.visible_landmarks.rel.copy()
