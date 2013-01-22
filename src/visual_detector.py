@@ -398,8 +398,8 @@ class VisualDetector(object):
         panel.pub = metaclient.Publisher('/visual_detector2/valve_panel', Detection, {})
         panel.detection_msg = Detection()
         panel.pose_msg = PoseWithCovarianceStamped()
-        panel.pose_msg.header.frame_id = "panel_centre"
-        panel.pose_msg_pub = metaclient.Publisher('/pose_ekf_slam/landmark_update', PoseWithCovarianceStamped, {})
+        panel.pose_msg.header.frame_id = cam_info[0].header.frame_id #"panel_centre"
+        panel.pose_msg_pub = metaclient.Publisher('/pose_ekf_slam/landmark_update/panel_centre', PoseWithCovarianceStamped, {})
         # Publish image of detected panel
         self.panel.img_pub = metaclient.Publisher('/visual_detector2/panel_img', Image, {})
     
@@ -530,9 +530,12 @@ class VisualDetector(object):
             # Panel orientation is screwy - only broadcast the yaw
             # which is panel_orientation[1]
             self.panel.pose_msg.header.stamp = time_now
+            (self.panel.pose_msg.pose.pose.position.x,
+             self.panel.pose_msg.pose.pose.position.y,
+             self.panel.pose_msg.pose.pose.position.z) = panel_centre
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
-            cov[pos_diag_idx, pos_diag_idx] = 0.01 #(((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2
+            cov[pos_diag_idx, pos_diag_idx] = 0.05 #(((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2
             self.panel.pose_msg.pose.covariance = cov.flatten().tolist()
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),

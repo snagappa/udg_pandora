@@ -352,10 +352,10 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def projection_matrix(self):
         return np.asarray(self.P)
     
-    def width(self):
+    def get_width(self):
         return self.width
     
-    def height(self):
+    def get_height(self):
         return self.height
     
     def fov_vertices_2d(self):
@@ -472,10 +472,10 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         return np.vstack((self.left.projection_matrix()[np.newaxis], 
                           self.right.projection_matrix()[np.newaxis]))
     
-    def width(self):
+    def get_width(self):
         return self.left.width()
     
-    def height(self):
+    def get_height(self):
         return self.left.height()
     
     def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):

@@ -202,8 +202,10 @@ class Detector(object):
                 self._object_.corners_2d.reshape(1, -1, 2),
                 self._object_.h_mat).reshape(-1, 2)
             # Solve perspective n-point
+            camera_matrix = np.asarray(
+                    self.camera.projection_matrix()[:3, :3], order='C')
             retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d,
-                self.obj_corners, self.camera.camera_matrix(), np.empty(0))
+                self.obj_corners, camera_matrix, np.empty(0))
                 #np.asarray(self.camera.distortionCoeffs()))
             # Convert the rotation vector to RPY
             r_mat = cv2.Rodrigues(rvec)[0]
