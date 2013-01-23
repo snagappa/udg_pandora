@@ -253,7 +253,7 @@ class VisualDetector(object):
             self.valve.tflistener = tf.TransformListener()
         except:
             rospy.logerr("VISUALDETECTOR::INIT(): Error occurred while initialising tflistener")
-        self.valve.sub = metaclient.Subscriber("/visual_detector2/valve_panel", Detection, {}, self.detect_valves)
+        #self.valve.sub = metaclient.Subscriber("/visual_detector2/valve_panel", Detection, {}, self.detect_valves)
         self.valve.pub = STRUCT()
         self.valve.pub.img = metaclient.Publisher("/visual_detector2/valve_img", Image, {})
         for valve_count in range(6):
@@ -336,8 +336,8 @@ class VisualDetector(object):
         # Publish stereo_camera tf
         stereo_front = tf.TransformBroadcaster()
         o2 = tf.transformations.quaternion_from_euler(1.57, 0.0, 1.57, 'sxyz')
-        stereo_front.sendTransform((0.6, 0.0, 0.2), o2, timestamp, '/stereo_front', 'girona500')
-        stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, '/stereo_front_right', '/stereo_front')
+        stereo_front.sendTransform((0.6, 0.0, 0.2), o2, timestamp, 'bumblebee2', 'girona500')
+        stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, 'bumblebee2_right', 'bumblebee2')
         
         
     
@@ -492,7 +492,6 @@ class VisualDetector(object):
     
     def detect_panel(self, *args):
         #self.panel.sub.unregister()
-        time_now = rospy.Time.now()
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
         self.panel.detector.detect(*cvimage)
         #self.panel.detector.show()
@@ -511,6 +510,8 @@ class VisualDetector(object):
                           True, bbox_colour, 6)
         else:
             out_img = self.panel.detector.get_scene(0)
+        time_now = rospy.Time.now()
+        self.panel.detection_msg.header.stamp = time_now
         panel_detected = (panel_detected and valid_panel_orientation)        
         panel_orientation_quaternion = quaternion_from_euler(*panel_rpy)
         self.panel.detection_msg.detected = panel_detected
@@ -520,10 +521,8 @@ class VisualDetector(object):
         (self.panel.detection_msg.position.orientation.x,
          self.panel.detection_msg.position.orientation.y,
          self.panel.detection_msg.position.orientation.z,
-         self.panel.detection_msg.position.orientation.w,) = (
+         self.panel.detection_msg.position.orientation.w) = (
              panel_orientation_quaternion)
-        
-        self.panel.detection_msg.header.stamp = time_now
         self.panel.pub.publish(self.panel.detection_msg)
         
         if panel_detected:
@@ -533,6 +532,11 @@ class VisualDetector(object):
             (self.panel.pose_msg.pose.pose.position.x,
              self.panel.pose_msg.pose.pose.position.y,
              self.panel.pose_msg.pose.pose.position.z) = panel_centre
+            (self.panel.pose_msg.pose.pose.orientation.x,
+             self.panel.pose_msg.pose.pose.orientation.y,
+             self.panel.pose_msg.pose.pose.orientation.z,
+             self.panel.pose_msg.pose.pose.orientation.w) = (
+                 panel_orientation_quaternion)
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
             cov[pos_diag_idx, pos_diag_idx] = 0.05 #(((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2
@@ -540,7 +544,8 @@ class VisualDetector(object):
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
-                time_now, "/panel_centre", "/stereo_front")#self.rostopic_cam_root)
+                time_now, "/panel_centre", "bumblebee2")#self.rostopic_cam_root)
+            # Detect valves if panel was detected at less than 2 metres
             
         # Publish image of detected panel
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
@@ -565,36 +570,63 @@ class VisualDetector(object):
         #return True
     
     def detect_valves(self, detection_msg):
-        panel_centre = np.array([detection_msg.position.position.x,
-                                   detection_msg.position.position.y,
-                                   detection_msg.position.position.z])
+        if type(detection_msg) is Detection:
+            panel_centre = np.array((detection_msg.position.position.x,
+                                     detection_msg.position.position.y,
+                                     detection_msg.position.position.z))
+            panel_orientation_quaternion = np.asarray(
+                (detection_msg.position.orientation.x,
+                 detection_msg.position.orientation.y,
+                 detection_msg.position.orientation.z,
+                 detection_msg.position.orientation.w))
+            panel_detected = detection_msg.detected
+        elif type(detection_msg) is PoseWithCovarianceStamped:
+            panel_detected = True
+            panel_centre = np.asarray(
+                (detection_msg.pose.pose.position.x,
+                 detection_msg.pose.pose.position.y,
+                 detection_msg.pose.pose.position.z))
+            panel_orientation_quaternion = np.asarray(
+                (detection_msg.pose.pose.orientation.x,
+                 detection_msg.pose.pose.orientation.y,
+                 detection_msg.pose.pose.orientation.z,
+                 detection_msg.pose.pose.orientation.w))
         # Get location of valves if closer than ~2m
         # Panel positions (in m) are (relative to 0,0 centre):
         #   left: (-0.5, +-0.25), centre: (0, +-0.25), right: (0.5, +-0.25)
         # Stem length is 10-11cm, t-bar length is 10cm
         scene = self.panel.detector.get_scene(0).copy()
-        if detection_msg.detected and np.linalg.norm(panel_centre) <= 2:
+        # Get transformation of panel centre from
+        # (x=0, y=0, z=0, r=0, p=0, y=0), (panel_centre, panel_orientation)
+        if panel_detected and np.linalg.norm(panel_centre) <= 2:
             # Wait until transform becomes available
+            homogenous_rotation_matrix = (
+                tf.transformations.quaternion_matrix(panel_orientation_quaternion))
+            homogenous_rotation_matrix[:3, -1] = panel_centre
+            """
             try:
-                self.valve.tflistener.waitForTransform("/stereo_front", 
+                self.valve.tflistener.waitForTransform("bumblebee2", 
                     "/panel_centre", rospy.Time(), rospy.Duration(0.5))
             except tf.Exception:
-                rospy.logerr("DETECT_VALVES(): Could not get transform from panel_centre to stereo_front")
+                rospy.logerr("DETECT_VALVES(): Could not get transform from panel_centre to bumblebee2")
                 return
-            time_now = rospy.Time.now()
+            """
+            time_now = detection_msg.header.stamp #rospy.Time.now()
             valve_z = 0.11
-            valve_centre = np.array([[-0.25, -0.125, valve_z],
-                                     [-0.25, +0.125, valve_z],
-                                     [ 0.0, -0.125, valve_z],
-                                     [ 0.0, +0.125, valve_z],
-                                     [+0.25, -0.125, valve_z],
-                                     [+0.25, +0.125, valve_z]])
+            # Valve centres in homogenous coordinates
+            valve_centre = np.array([[-0.25, -0.125, valve_z, 1],
+                                     [-0.25, +0.125, valve_z, 1],
+                                     [ 0.0, -0.125, valve_z, 1],
+                                     [ 0.0, +0.125, valve_z, 1],
+                                     [+0.25, -0.125, valve_z, 1],
+                                     [+0.25, +0.125, valve_z, 1]])
             #valve_centre[:, :2] += np.squeeze(panel_centre)[:2]
             valve_rad = 0.05
-            valve_bbox = np.array([[-valve_rad, -valve_rad, 0],
-                                   [ valve_rad, -valve_rad, 0],
-                                   [ valve_rad,  valve_rad, 0],
-                                   [-valve_rad,  valve_rad, 0]])
+            # Bounding box for each valve
+            valve_bbox = np.array([[-valve_rad, -valve_rad, 0, 0],
+                                   [ valve_rad, -valve_rad, 0, 0],
+                                   [ valve_rad,  valve_rad, 0, 0],
+                                   [-valve_rad,  valve_rad, 0, 0]])
             valve_msg = Detection()
             valve_msg.header.stamp = time_now
             valve_msg.header.frame_id = "panel_centre"
@@ -602,9 +634,10 @@ class VisualDetector(object):
                 # Get bounding box for the current valve
                 this_valve = valve_centre[valve_idx] + valve_bbox
                 # Convert points from panel to camera co-ordinates
-                this_valve_cc = transform_numpy_array("stereo_front", "panel_centre", this_valve)
+                #this_valve_camcoords = transform_numpy_array("bumblebee2", "panel_centre", this_valve)
+                this_valve_camcoords = np.dot(homogenous_rotation_matrix, this_valve)
                 # Project the 3D points from camera coordinates to pixels
-                px_corners = self.panel.detector.camera.project3dToPixel(this_valve_cc)
+                px_corners = self.panel.detector.camera.project3dToPixel(this_valve_camcoords)
                 px_corners = px_corners.astype(np.int32)
                 left, top = np.min(px_corners, axis=0)
                 right, bottom = np.max(px_corners, axis=0)
@@ -641,7 +674,7 @@ class VisualDetector(object):
                         self.tf_broadcaster.sendTransform(tuple(valve_centre[valve_idx]),
                             valve_orientation_quaternion, time_now,
                             "valve"+str(valve_idx), "panel_centre")
-                        #valve_centre_3d = transform_numpy_array("stereo_front", "panel_centre", valve_centre[np.newaxis, valve_idx])
+                        #valve_centre_3d = transform_numpy_array("bumblebee2", "panel_centre", valve_centre[np.newaxis, valve_idx])
                         #v_centre_px = self.panel.detector.camera.project3dToPixel(valve_centre_3d)[0]
                         #try:
                         #    scene[v_centre_px[1], v_centre_px[0]] = 255
