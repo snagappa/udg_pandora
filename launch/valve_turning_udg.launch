@@ -1,7 +1,7 @@
 <launch>
 	<arg name="enableShadders" value="true" />
-	<arg name="enableLog" value="false" />
-    <arg name="enableLandmarks" value="true" />
+	<arg name="enableLog" value="true" />
+    	<arg name="enableLandmarks" value="true" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
