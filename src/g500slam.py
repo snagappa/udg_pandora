@@ -77,11 +77,10 @@ import lib.slam_worker
 #from lib.slam_worker import PHDSLAM
 PHDSLAM = lib.slam_worker.PHDSLAM
 import numpy as np
-from lib.common.ros_helper import get_g500_config
-from lib.common.kalmanfilter import sigma_pts
-from lib.common import misctools
-from lib.common.misctools import STRUCT
-from featuredetector import cameramodels
+from lib.ros_helper import get_g500_config
+from lib.kalmanfilter import sigma_pts
+from lib import misctools
+from lib.misctools import STRUCT
 
 INVALID_ALTITUDE = -32665
 SAVITZKY_GOLAY_COEFFS = [0.2,  0.1,  0. , -0.1, -0.2]

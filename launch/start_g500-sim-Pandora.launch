@@ -45,8 +45,8 @@
 	<node name="teleoperation" pkg="cola2_control" type="teleoperation"/>
 	<node name="thruster_allocator" pkg="cola2_control" type="thruster_allocator.py"/>
 	<node name="velocity_controller" pkg="cola2_control" type="velocity_controller.py"/> 
-        <node name="merge_body_velocity_req" pkg="cola2_control" type="merge_body_velocity_req.py"/>
-        <node name="merge_body_force_req" pkg="cola2_control" type="merge_body_force_req.py"/>
+	<node name="merge_body_velocity_req" pkg="cola2_control" type="merge_body_velocity_req.py"/>
+	<node name="merge_body_force_req" pkg="cola2_control" type="merge_body_force_req.py"/>
 	<node name="pilot" pkg="cola2_control" type="pilot.py" output="screen"/>
 	<node name="captain" pkg="cola2_control" type="captain.py" output="screen"/>
 	

@@ -193,7 +193,8 @@ def ukf_predict(states, covs, ctrl_input, proc_noise, predict_fn,
     
     # Predicted state is weighted mean of predicted sigma points
     pred_state = sigma_x_pred.copy()
-    blas.dscal(wt_mn, pred_state)
+    #blas.dscal(wt_mn, pred_state)
+    pred_state *= wt_mn[:, np.newaxis]
     pred_state = pred_state.sum(axis=0)
     
     # Predicted covariance is weighted mean of sigma covariance + proc_noise

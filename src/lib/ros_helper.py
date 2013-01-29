@@ -8,7 +8,7 @@ Created on Tue Aug  7 18:44:09 2012
 import rospy
 import numpy as np
 
-from lib.common.misctools import STRUCT
+from misctools import STRUCT
 
 ##############################################################################
 # Start ROS related functions

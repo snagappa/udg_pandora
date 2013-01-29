@@ -213,7 +213,7 @@
     <position>
       <x> -2.0 </x>
       <y> -2.0 </y>
-      <z> 2.0 </z>
+      <z> 3.0 </z>
     </position>
     <orientation>
       <r>3.14</r>
@@ -241,16 +241,16 @@
 
   <object>
     <name> panel2 </name>
-	<file>data2/objects2/panel2.osg</file>
+	<file>data2/objects2/panel_b.osg</file>
     <position>
       <x> -8.0 </x>
-      <y> 7.0 </y>
-      <z> 5 </z>
+      <y> 3.0 </y>
+      <z> 3 </z>
     </position>
     <orientation>
       <r>3.14</r>
       <p>0</p>
-      <y>1.57</y>
+      <y>0</y>
     </orientation>
   </object>
 

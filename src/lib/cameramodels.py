@@ -8,10 +8,11 @@ from image_geometry import cameramodels as ros_cameramodels
 import numpy as np
 import tf
 import rospy
-from lib.common import blas, misctools
-from lib.common.misctools import STRUCT, rotation_matrix
-import cv2
+import blas
+import misctools
 import image_feature_extractor
+from misctools import STRUCT, rotation_matrix, FlannMatcher
+import cv2
 import copy
 import code
 from geometry_msgs.msg import PointStamped
@@ -22,9 +23,6 @@ default_float = "float64"
 
 def _raise_(ex):
     raise ex
-
-FLANN_INDEX_KDTREE = 1  # bug: flann enums are missing
-FLANN_INDEX_LSH    = 6
 
 # transform listener
 tflistener = None
@@ -92,105 +90,6 @@ def transform_numpy_array(target_frame, source_frame, numpy_points,
 #        tf_np_points = np.dot(rot_matrix, (numpy_points + trans).T).T
 #    return tf_np_points
 
-class FlannMatcher(object):
-    """
-    Wrapper class for using the Flann matcher. Attempts to use the new 
-    FlannBasedMatcher interface, but uses the fallback flann_Index if this is
-    unavailable.
-    """
-    def __init__(self, DESCRIPTOR_IS_BINARY=False):
-        if DESCRIPTOR_IS_BINARY:
-            self.PARAMS = dict(algorithm = FLANN_INDEX_LSH,
-                               table_number = 6, # 12
-                               key_size = 12,     # 20
-                               multi_probe_level = 1) #2
-        else:
-            self.PARAMS = dict(algorithm = FLANN_INDEX_KDTREE, 
-                                       trees = 5)
-        self.NEW_FLANN_MATCHER = False
-        try:
-            # Use the cv2 FlannBasedMatcher if available
-            # bug : need to pass empty dict (#1329)        
-            self._flann_ = cv2.FlannBasedMatcher(self.PARAMS, {})  
-            self.NEW_FLANN_MATCHER = True
-        except AttributeError as attr_err:
-            print attr_err
-            print "Could not initialise FlannBasedMatcher, using fallback"
-    
-    def knnMatch(self, queryDescriptors, trainDescriptors, k=2, mask=None, 
-                 compactResult=None):
-        """
-        knnMatch(queryDescriptors, trainDescriptors, k, mask=None, 
-                 compactResult=None) -> idx1, idx2, distance
-        Returns k best matches between queryDescriptors indexed by idx1 and 
-        trainDescriptors indexed by idx2. Distance between the descriptors is
-        given by distance, a Nxk ndarray.
-        """
-        if self.NEW_FLANN_MATCHER:
-            matches = self._flann_.knnMatch(queryDescriptors, 
-                                            trainDescriptors, k) #2
-            # Extract the distance and indices from the list of matches
-            num_descriptors = len(queryDescriptors)
-            # Default distance is one
-            distance = np.ones((num_descriptors, k))
-            idx2 = np.zeros((num_descriptors, k), dtype=np.int)
-            #try:
-            for m_count in range(num_descriptors):
-                this_match_dist_idx = [(_match_.distance, _match_.trainIdx)
-                    for _match_ in matches[m_count]]
-                # Only proceed if we have a match, otherwise leave defaults
-                if this_match_dist_idx:
-                    (this_match_dist, 
-                     this_match_idx) = zip(*this_match_dist_idx)
-                    this_match_len = len(this_match_dist)
-                    distance[m_count, 0:this_match_len] = this_match_dist
-                    idx2[m_count, 0:this_match_len] = this_match_idx
-                    if this_match_len < k:
-                        distance[m_count, this_match_len:] = (
-                            distance[m_count, this_match_len-1])
-                        idx2[m_count, this_match_len:] = (
-                            idx2[m_count, this_match_len-1])
-            #except as exc_err:
-            #    print "error occurred while matching descriptors"
-            #    code.interact(local=locals())
-        else:
-            self._flann_ = cv2.flann_Index(trainDescriptors, self.PARAMS)
-            # Perform nearest neighbours search
-            # bug: need to provide empty dict for params
-            idx2, distance = self._flann_.knnSearch(queryDescriptors, k, 
-                                                    params={})
-        idx1 = np.arange(len(queryDescriptors))
-        return idx1, idx2, distance
-    
-    def detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, ratio):
-        """
-        detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, ratio)
-        Returns pt1, pt2, valid_idx1, valid_idx2
-        """
-        try:
-            idx1, idx2, distance = self.knnMatch(obj_desc, scene_desc, 2)
-        except:
-            print "Error occurred computing knnMatch"
-            print sys.exc_info()
-            idx1 = np.empty(0, dtype=np.int)
-            idx2 = np.empty((0, 2), dtype=np.int)
-            distance = np.zeros((0, 2))
-        
-        # Use only good matches
-        mask = distance[:, 0] < (distance[:, 1] * ratio)
-        mask[idx2[:, 1] == -1] = False
-        valid_idx1 = idx1[mask]
-        idx2 = idx2[:, 0]
-        valid_idx2 = idx2[mask]
-        match_kp1, match_kp2 = [], []
-        for (_idx1_, _idx2_) in zip(valid_idx1, valid_idx2):
-            match_kp1.append(obj_kp[_idx1_])
-            match_kp2.append(scene_kp[_idx2_])
-        pts_1 = np.asarray([kp.pt for kp in match_kp1], dtype=np.float32)
-        pts_2 = np.asarray([kp.pt for kp in match_kp2], dtype=np.float32)
-        #kp_pairs = zip(match_kp1, match_kp2)
-        return pts_1, pts_2, valid_idx1, valid_idx2, (idx1, idx2, mask) #, kp_pairs
-    
 
 class _FoV_(object):
     def __init__(self):
@@ -383,6 +282,14 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         self.tfFrame = None
         _FoV_.__init__(self)
         self._normals_ = np.empty(0)
+        self._camera_info_ = None
+    
+    def copy(self):
+        new_camera = PinholeCameraModel()
+        if not self._camera_info_ is None:
+            new_camera.fromCameraInfo(self._camera_info_)
+        new_camera.set_tf_frame(self.tfFrame)
+        return new_camera
     
     def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0)
@@ -395,6 +302,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         """fromCameraInfo(msg) -> None
         Create camera model using the camera info message
         """
+        self._camera_info_ = msg
         super(PinholeCameraModel, self).fromCameraInfo(msg)
         self.tfFrame = msg.header.frame_id
         self.observation_volume = self._observation_volume_()
@@ -408,6 +316,8 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         using the camera :math:`P` matrix.
         This is the inverse of :meth:`projectPixelTo3dRay`.
         """
+        if not point.shape[0]:
+            return np.empty(0)
         src = np.empty((point.shape[0], 4), dtype=np.float64)
         src[:, :3] = point
         src[:, 3] = 1.0
@@ -442,10 +352,10 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def projection_matrix(self):
         return np.asarray(self.P)
     
-    def width(self):
+    def get_width(self):
         return self.width
     
-    def height(self):
+    def get_height(self):
         return self.height
     
     def fov_vertices_2d(self):
@@ -480,7 +390,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Determines the probability of detection for points specified according
         to the camera coordinate system.
         """
-        margin = kwargs.get("margin", 1e-1)
+        margin = kwargs.get("margin", 0)
         idx_visible = np.arange(rel_points1.shape[0])
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
@@ -530,6 +440,9 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         self.tfFrame = frame_id
         self.tf_frame = frame_id
     
+    def get_tf_frame(self):
+        return (self.tfFrame,)
+    
 
 class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def __init__(self):
@@ -538,8 +451,17 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         self.right = PinholeCameraModel()
         _FoV_.__init__(self)
         self.tfFrame = None
+        self._camera_info_ = None
+    
+    def copy(self):
+        new_camera = StereoCameraModel()
+        if not self._camera_info_ is None:
+            new_camera.fromCameraInfo(self._camera_info_[0], self._camera_info_[1])
+        new_camera.set_tf_frame(self.left.tfFrame, self.right.tfFrame)
+        return new_camera
     
     def fromCameraInfo(self, left_msg, right_msg):
+        self._camera_info_ = (left_msg, right_msg)
         super(StereoCameraModel, self).fromCameraInfo(left_msg, right_msg)
         self.tfFrame = left_msg.header.frame_id
     
@@ -550,10 +472,10 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         return np.vstack((self.left.projection_matrix()[np.newaxis], 
                           self.right.projection_matrix()[np.newaxis]))
     
-    def width(self):
+    def get_width(self):
         return self.left.width()
     
-    def height(self):
+    def get_height(self):
         return self.left.height()
     
     def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
@@ -640,6 +562,9 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         self.left.set_tf_frame(left_frame_id)
         self.right.set_tf_frame(right_frame_id)
     
+    def get_tf_frame(self):
+        return (self.left.tfFrame, self.right.tfFrame)
+    
     def observations(self, states):
         rel_states = self.from_world_coords(states)
         return rel_states
@@ -661,8 +586,8 @@ class _CameraFeatureDetector_(object):
         self._featuredetector_ = feature_extractor(**kwargs)
         self._flann_matcher_ = FlannMatcher(self._featuredetector_.DESCRIPTOR_IS_BINARY)
     
-    def get_features(self, image):
-        (keypoints, descriptors) = self._featuredetector_.get_features(image)
+    def get_features(self, image, mask=None):
+        (keypoints, descriptors) = self._featuredetector_.get_features(image, mask)
         return keypoints, descriptors
     
     def detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, 
@@ -692,7 +617,7 @@ class _CameraFeatureDetector_(object):
         return pts_1, pts_2, valid_idx1, valid_idx2 #, kp_pairs
     
     def find_homography(self, pts_1, pts_2, method=cv2.RANSAC, 
-                                       ransacReprojThreshold=5.0,
+                                       ransacReprojThreshold=3.0,
                                        min_inliers=10):
         """find_homography(self, pts_1, pts_2, method=cv2.RANSAC,
         ransacReprojThreshold=5.0, min_inliers=10) 
@@ -752,6 +677,8 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
         """
+        (images[0].keypoints, images[0].descriptors) = (
+            self.get_features(image_left))
         try:
             num_features = self.get_detector_num_features()
         except UnboundLocalError:
@@ -761,14 +688,18 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 self.set_detector_num_features(np.min([num_features*10, 2000]))
             except UnboundLocalError:
                 pass
+            """
             for (idx, _im_) in zip((0, 1), (image_left, image_right)):
                 #self.images[idx].raw = _im_.copy()
                 (images[idx].keypoints, images[idx].descriptors) = (
                 self.get_features(_im_))
+            """
+            (images[1].keypoints, images[1].descriptors) = (
+                self.get_features(image_right))
             # Use the flann matcher to match keypoints
             im_left = images[0]
             im_right = images[1]
-            if len(im_left.keypoints) and len(im_right.keypoints):
+            if (len(im_left.keypoints) > 2) and (len(im_right.keypoints) > 2):
                 match_result = self._flann_matcher_.detect_and_match(
                     im_left.keypoints, im_left.descriptors,
                     im_right.keypoints, im_right.descriptors, ratio_threshold)
@@ -779,7 +710,7 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             
             # Only proceed if there are matches
             if pts_l.shape[0]:
-                print "matches found"
+                #print "matches found"
                 kp_l = np.asarray(im_left.keypoints)[idx_l]
                 desc_l = np.asarray(im_left.descriptors)[idx_l]
                 kp_r = np.asarray(im_right.keypoints)[idx_r]
@@ -806,7 +737,10 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 desc_l = np.empty(0)
                 desc_r = np.empty(0)
         except:
-            print sys.exc_info()
+            exc_info = sys.exc_info()
+            print "STEREOCAMERAFEATUREDETECTOR: POINTS3D_FROM_IMG():"
+            print traceback.print_tb(exc_info[2])
+            
         finally:
             try:
                 self.set_detector_num_features(num_features)
