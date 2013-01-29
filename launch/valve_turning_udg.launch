@@ -1,7 +1,7 @@
 <launch>
 	<arg name="enableShadders" value="true" />
 	<arg name="enableLog" value="false" />
-    <arg name="enableLandmarks" value="true" />
+    <arg name="enableLandmarks" value="false" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
@@ -25,7 +25,7 @@
 	<!-- Load nodes -->
 	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/>
 	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/>
-        <node name="phdslam" pkg="udg_pandora" type="g500slam.py" /> 
+<!--        <node name="phdslam" pkg="udg_pandora" type="g500slam.py" /> -->
 
 	<!-- stereo image proc down & front-->	
     <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
