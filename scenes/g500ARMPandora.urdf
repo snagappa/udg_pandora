@@ -58,7 +58,7 @@
       <parent link="shoulder"/>
       <child link="biceps"/>
       <axis xyz="0 1 0"/>
-      <origin rpy="0 0 0" xyz="0.10 0.0 0.05"/>
+      <origin rpy="0 0 0" xyz="0.10 0.0 0.0"/>
    </joint>
 
   <link name="forearm">
@@ -75,7 +75,7 @@
       <parent link="biceps"/>
       <child link="forearm"/>
       <axis xyz="0 1 0"/>
-      <origin rpy="0 0 0" xyz="0.22 0.0 0.05"/>
+      <origin rpy="0 -1.57 0" xyz="0.22 0.0 0.05"/>
    </joint>
 
   <link name="palm">
