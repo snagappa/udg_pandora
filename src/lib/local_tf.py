@@ -20,8 +20,10 @@ class TransformListener():
     def asMatrix(self, target_frame, header):
         translation, rotation = self._transformer_.lookupTransform(
             target_frame, header.frame_id, header.stamp)
-        return np.dot(self.transformations.translation_matrix(translation),
-                      self.transformations.quaternion_matrix(rotation))
+        mat44 = np.dot(
+            self._transformations_.translation_matrix(translation),
+            self._transformations_.quaternion_matrix(rotation))
+        return mat44
 
 # Wrapper class to redirect TransformBroadcaster to use the local transformer
 class TransformBroadcaster():

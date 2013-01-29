@@ -154,10 +154,16 @@ class Detector(object):
                                                   keypoints_scene,
                                                   descriptors_scene,
                                                   self.flann_ratio_threshold)
-        pts_1, pts_2 = dam_result[0:2]
+        pts_obj, pts_scn = dam_result[0:2]
         status, h_mat, num_inliers, inliers_status = (
-            self.camera.find_homography(pts_1, pts_2,
+        self.camera.find_homography(pts_scn, pts_obj, ransacReprojThreshold=10,
             min_inliers=self._object_.min_correspondences))
+        try:
+            h_mat = np.linalg.inv(h_mat)
+        except:
+            print "Error computing inverse of homography!"
+            h_mat = None
+            status = False
         return status, h_mat, num_inliers, inliers_status
     
     def detect(self, im_scene, *dummy_args):
@@ -210,7 +216,7 @@ class Detector(object):
             # Convert the rotation vector to RPY
             r_mat = cv2.Rodrigues(rvec)[0]
             self.obj_rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
-            self.obj_trans = tvec
+            self.obj_trans = np.squeeze(tvec)
             obj_range = np.linalg.norm(self.obj_trans)
             if not retval or (not 0.25 < obj_range < 5):
                 print "Too close/far for reliable estimation"

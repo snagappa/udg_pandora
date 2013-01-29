@@ -134,7 +134,7 @@ class stereo_image_buffer(object):
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
-            camera_pickle_file = "bumblebee.p"
+            camera_pickle_file = "bumblebee_new.p"
             print "Loading information from "+camera_pickle_file
             camera_info_pickle = roslib.packages.find_resource("udg_pandora",
                 camera_pickle_file)
@@ -546,6 +546,8 @@ class VisualDetector(object):
                 panel_orientation_quaternion,
                 time_now, "/panel_centre", "bumblebee2")#self.rostopic_cam_root)
             # Detect valves if panel was detected at less than 2 metres
+            self.detect_valves(self.panel.pose_msg)
+            #print "\nPanel RPY = %s \n" % (panel_rpy*180/np.pi)
             
         # Publish image of detected panel
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
@@ -591,14 +593,15 @@ class VisualDetector(object):
                  detection_msg.pose.pose.orientation.y,
                  detection_msg.pose.pose.orientation.z,
                  detection_msg.pose.pose.orientation.w))
-        # Get location of valves if closer than ~2m
+            panel_orientation_euler = np.asarray(tf.transformations.euler_from_quaternion(panel_orientation_quaternion))
+        # Get location of valves if closer than ~2m and orientation < ~30 degrees
         # Panel positions (in m) are (relative to 0,0 centre):
         #   left: (-0.5, +-0.25), centre: (0, +-0.25), right: (0.5, +-0.25)
         # Stem length is 10-11cm, t-bar length is 10cm
         scene = self.panel.detector.get_scene(0).copy()
         # Get transformation of panel centre from
         # (x=0, y=0, z=0, r=0, p=0, y=0), (panel_centre, panel_orientation)
-        if panel_detected and np.linalg.norm(panel_centre) <= 2:
+        if panel_detected and (np.linalg.norm(panel_centre) <= 1.5) and (np.abs(panel_orientation_euler[1]) < 0.5):
             # Wait until transform becomes available
             homogenous_rotation_matrix = (
                 tf.transformations.quaternion_matrix(panel_orientation_quaternion))
@@ -635,9 +638,9 @@ class VisualDetector(object):
                 this_valve = valve_centre[valve_idx] + valve_bbox
                 # Convert points from panel to camera co-ordinates
                 #this_valve_camcoords = transform_numpy_array("bumblebee2", "panel_centre", this_valve)
-                this_valve_camcoords = np.dot(homogenous_rotation_matrix, this_valve)
+                this_valve_camcoords = np.dot(homogenous_rotation_matrix, this_valve.T).T
                 # Project the 3D points from camera coordinates to pixels
-                px_corners = self.panel.detector.camera.project3dToPixel(this_valve_camcoords)
+                px_corners = self.panel.detector.camera.project3dToPixel(this_valve_camcoords[:, :3])
                 px_corners = px_corners.astype(np.int32)
                 left, top = np.min(px_corners, axis=0)
                 right, bottom = np.max(px_corners, axis=0)
@@ -655,14 +658,10 @@ class VisualDetector(object):
                         valve_msg.detected = True
                         (valve_msg.position.position.x,
                          valve_msg.position.position.y,
-                         valve_msg.position.position.z) = valve_centre[valve_idx]
+                         valve_msg.position.position.z) = valve_centre[valve_idx][:3]
                         # Obtain rotation of the valve wrt the panel
                         # TODO: Find a more robust way of doing this
-                        panel_rpy = np.asarray(tf.transformations.euler_from_quaternion(
-                            (detection_msg.position.orientation.x,
-                             detection_msg.position.orientation.y,
-                             detection_msg.position.orientation.z,
-                             detection_msg.position.orientation.w)))
+                        panel_rpy = panel_orientation_euler
                         valve_rpy = (0, 0, this_valve_orientation - panel_rpy[2])
                         valve_orientation_quaternion = tf.transformations.quaternion_from_euler(*valve_rpy)
                         (valve_msg.position.orientation.x,
@@ -686,8 +685,8 @@ class VisualDetector(object):
         self.valve.pub.img.publish(img_msg)
     
     def detect_valve_orientation(self, im, bbox=None, HIGHLIGHT=True,
-            CannyThreshold1=50, CannyThreshold2=100,
-            HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=10,
+            CannyThreshold1=30, CannyThreshold2=100,
+            HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=8,
             HoughMinLineLength=60, HoughMaxLineGap=10):
         """detect_valve_orientation(self, im, bbox=None) -> theta
         Estimate valve orientation using Hough transform:
@@ -698,6 +697,14 @@ class VisualDetector(object):
         im_box = im[np.ix_(np.arange(bbox[1], bbox[3]), 
                            np.arange(bbox[0], bbox[2]))]
         im_edges = cv2.Canny(im_box, CannyThreshold1, CannyThreshold2)
+        # Zero lines in the borders using a circular mask
+        box_height, box_width = im_box.shape
+        mask = np.zeros(im_box.shape)
+        mask_centre = (int(box_width/2), int(box_height/2))
+        mask_radius = int(max((box_height, box_width))/2*1.1)
+        cv2.circle(mask, mask_centre, mask_radius, (255, 255, 255), thickness=-1)
+        mask[mask>0] = 1
+        im_edges *= mask
         lines = np.squeeze(cv2.HoughLinesP(im_edges, HoughRho, HoughTheta,
             HoughThreshold, minLineLength=HoughMinLineLength,
             maxLineGap=HoughMaxLineGap))
@@ -745,9 +752,9 @@ class VisualDetector(object):
         #print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        x_cov_base = (3e-2)**2
-        y_cov_base = (3e-2)**2
-        z_cov_base = (6e-2)**2
+        x_cov_base = (15e-2)**2
+        y_cov_base = (15e-2)**2
+        z_cov_base = (20e-2)**2
         points3d_scale = np.hstack((points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis]))
