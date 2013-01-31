@@ -69,6 +69,30 @@
   </camera>
 
   <vehicle>
+      <name>valvepanel</name>
+      <file>scenes/valvePanel.urdf</file>
+      <jointValues>
+          <joint> 0.75 </joint>
+          <joint> -0.75 </joint>
+          <joint> 0.30 </joint>
+          <joint> 1.57 </joint>
+          <joint> -1.0 </joint>
+          <joint> 0.0 </joint>
+      </jointValues>
+      <position>
+          <x> 0.0 </x>
+          <y> 0.0 </y>
+          <z> 2.0 </z>
+      </position>
+      <orientation>
+          <r>0</r>
+          <p>0</p>
+          <y>0</y>
+      </orientation>
+  </vehicle>
+
+
+  <vehicle>
     <name>girona500</name>
     <file>scenes/g500ARMPandora.urdf</file>
     <jointValues>
@@ -327,9 +351,17 @@
 	<topic>/uwsim/joint_state</topic>
 	<vehicleName> girona500 </vehicleName>
     </ArmToROSJointState>
+    <ArmToROSJointState> 
+	<topic>/uwsim/valve_state</topic>
+	<vehicleName> valvepanel </vehicleName>
+    </ArmToROSJointState>
     <ROSJointStateToArm> 
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
+    </ROSJointStateToArm>
+    <ROSJointStateToArm> 
+	<topic>/uwsim/valve_state_command</topic>
+	<vehicleName> valvepanel </vehicleName>
     </ROSJointStateToArm>
 
 
