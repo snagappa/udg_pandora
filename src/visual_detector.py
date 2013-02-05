@@ -17,7 +17,7 @@ from lib import objdetect
 import numpy as np
 import message_filters
 from lib.misctools import STRUCT, pcl_xyz_cov, approximate_mahalanobis, \
-    merge_states, image_converter
+    merge_states, image_converter, Retinex
 from lib import cameramodels, image_feature_extractor
 from tf import TransformBroadcaster
 from tf.transformations import quaternion_from_euler
@@ -279,9 +279,8 @@ class VisualDetector(object):
         # Initialise panel detector
         if not USE_SIMULATOR:
             # For new real panel:
-            template_image_file = ["rp2_close3.png"]
-            template_mask_file = ["rp2_close3_mask.png"]
-            
+            template_image_file = ["new_panel_template.png"]
+            template_mask_file = [] #["new_panel_mask.png"]
             # For old real panel:
             #template_image_file = ["real_panel_close_crop2.png", "real_panel_mid_crop2.png"]
             #template_mask_file = ["real_panel_close_crop2_mask.png", "real_panel_mid_crop2_mask.png"]
@@ -327,19 +326,20 @@ class VisualDetector(object):
         """
         o_zero = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
         # Publish stereo_camera tf
-        stereo_down = tf.TransformBroadcaster()
-        #o1 = tf.transformations.quaternion_from_euler(3.1416, 0.0, -1.57, 'sxyz')
-        o1 = tf.transformations.quaternion_from_euler(0.0, 0.0, 1.57, 'sxyz')
-        stereo_down.sendTransform((0.0, 0.0, 0.0), o1, timestamp, '/stereo_down', 'girona500')
-        stereo_down.sendTransform((0.0, 0.12, 0.0), o_zero, timestamp, '/stereo_down_right', '/stereo_down')
+        camera_tf_br = tf.TransformBroadcaster()
+        o_zero = tf.transformations.quaternion_from_euler(0, 0, 0, 'sxyz')
+        o_st_down = tf.transformations.quaternion_from_euler(0.0, 0.0, 1.57, 'sxyz')
+        t_st_down = (0.6, 0.0, 0.4)
+        o_st_front = tf.transformations.quaternion_from_euler(1.57, 0.0, 1.57, 'sxyz')
+        t_st_front = (0.6, 0.0, 0.2)
         
-        # Publish stereo_camera tf
-        stereo_front = tf.TransformBroadcaster()
-        o2 = tf.transformations.quaternion_from_euler(1.57, 0.0, 1.57, 'sxyz')
-        stereo_front.sendTransform((0.6, 0.0, 0.2), o2, timestamp, 'bumblebee2', 'girona500')
-        stereo_front.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, 'bumblebee2_right', 'bumblebee2')
+        # Stereo down
+        camera_tf_br.sendTransform(t_st_down, o_st_down, timestamp, '/stereo_down', 'girona500')
+        camera_tf_br.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, '/stereo_down_right', '/stereo_down')
         
-        
+        # Bumblebee tf
+        camera_tf_br.sendTransform(t_st_front, o_st_front, timestamp, 'bumblebee2', 'girona500')
+        camera_tf_br.sendTransform((0.12, 0.0, 0.0), o_zero, timestamp, 'bumblebee2_right', 'bumblebee2')
     
     def init_panel_detector(self, template_file_list, panel_corners,
                             template_mask_file_list=[], IS_STEREO=False,
@@ -360,6 +360,9 @@ class VisualDetector(object):
             panel.detector.camera._featuredetector_.set_nLevels(16)
         except:
             print "Error setting scaleFactor and nLevels"
+        
+        # Plugin for white balance
+        panel.Retinex = Retinex()
         
         # Get camera info msg and initialise camera
         cam_info = self.image_buffer.get_camera_info()
@@ -388,7 +391,9 @@ class VisualDetector(object):
             if len(template_mask_file):
                 template_mask_file = template_mask_file[0]
                 template_mask = cv2.imread(template_mask_file, cv2.CV_8UC1)
-
+            
+            # Fix luminance before adding template
+            template_image = panel.Retinex.retinex(template_image)
             panel.detector.add_to_template(template_image, template_mask)
         
         self.panel.callback_id = None
@@ -492,7 +497,7 @@ class VisualDetector(object):
     
     def detect_panel(self, *args):
         #self.panel.sub.unregister()
-        cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
+        cvimage = [self.panel.Retinex.retinex(np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy()) for _img_ in args]
         self.panel.detector.detect(*cvimage)
         #self.panel.detector.show()
         panel_detected, panel_centre, panel_orientation = (
@@ -539,7 +544,7 @@ class VisualDetector(object):
                  panel_orientation_quaternion)
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
-            cov[pos_diag_idx, pos_diag_idx] = 0.05 #(((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2
+            cov[pos_diag_idx, pos_diag_idx] = (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2
             self.panel.pose_msg.pose.covariance = cov.flatten().tolist()
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
@@ -618,11 +623,12 @@ class VisualDetector(object):
             valve_z = 0.11
             # Valve centres in homogenous coordinates
             valve_centre = np.array([[-0.25, -0.125, valve_z, 1],
-                                     [-0.25, +0.125, valve_z, 1],
+                                     #[-0.25, +0.125, valve_z, 1],
                                      [ 0.0, -0.125, valve_z, 1],
                                      [ 0.0, +0.125, valve_z, 1],
                                      [+0.25, -0.125, valve_z, 1],
-                                     [+0.25, +0.125, valve_z, 1]])
+                                     #[+0.25, +0.125, valve_z, 1]
+                                     ])
             #valve_centre[:, :2] += np.squeeze(panel_centre)[:2]
             valve_rad = 0.05
             # Bounding box for each valve
@@ -633,7 +639,7 @@ class VisualDetector(object):
             valve_msg = Detection()
             valve_msg.header.stamp = time_now
             valve_msg.header.frame_id = "panel_centre"
-            for valve_idx in range(6):
+            for valve_idx in range(valve_centre.shape[0]):
                 # Get bounding box for the current valve
                 this_valve = valve_centre[valve_idx] + valve_bbox
                 # Convert points from panel to camera co-ordinates
