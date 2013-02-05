@@ -360,7 +360,7 @@ def get_resample_index(weights, nparticles=-1):
     return resampled_indices
     
     
-def mvnpdf(x, mu, sigma):
+def mvnpdf(x, mu, sigma, LOG=False):
     # Compute the residuals
     #if x.shape[0] == 1:
     #    residual = np.repeat(x, mu.shape[0], 0)
@@ -388,16 +388,22 @@ def mvnpdf(x, mu, sigma):
         inv_sqrt_sigma = blas.dtrtri(chol_sigma, 'l')
         exp_term = np.power(blas.dgemv(inv_sqrt_sigma,residual), 2).sum(axis=1)
     
-    pdf = np.exp(-0.5*exp_term)/np.sqrt(det_sigma*(2*np.pi)**residual.shape[1])
+    if LOG:
+        pdf = -0.5*exp_term - 0.5*(np.log(det_sigma)+residual.shape[1]*np.log(2*np.pi))
+    else:
+        pdf = np.exp(-0.5*exp_term)/np.sqrt(det_sigma*(2*np.pi)**residual.shape[1])
     return pdf
     
     
-def approximate_mvnpdf(x, mu, sigma):
+def approximate_mvnpdf(x, mu, sigma, LOG=False):
     residual = x-mu
     # Extract diagonals from sigma into a 2D array
     sigma_diag = sigma[:, range(sigma.shape[1]), range(sigma.shape[2])]
     exp_term = ((residual**2)*(1.0/sigma_diag)).sum(axis=1)
-    pdf = np.exp(-0.5*exp_term)/np.sqrt(sigma_diag.prod(axis=1)*(2*np.pi)**residual.shape[1])
+    if LOG:
+        pdf = -0.5*exp_term - 0.5*(np.log(sigma_diag).sum()+residual.shape[1]*np.log(2*np.pi))
+    else:
+        pdf = np.exp(-0.5*exp_term)/np.sqrt(sigma_diag.prod(axis=1)*(2*np.pi)**residual.shape[1])
     return pdf
 
 
