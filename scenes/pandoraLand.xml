@@ -69,14 +69,38 @@
   </camera>
 
   <vehicle>
+      <name>valvepanel</name>
+      <file>scenes/valvePanel.urdf</file>
+      <jointValues>
+          <joint> 0.75 </joint>
+          <joint> -0.75 </joint>
+          <joint> 0.30 </joint>
+          <joint> 1.57 </joint>
+          <joint> -1.0 </joint>
+          <joint> 0.0 </joint>
+      </jointValues>
+      <position>
+          <x> 0.0 </x>
+          <y> 0.0 </y>
+          <z> 2.0 </z>
+      </position>
+      <orientation>
+          <r>0</r>
+          <p>0</p>
+          <y>0</y>
+      </orientation>
+  </vehicle>
+
+
+  <vehicle>
     <name>girona500</name>
     <file>scenes/g500ARMPandora.urdf</file>
     <jointValues>
       <joint> 0.0 </joint>
-      <joint> 1.5 </joint>  
-      <joint> -2.5 </joint> 
+      <joint> 0.0 </joint>  <!-- 0.75 1.5 -->
+      <joint> 0.0</joint> <!-- -0.75 -2.5--> 
       <joint> 0.0 </joint> 
-      <joint> 0.0 </joint> 
+      <joint> 0.0</joint> 
     </jointValues>
     <position>
       <x> 0.0 </x>
@@ -213,7 +237,7 @@
     <position>
       <x> -2.0 </x>
       <y> -2.0 </y>
-      <z> 2.0 </z>
+      <z> 3.0 </z>
     </position>
     <orientation>
       <r>3.14</r>
@@ -241,16 +265,16 @@
 
   <object>
     <name> panel2 </name>
-	<file>data2/objects2/panel2.osg</file>
+	<file>data2/objects2/panel_b.osg</file>
     <position>
       <x> -8.0 </x>
-      <y> 7.0 </y>
-      <z> 5 </z>
+      <y> 3.0 </y>
+      <z> 3 </z>
     </position>
     <orientation>
       <r>3.14</r>
       <p>0</p>
-      <y>1.57</y>
+      <y>0</y>
     </orientation>
   </object>
 
@@ -327,9 +351,17 @@
 	<topic>/uwsim/joint_state</topic>
 	<vehicleName> girona500 </vehicleName>
     </ArmToROSJointState>
+    <ArmToROSJointState> 
+	<topic>/uwsim/valve_state</topic>
+	<vehicleName> valvepanel </vehicleName>
+    </ArmToROSJointState>
     <ROSJointStateToArm> 
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
+    </ROSJointStateToArm>
+    <ROSJointStateToArm> 
+	<topic>/uwsim/valve_state_command</topic>
+	<vehicleName> valvepanel </vehicleName>
     </ROSJointStateToArm>
 
 

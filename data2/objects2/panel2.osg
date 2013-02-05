@@ -2,7 +2,7 @@ Group {
   name "panel2.obj"
   nodeMask 0xffffffff
   cullingActive TRUE
-  num_children 3
+  num_children 4
   Geode {
     name "handle2_Cylinder.014"
     nodeMask 0xffffffff
@@ -13178,11 +13178,12 @@ Group {
     Geometry {
       DataVariance STATIC
       StateSet {
+        UniqueID StateSet_0
         DataVariance STATIC
         rendering_hint DEFAULT_BIN
         renderBinMode INHERIT
         Material {
-          UniqueID Material_0
+          UniqueID Material_1
           name "Material_delring.jpg"
           ColorMode OFF
           ambientColor 0 0 0 1
@@ -13191,31 +13192,10 @@ Group {
           emissionColor 0 0 0 1
           shininess 12.288
         }
-        textureUnit 0 {
-          GL_TEXTURE_2D ON
-          Texture2D {
-            file "/home/narcis/Desktop/workspace/udg_pandora/data2/objects2/delring.jpg"
-            wrap_s REPEAT
-            wrap_t REPEAT
-            wrap_r REPEAT
-            min_filter LINEAR_MIPMAP_LINEAR
-            mag_filter LINEAR
-            maxAnisotropy 1
-            borderColor 0 0 0 0
-            borderWidth 0
-            useHardwareMipMapGeneration TRUE
-            unRefImageDataAfterApply TRUE
-            internalFormatMode USE_IMAGE_DATA_FORMAT
-            resizeNonPowerOfTwo TRUE
-            shadowComparison FALSE
-            shadowCompareFunc GL_LEQUAL
-            shadowTextureMode GL_LUMINANCE
-          }
-        }
       }
       useDisplayList TRUE
       useVertexBufferObjects FALSE
-      PrimitiveSets 5
+      PrimitiveSets 4
       {
         DrawElementsUShort TRIANGLE_STRIP 4
         {
@@ -13227,10 +13207,6 @@ Group {
         }
         DrawElementsUShort TRIANGLE_STRIP 4
         {
-          19 16 18 17 
-        }
-        DrawElementsUShort TRIANGLE_STRIP 4
-        {
           13 14 12 15 
         }
         DrawElementsUShort TRIANGLE_STRIP 4
@@ -13238,7 +13214,7 @@ Group {
           9 10 8 11 
         }
       }
-      VertexArray Vec3Array 20
+      VertexArray Vec3Array 16
       {
         0.16 0.76 -0.0375
         0.16 -0.04 -0.0375
@@ -13252,40 +13228,32 @@ Group {
         0.16 -0.04 0.4625
         0.05 -0.04 0.4625
         0.05 -0.04 -0.0375
-        0.05 -0.04 -0.0375
-        0.05 -0.04 0.4625
-        0.05 0.76 0.4625
-        0.05 0.76 -0.0375
         0.16 0.76 0.4625
         0.16 0.76 -0.0375
         0.05 0.76 -0.0375
         0.05 0.76 0.4625
       }
       NormalBinding PER_VERTEX
-      NormalArray Vec3Array 20
+      NormalArray Vec3Array 16
       {
         0 0.298275 -0.95448
         0 -0.780869 -0.624695
-        -0.97445 -0.0669935 -0.214379
-        -0.943218 0.259385 -0.207508
+        0 -0.298275 -0.95448
+        0 0.780869 -0.624695
         0 0.529999 0.847998
-        -0.991691 0.0681788 0.109086
-        -0.887627 -0.244098 0.390556
+        0 0.529999 0.847998
+        0 -0.529999 0.847998
         0 -0.529999 0.847998
         0 -0.780869 -0.624695
         0 -0.529999 0.847998
-        -0.887627 -0.244098 0.390556
-        -0.97445 -0.0669935 -0.214379
-        -0.97445 -0.0669935 -0.214379
-        -0.887627 -0.244098 0.390556
-        -0.991691 0.0681788 0.109086
-        -0.943218 0.259385 -0.207508
+        0 -0.529999 0.847998
+        0 -0.298275 -0.95448
         0 0.529999 0.847998
         0 0.298275 -0.95448
-        -0.943218 0.259385 -0.207508
-        -0.991691 0.0681788 0.109086
+        0 0.780869 -0.624695
+        0 0.529999 0.847998
       }
-      TexCoordArray 0 Vec2Array 20
+      TexCoordArray 0 Vec2Array 16
       {
         0 0.191302
         0.819249 0.190282
@@ -13299,10 +13267,6 @@ Group {
         0.333333 0.334353
         0.668826 0.338454
         0.666667 0.593962
-        0.972319 0.006801
-        0.973338 0.894278
-        0.068259 0.907218
-        0.070419 0.018061
         0.717149 0.00512
         0.718169 0.812511
         0.024955 0.822091
@@ -13321,11 +13285,11 @@ Group {
         DataVariance STATIC
         rendering_hint DEFAULT_BIN
         renderBinMode INHERIT
-        Use Material_0
+        Use Material_1
         textureUnit 0 {
           GL_TEXTURE_2D ON
           Texture2D {
-            file "/home/narcis/Desktop/workspace/udg_pandora/data2/objects2/panel_texture.jpg"
+            file "workspace/udg_pandora/data2/objects2/panel_texture.jpg"
             wrap_s REPEAT
             wrap_t REPEAT
             wrap_r REPEAT
@@ -13374,6 +13338,47 @@ Group {
         1.00323 0.994879
         0 1
         0 1e-06
+      }
+    }
+  }
+  Geode {
+    name "handle2_Cylinder.014"
+    nodeMask 0xffffffff
+    cullingActive TRUE
+    num_drawables 1
+    Geometry {
+      DataVariance STATIC
+      Use StateSet_0
+      useDisplayList TRUE
+      useVertexBufferObjects FALSE
+      PrimitiveSets 1
+      {
+        DrawElementsUShort TRIANGLE_STRIP 4
+        {
+          1 2 0 3 
+        }
+      }
+      VertexArray Vec3Array 4
+      {
+        0.05 -0.04 -0.0375
+        0.05 -0.04 0.4625
+        0.05 0.76 0.4625
+        0.05 0.76 -0.0375
+      }
+      NormalBinding PER_VERTEX
+      NormalArray Vec3Array 4
+      {
+        -1 0 0
+        -1 0 0
+        -1 0 0
+        -1 0 0
+      }
+      TexCoordArray 0 Vec2Array 4
+      {
+        1.00093 0.006801
+        0.995591 0.996686
+        0.00786 1.00451
+        0.000482 0.0027
       }
     }
   }
