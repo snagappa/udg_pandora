@@ -125,7 +125,7 @@ class _FoV_(object):
                 print tferror
                 print "Error initialising tflistener, may be unavailable"
     
-    def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
+    def set_near_far_fov(self, fov_near=0.3, fov_far=3.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0) -> None
         Set the near and far distances visible by the camera
         """
@@ -352,10 +352,10 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def projection_matrix(self):
         return np.asarray(self.P)
     
-    def width(self):
+    def get_width(self):
         return self.width
     
-    def height(self):
+    def get_height(self):
         return self.height
     
     def fov_vertices_2d(self):
@@ -391,7 +391,11 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         to the camera coordinate system.
         """
         margin = kwargs.get("margin", 0)
+        #USE_PROJECTION_METHOD = kwargs.get("USE_PROJECTION_METHOD", True)
+        
+        # Track indices of visible points
         idx_visible = np.arange(rel_points1.shape[0])
+        # Initialise pd as 0
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         # Check near plane
         idx_visible = idx_visible[rel_points1[idx_visible, 2] > (self.fov_near+margin)]
@@ -399,19 +403,56 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         # Check far plane
         idx_visible = idx_visible[rel_points1[idx_visible, 2] < (self.fov_far-margin)]
         if idx_visible.shape[0] == 0: return pd
+        
         # Frustum planes
-        # Scale pd according to distance from the plane
-        scale_factor = self.pd*np.ones(idx_visible.shape[0], dtype=np.float)
         for _normal_ in self._normals_:
             dot_product = np.dot(rel_points1[idx_visible], _normal_)
-            valid_idx = dot_product < margin
+            valid_idx = dot_product < 0
             idx_visible = idx_visible[valid_idx]
-            scale_factor = scale_factor[valid_idx]
-            dot_product = np.abs(dot_product[valid_idx])
-            scale_idx = dot_product < margin
-            scale_factor[scale_idx] *= dot_product[scale_idx]/margin
             if idx_visible.shape[0] == 0: return pd
-        pd[idx_visible] = scale_factor
+        
+        # Use projection or frustums to evaluate pd
+        # Apply projection to points and discard points on the boundaries
+        image_points = self.project3dToPixel(rel_points1[idx_visible])
+        xmargin_l = 16
+        xmargin_r = 16
+        ymargin_t = 16
+        ymargin_b = 200
+        # Discard points with image x-coordinate < margin
+        _valid_ = image_points[:, 0] >= xmargin_l
+        idx_visible = idx_visible[_valid_]
+        image_points = image_points[_valid_]
+        if idx_visible.shape[0] == 0: return pd
+        # Discard points with image x-coordinate > width-margin
+        _valid_ = image_points[:, 0] <= (self.width-xmargin_r)
+        idx_visible = idx_visible[_valid_]
+        image_points = image_points[_valid_]
+        if idx_visible.shape[0] == 0: return pd
+        # Discard points with image y-coordinate < margin
+        _valid_ = image_points[:, 1] >= ymargin_t
+        idx_visible = idx_visible[_valid_]
+        image_points = image_points[_valid_]
+        if idx_visible.shape[0] == 0: return pd
+        # Discard points with image x-coordinate > height-margin
+        _valid_ = image_points[:, 1] <= (self.height-ymargin_b)
+        idx_visible = idx_visible[_valid_]
+        image_points = image_points[_valid_]
+        if idx_visible.shape[0] == 0: return pd
+        pd[idx_visible] = self.pd
+        
+#        # Frustum planes
+#        # Scale pd according to distance from the plane
+#        scale_factor = self.pd*np.ones(idx_visible.shape[0], dtype=np.float)
+#        for _normal_ in self._normals_:
+#            dot_product = np.dot(rel_points1[idx_visible], _normal_)
+#            valid_idx = dot_product < margin
+#            idx_visible = idx_visible[valid_idx]
+#            scale_factor = scale_factor[valid_idx]
+#            dot_product = np.abs(dot_product[valid_idx])
+#            scale_idx = dot_product < margin
+#            scale_factor[scale_idx] *= dot_product[scale_idx]/margin
+#            if idx_visible.shape[0] == 0: return pd
+#        pd[idx_visible] = scale_factor
         return pd
     
     def _create_normals_(self):
@@ -472,11 +513,11 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         return np.vstack((self.left.projection_matrix()[np.newaxis], 
                           self.right.projection_matrix()[np.newaxis]))
     
-    def width(self):
-        return self.left.width()
+    def get_width(self):
+        return self.left.get_width()
     
-    def height(self):
-        return self.left.height()
+    def get_height(self):
+        return self.left.get_height()
     
     def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0) -> None
@@ -502,8 +543,10 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         """pdf_detection(self, points) -> pd
         Calculate the probability of detection for the points
         """
-        l_pdf = self.left.pdf_detection(points, **kwargs)
-        r_pdf = self.right.pdf_detection(points, **kwargs)
+        # Convert points to left reference frame
+        rel_points = self.left.from_world_coords(points)[0]
+        l_pdf = self.left._pdf_detection_(rel_points, **kwargs)
+        r_pdf = self.right._pdf_detection_(rel_points, **kwargs)
         l_pdf = np.vstack((l_pdf, r_pdf))
         return np.min(l_pdf, axis=0)
     
@@ -717,7 +760,11 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 desc_r = np.asarray(im_right.descriptors)[idx_r]
                 # Valid matches are those where y co-ordinate of p1 and p2 are
                 # almost equal
-                y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
+                # Subtract offset from inaccurate calibration
+                #pts_r[:, 1] += 39
+                y_diff = np.abs(pts_l[:, 1] - (pts_r[:, 1]+self.right.P[1, 3]))
+                #print "Average y_diff = ", np.min(y_diff), np.mean(y_diff), np.max(y_diff)
+                #print "y_diff std = ", np.std(y_diff)
                 valid_disparity_mask = y_diff < 3.0
                 # Select keypoints and descriptors which satisfy disparity
                 pts_l = pts_l[valid_disparity_mask]

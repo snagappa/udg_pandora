@@ -85,6 +85,9 @@ def np_kf_update_x(x, pred_z, z, kalman_gain, INPLACE=True):
     
     return upd_state, residuals
     
+def np_kf_predict_cov(covariance, F, Q):
+    pred_cov = np.dot(F, np.dot(covariance, F.T)) + Q
+    return pred_cov
 
 def kf_predict_cov(covariance, F, Q):
     # Repeat Q n times and return as the predicted covariance
