@@ -26,7 +26,7 @@ import threading
 import copy
 import pickle
 import itertools
-#from lib.cameramodels import transform_numpy_array
+from lib.cameramodels import transform_numpy_array
 #import time
 
 USE_SIMULATOR = False
@@ -309,12 +309,14 @@ class VisualDetector(object):
                 feat_detector=_default_feature_extractor_)
         # Set number of features from detector
         panel.detector.set_detector_num_features(4000)
-        try:
+        # Set flann ratio
+        panel.detector.set_flann_ratio_threshold(0.6)
+        """try:
             panel.detector.camera._featuredetector_.set_scaleFactor(1.06)
             panel.detector.camera._featuredetector_.set_nLevels(16)
         except:
             print "Error setting scaleFactor and nLevels"
-        
+        """
         # Plugin for white balance
         panel.Retinex = Retinex()
         
@@ -464,16 +466,18 @@ class VisualDetector(object):
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
             cov[pos_diag_idx, pos_diag_idx] = (
-                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2)
-            self.panel.pose_msg.pose.covariance = cov.flatten().tolist()
+                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2).flatten()
+            self.panel.pose_msg.pose.covariance = cov.tolist()
             self.panel.pose_msg_pub.publish(self.panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
-                time_now, "/panel_centre", "bumblebee2")
+                time_now, "panel_centre", "bumblebee2")
             # Detect valves if panel was detected at less than 2 metres
             self.detect_valves(self.panel.pose_msg)
             #print "\nPanel RPY = %s \n" % (panel_rpy*180/np.pi)
-            
+            print "Panel World Position: ", np.squeeze(transform_numpy_array("world", "panel_centre", np.zeros((1, 3))))
+            print "Relative position   : ", panel_centre
+            print "Standard deviation  : ", cov[range(3), range(3)]**0.5, "\n"
         # Publish image of detected panel
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
         img_msg.header.stamp = time_now
