@@ -631,5 +631,5 @@ class Retinex(object):
         
         if self.global_logscale:
             image = np.exp(image)-self.small_amount
-        return image
+        return image.squeeze()
 

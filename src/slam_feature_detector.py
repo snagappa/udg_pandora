@@ -237,9 +237,6 @@ class VisualDetector(object):
                                         hessian_threshold=50)
         print "Completed initialisation"
     
-    def fromCameraInfo(self, camera_info_left, camera_info_right=None):
-        self.image_buffer.fromCameraInfo(camera_info_left, camera_info_right)
-    
     def init_slam_feature_detector(self, update_rate=1, num_features=50,
                                    hessian_threshold=None):
         slam_features = self.slam_features
