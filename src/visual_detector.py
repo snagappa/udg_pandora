@@ -98,7 +98,7 @@ class stereo_image_buffer(object):
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
-            camera_pickle_file = "bumblebee_new.p"
+            camera_pickle_file = "bumblebee.p"
             print "Loading information from "+camera_pickle_file
             camera_info_pickle = roslib.packages.find_resource("udg_pandora",
                 camera_pickle_file)
@@ -251,7 +251,7 @@ class VisualDetector(object):
         # Initialise panel detector
         if not USE_SIMULATOR:
             # For new real panel:
-            template_image_file = ["new_panel_template.png"]
+            template_image_file = ["new_panel_template2.png"]
             template_mask_file = [] #["new_panel_mask.png"]
         else:
             # For simulator:
@@ -348,7 +348,11 @@ class VisualDetector(object):
                 template_mask = cv2.imread(template_mask_file, cv2.CV_8UC1)
             
             # Fix luminance before adding template
-            template_image = panel.Retinex.retinex(template_image)
+            #try:
+            #    template_image2 = panel.Retinex.retinex(template_image).astype(template_image.dtype)
+            #    panel.detector.add_to_template(template_image2, template_mask)
+            #except:
+            #    print "Error using retinex()"
             panel.detector.add_to_template(template_image, template_mask)
         
         self.panel.callback_id = None
@@ -405,9 +409,14 @@ class VisualDetector(object):
     
     def detect_panel(self, *args):
         #self.panel.sub.unregister()
-        cvimage = [self.panel.Retinex.retinex(
-            np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy())
+        _cvimage_ = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy()
             for _img_ in args]
+        #try:
+        #    cvimage = [self.panel.Retinex.retinex(_img_).astype(_img_.dtype)
+        #        for _img_ in _cvimage_]
+        #except:
+        #    print "Error using retinex()"
+        cvimage = _cvimage_
         self.panel.detector.detect(*cvimage)
         #self.panel.detector.show()
         panel_detected, panel_centre, panel_orientation = (
@@ -469,8 +478,53 @@ class VisualDetector(object):
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
         img_msg.header.stamp = time_now
         self.panel.img_pub.publish(img_msg)
+        return
         #print "Detected = ", self.panel.detection_msg.detected
         #self._enablePanelValveDetectionSrv_()
+        """
+        Detect panel using contours
+        # Filter the image by downscaling and upscaling
+        src_img = cvimage[0].copy()
+        filt_img = cv2.pyrDown(src_img, dstsize=(src_img.shape[1]/2, src_img.shape[0]/2))
+        filt_img = cv2.pyrUp(filt_img, dstsize=(src_img.shape[1], src_img.shape[0]))
+        #filt_img = src_img
+        # Edge detection
+        edges_img = cv2.Canny(filt_img, 0, 100, apertureSize=5, L2gradient=True)
+        # Dilate the image
+        dilate_img = cv2.dilate(edges_img, np.ones((5, 5)))
+        # Extract contours
+        contours, hierarchy = cv2.findContours(dilate_img, mode=cv2.RETR_TREE, 
+                                               method=cv2.CHAIN_APPROX_SIMPLE)
+        def _angle_(pt1, pt2, pt0):
+            dx1 = pt1[0] - pt0[0]
+            dy1 = pt1[1] - pt0[1]
+            dx2 = pt2[0] - pt0[0]
+            dy2 = pt2[1] - pt0[1]
+            return (dx1*dx2 + dy1*dy2)/np.sqrt((dx1*dx1 + dy1*dy1)*(dx2*dx2 + dy2*dy2) + 1e-10)
+        detected_rects = []
+        
+        for idx in range(len(contours)):
+            contour_length = cv2.arcLength(contours[idx], True)
+            approx = cv2.approxPolyDP(contours[idx], contour_length*0.02, True)
+            if ((np.squeeze(approx).shape[0] == 4) and
+                    (np.fabs(cv2.contourArea(approx)) > 5000) and 
+                    cv2.isContourConvex(approx)):
+                maxCosine = 0
+                for j in range(2, 5):
+                    cosine = np.fabs(_angle_(approx[j%4][0], approx[j-2][0], approx[j-1][0]))
+                    maxCosine = max((maxCosine, cosine))
+                if( maxCosine < 0.3 ):
+                    detected_rects.append(approx)
+        
+        out_img = self.panel.detector.get_scene(0).copy()
+        color = (255, 255, 255)
+        cv2.drawContours(out_img, detected_rects, -1, color, 3)
+        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(edges_img))
+        img_msg.header.stamp = time_now
+        self.panel.img_pub.publish(img_msg)
+        #code.interact(local=locals())
+        return
+        """
     
     def _check_valid_panel_orientation_(self, panel_rpy):
         # if panel_orientation{0,2} not close to zero, return false
@@ -516,6 +570,8 @@ class VisualDetector(object):
         #   left: (-0.5, +-0.25), centre: (0, +-0.25), right: (0.5, +-0.25)
         # Stem length is 10-11cm, t-bar length is 10cm
         scene = self.panel.detector.get_scene(0).copy()
+        # Equalise the histogram
+        #scene = cv2.equalizeHist(scene)
         # Get transformation of panel centre from
         # (x=0, y=0, z=0, r=0, p=0, y=0), (panel_centre, panel_orientation)
         if (panel_detected and (np.linalg.norm(panel_centre) <= 1.5) and 
@@ -604,9 +660,9 @@ class VisualDetector(object):
         self.valve.pub.img.publish(img_msg)
     
     def detect_valve_orientation(self, im, bbox=None, HIGHLIGHT=True,
-            CannyThreshold1=30, CannyThreshold2=100,
+            CannyThreshold1=50, CannyThreshold2=100,
             HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=8,
-            HoughMinLineLength=60, HoughMaxLineGap=10):
+            HoughMinLineLength=60, HoughMaxLineGap=5):
         """detect_valve_orientation(self, im, bbox=None) -> theta
         Estimate valve orientation using Hough transform:
         Estimate the orientation of the valve in the image within the specified
@@ -623,6 +679,14 @@ class VisualDetector(object):
         mask_radius = int(max((box_height, box_width))/2*1.1)
         cv2.circle(mask, mask_centre, mask_radius, (255, 255, 255), thickness=-1)
         mask[mask>0] = 1
+        # mask the 1st and 3rd quadrants since these angles are not possible
+        centre_border_px = 0.15*HoughMinLineLength
+        cv2.rectangle(mask, (0, box_height),
+            (int((box_width/2)-centre_border_px), int((box_height/2)+centre_border_px)),
+            (0, 0, 0), thickness=-1)
+        cv2.rectangle(mask, (box_width, 0),
+            (int((box_width/2)+centre_border_px), int((box_height/2)-centre_border_px)),
+            (0, 0, 0), thickness=-1)
         im_edges *= mask
         lines = np.squeeze(cv2.HoughLinesP(im_edges, HoughRho, HoughTheta,
             HoughThreshold, minLineLength=HoughMinLineLength,
@@ -638,7 +702,6 @@ class VisualDetector(object):
             valve_points = lines[valve_idx]
         else:
             return None #raise ValueError
-        
         v_pt1 = valve_points[:2]
         v_pt2 = valve_points[2:]
         delta_xy = v_pt2 - v_pt1
@@ -646,7 +709,7 @@ class VisualDetector(object):
             if not bbox is None:
                 v_pt1 += [bbox[0], bbox[1]]
                 v_pt2 += [bbox[0], bbox[1]]
-            cv2.line(im, tuple(v_pt1), tuple(v_pt2), (255, 0, 0),4)
+            cv2.line(im, tuple(v_pt1), tuple(v_pt2), (0, 0, 0), 6)
         
         # Get the angle using arctan
         valve_orientation = np.arctan2(delta_xy[1], delta_xy[0])
