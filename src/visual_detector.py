@@ -16,17 +16,18 @@ import code
 from lib import objdetect
 import numpy as np
 import message_filters
-from lib.misctools import STRUCT, image_converter, Retinex
+from lib.misctools import STRUCT, image_converter #, Retinex
 from lib import image_feature_extractor
 from tf import TransformBroadcaster, TransformListener
 from tf.transformations import quaternion_from_euler, euler_from_quaternion, \
-    quaternion_matrix
+    quaternion_matrix, euler_matrix
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import threading
 import copy
 import pickle
 import itertools
-#from lib.cameramodels import transform_numpy_array
+from lib.cameramodels import transform_numpy_array
+from collections import deque
 #import time
 
 USE_SIMULATOR = False
@@ -309,14 +310,16 @@ class VisualDetector(object):
                 feat_detector=_default_feature_extractor_)
         # Set number of features from detector
         panel.detector.set_detector_num_features(4000)
-        try:
+        # Set flann ratio
+        panel.detector.set_flann_ratio_threshold(0.6)
+        """try:
             panel.detector.camera._featuredetector_.set_scaleFactor(1.06)
             panel.detector.camera._featuredetector_.set_nLevels(16)
         except:
             print "Error setting scaleFactor and nLevels"
-        
+        """
         # Plugin for white balance
-        panel.Retinex = Retinex()
+        #panel.Retinex = Retinex()
         
         # Get camera info msg and initialise camera
         cam_info = self.image_buffer.get_camera_info()
@@ -354,6 +357,49 @@ class VisualDetector(object):
             #except:
             #    print "Error using retinex()"
             panel.detector.add_to_template(template_image, template_mask)
+        # Panel dimensions in pixels (from template)
+        corners_2d = panel.detector._object_.corners_2d
+        panel_width_px = corners_2d[1, 0] - corners_2d[0, 0]
+        panel_height_px = corners_2d[2, 1] - corners_2d[1, 1]
+        # Panel dimensions in m
+        corners_3d = panel.detector._object_.corners_3d
+        panel_width_m = np.abs(corners_3d[1, 0] - corners_3d[0, 0])
+        panel_height_m = np.abs(corners_3d[2, 1] - corners_3d[1, 1])
+        # Find how many pixels per m
+        px_per_m = np.mean([panel_width_px/panel_width_m, 
+                            panel_height_px/panel_height_m])
+        
+        panel.valves = STRUCT()
+        valves = panel.valves
+        valves.px_per_m = px_per_m
+        valves.z_offset = 0.11
+        valves.radius = 0.05
+        valves.radius_px = valves.radius*px_per_m
+        # Valve centres in homogenous coordinates
+        valves.centre = np.array([[-0.25, -0.125, valves.z_offset, 1],
+                                 #[-0.25, +0.125, valves.z_offset, 1],
+                                  [ 0.0, -0.125, valves.z_offset, 1],
+                                  [ 0.0, +0.125, valves.z_offset, 1],
+                                  [+0.25, -0.125, valves.z_offset, 1],
+                                  #[+0.25, +0.125, valves.z_offset, 1]
+                                  ])
+        # Valve centre in the template in pixels
+        valves.centre_px = (valves.centre[:, :2]*px_per_m + 
+                            [panel_width_px/2, panel_height_px/2])
+        # Bounding box for each valve
+        valves.bbox = np.array([[-valves.radius, -valves.radius, 0, 0],
+                                [ valves.radius, -valves.radius, 0, 0],
+                                [ valves.radius,  valves.radius, 0, 0],
+                                [-valves.radius,  valves.radius, 0, 0]])
+        valves.bbox_px = valves.bbox[:, :2]*px_per_m
+        # Corner points of the valve handle
+        valves.handle_corners = np.array([[-valves.radius, 0, 0, 0],
+                                          [ valves.radius, 0, 0, 0]])
+        
+        # Buffer to store valve orientations
+        valves.orientation = []
+        for valve_count in range(valves.centre.shape[0]):
+            valves.orientation.append(deque(maxlen=5))
         
         self.panel.callback_id = None
         self.panel.update_rate = panel_update_rate
@@ -416,64 +462,71 @@ class VisualDetector(object):
         #        for _img_ in _cvimage_]
         #except:
         #    print "Error using retinex()"
+        
+        panel = self.panel
+        
         cvimage = _cvimage_
-        self.panel.detector.detect(*cvimage)
+        panel.detector.detect(*cvimage)
         #self.panel.detector.show()
         panel_detected, panel_centre, panel_orientation = (
-            self.panel.detector.location())
+            panel.detector.location())
         panel_rpy = panel_orientation#[[2, 0, 1]]
         valid_panel_orientation = self._check_valid_panel_orientation_(panel_rpy)
-        if valid_panel_orientation:
-            bbox_colour = (255, 255, 255)
-        else:
-            bbox_colour = (0, 0, 0)
-        if panel_detected:
-            corners = self.panel.detector.obj_corners.astype(np.int32)
-            out_img = self.panel.detector.get_scene(0).copy()
-            cv2.polylines(out_img, [corners],
-                          True, bbox_colour, 6)
-        else:
-            out_img = self.panel.detector.get_scene(0)
+        
+        # Publish panel detection message
         time_now = rospy.Time.now()
-        self.panel.detection_msg.header.stamp = time_now
+        panel.detection_msg.header.stamp = time_now
         panel_detected = (panel_detected and valid_panel_orientation)        
         panel_orientation_quaternion = quaternion_from_euler(*panel_rpy)
-        self.panel.detection_msg.detected = panel_detected
-        (self.panel.detection_msg.position.position.x,
-         self.panel.detection_msg.position.position.y,
-         self.panel.detection_msg.position.position.z) = panel_centre
-        (self.panel.detection_msg.position.orientation.x,
-         self.panel.detection_msg.position.orientation.y,
-         self.panel.detection_msg.position.orientation.z,
-         self.panel.detection_msg.position.orientation.w) = (
+        panel.detection_msg.detected = panel_detected
+        (panel.detection_msg.position.position.x,
+         panel.detection_msg.position.position.y,
+         panel.detection_msg.position.position.z) = panel_centre
+        (panel.detection_msg.position.orientation.x,
+         panel.detection_msg.position.orientation.y,
+         panel.detection_msg.position.orientation.z,
+         panel.detection_msg.position.orientation.w) = (
              panel_orientation_quaternion)
-        self.panel.pub.publish(self.panel.detection_msg)
+        panel.pub.publish(self.panel.detection_msg)
         
         if panel_detected:
             # Panel orientation is screwy - only broadcast the yaw
             # which is panel_orientation[1]
-            self.panel.pose_msg.header.stamp = time_now
-            (self.panel.pose_msg.pose.pose.position.x,
-             self.panel.pose_msg.pose.pose.position.y,
-             self.panel.pose_msg.pose.pose.position.z) = panel_centre
-            (self.panel.pose_msg.pose.pose.orientation.x,
-             self.panel.pose_msg.pose.pose.orientation.y,
-             self.panel.pose_msg.pose.pose.orientation.z,
-             self.panel.pose_msg.pose.pose.orientation.w) = (
+            panel.pose_msg.header.stamp = time_now
+            (panel.pose_msg.pose.pose.position.x,
+             panel.pose_msg.pose.pose.position.y,
+             panel.pose_msg.pose.pose.position.z) = panel_centre
+            (panel.pose_msg.pose.pose.orientation.x,
+             panel.pose_msg.pose.pose.orientation.y,
+             panel.pose_msg.pose.pose.orientation.z,
+             panel.pose_msg.pose.pose.orientation.w) = (
                  panel_orientation_quaternion)
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
             cov[pos_diag_idx, pos_diag_idx] = (
-                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2)
-            self.panel.pose_msg.pose.covariance = cov.flatten().tolist()
-            self.panel.pose_msg_pub.publish(self.panel.pose_msg)
+                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2).flatten()
+            panel.pose_msg.pose.covariance = cov.tolist()
+            panel.pose_msg_pub.publish(panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
-                time_now, "/panel_centre", "bumblebee2")
-            # Detect valves if panel was detected at less than 2 metres
-            self.detect_valves(self.panel.pose_msg)
-            #print "\nPanel RPY = %s \n" % (panel_rpy*180/np.pi)
+                time_now, "panel_centre", "bumblebee2")
             
+            # Detect valves if panel was detected at less than 2 metres
+            self.detect_valves(panel.pose_msg)
+            
+            #print "\nPanel RPY = %s \n" % (panel_rpy*180/np.pi)
+            print "Panel World Position: ", np.squeeze(transform_numpy_array("world", "panel_centre", np.zeros((1, 3))))
+            print "Relative position   : ", panel_centre
+            print "Standard deviation  : ", cov[range(3), range(3)]**0.5, "\n"
+            
+            bbox_colour = (255, 255, 255)
+            corners = panel.detector.obj_corners.astype(np.int32)
+            out_img = panel.detector.get_scene(0)
+            cv2.polylines(out_img, [corners],
+                          True, bbox_colour, 6)
+        else:
+            out_img = panel.detector.get_scene(0)
+        
         # Publish image of detected panel
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
         img_msg.header.stamp = time_now
@@ -569,12 +622,13 @@ class VisualDetector(object):
         # Panel positions (in m) are (relative to 0,0 centre):
         #   left: (-0.5, +-0.25), centre: (0, +-0.25), right: (0.5, +-0.25)
         # Stem length is 10-11cm, t-bar length is 10cm
-        scene = self.panel.detector.get_scene(0).copy()
+        scene = self.panel.detector.get_scene(0)
         # Equalise the histogram
         #scene = cv2.equalizeHist(scene)
         # Get transformation of panel centre from
         # (x=0, y=0, z=0, r=0, p=0, y=0), (panel_centre, panel_orientation)
-        if (panel_detected and (np.linalg.norm(panel_centre) <= 1.5) and 
+        detected_valve_orientations = None
+        if (panel_detected and (np.linalg.norm(panel_centre) <= 2) and 
             (np.abs(panel_orientation_euler[1]) < 0.5)):
             # Wait until transform becomes available
             homogenous_rotation_matrix = (
@@ -589,28 +643,15 @@ class VisualDetector(object):
                 return
             """
             time_now = detection_msg.header.stamp #rospy.Time.now()
-            valve_z = 0.11
-            # Valve centres in homogenous coordinates
-            valve_centre = np.array([[-0.25, -0.125, valve_z, 1],
-                                     #[-0.25, +0.125, valve_z, 1],
-                                     [ 0.0, -0.125, valve_z, 1],
-                                     [ 0.0, +0.125, valve_z, 1],
-                                     [+0.25, -0.125, valve_z, 1],
-                                     #[+0.25, +0.125, valve_z, 1]
-                                     ])
-            #valve_centre[:, :2] += np.squeeze(panel_centre)[:2]
-            valve_rad = 0.05
-            # Bounding box for each valve
-            valve_bbox = np.array([[-valve_rad, -valve_rad, 0, 0],
-                                   [ valve_rad, -valve_rad, 0, 0],
-                                   [ valve_rad,  valve_rad, 0, 0],
-                                   [-valve_rad,  valve_rad, 0, 0]])
+            valves = self.panel.valves
             valve_msg = Detection()
             valve_msg.header.stamp = time_now
             valve_msg.header.frame_id = "panel_centre"
-            for valve_idx in range(valve_centre.shape[0]):
+            # List containing each valve centre and orientation
+            detected_valve_orientations = []
+            for valve_idx in range(valves.centre.shape[0]):
                 # Get bounding box for the current valve
-                this_valve = valve_centre[valve_idx] + valve_bbox
+                this_valve = valves.centre[valve_idx] + valves.bbox
                 # Convert points from panel to camera co-ordinates
                 #this_valve_camcoords = transform_numpy_array("bumblebee2", "panel_centre", this_valve)
                 this_valve_camcoords = np.dot(homogenous_rotation_matrix, this_valve.T).T
@@ -619,6 +660,7 @@ class VisualDetector(object):
                 px_corners = px_corners.astype(np.int32)
                 left, top = np.min(px_corners, axis=0)
                 right, bottom = np.max(px_corners, axis=0)
+                # Only proceed if the bounding box is within the image
                 if left < 0 or top < 0 or right > scene.shape[1] or bottom > scene.shape[0]:
                     pass
                 else:
@@ -627,13 +669,14 @@ class VisualDetector(object):
                     valve_length_px = np.int32(0.8*np.mean(bbox_side_lengths))
                     valve_im_bbox = (left, top, right, bottom)
                     this_valve_orientation = self.detect_valve_orientation(
-                        scene, valve_im_bbox, HIGHLIGHT=True,
-                        HoughMinLineLength=valve_length_px)
+                        scene, valve_im_bbox, HoughMinLineLength=valve_length_px,
+                        HIGHLIGHT_VALVE=True)
+                    
                     if not this_valve_orientation is None:
                         valve_msg.detected = True
                         (valve_msg.position.position.x,
                          valve_msg.position.position.y,
-                         valve_msg.position.position.z) = valve_centre[valve_idx][:3]
+                         valve_msg.position.position.z) = valves.centre[valve_idx][:3]
                         # Obtain rotation of the valve wrt the panel
                         # TODO: Find a more robust way of doing this
                         panel_rpy = panel_orientation_euler
@@ -645,9 +688,34 @@ class VisualDetector(object):
                          valve_msg.position.orientation.w) = valve_orientation_quaternion
                         v_pub = getattr(self.valve.pub, "v"+str(valve_idx))
                         v_pub.publish(valve_msg)
-                        self.tf_broadcaster.sendTransform(tuple(valve_centre[valve_idx]),
+                        self.tf_broadcaster.sendTransform(tuple(valves.centre[valve_idx]),
                             valve_orientation_quaternion, time_now,
                             "valve"+str(valve_idx), "panel_centre")
+                        valves.orientation[valve_idx].appendleft(this_valve_orientation)
+                    else:
+                        # Did not detect valve orientation
+                        # Overlay the previous estimation
+                        this_valve_handle_orientation = np.median(valves.orientation[valve_idx])
+                        if not np.isnan(this_valve_handle_orientation):
+                            # Check if previous estimate available
+                            this_valve_handle_orientation = valves.orientation[valve_idx][0]
+                            # Get corners of handle with zero rotation and
+                            # rotate by this_valve_orientation
+                            valve_rotation_matrix = euler_matrix(0, 0, -this_valve_handle_orientation)
+                            this_valve_handle = np.dot(valve_rotation_matrix, valves.handle_corners.T).T
+                            # Offset the valve by the valve centre
+                            this_valve_handle += valves.centre[valve_idx]
+                            # Get handle coordinates in camera frame
+                            this_handle_camcoords = np.dot(homogenous_rotation_matrix, this_valve_handle.T).T
+                            
+                            # Project the 3D points from camera coordinates to pixels
+                            handle_px_corners = self.panel.detector.camera.project3dToPixel(this_handle_camcoords[:, :3])
+                            handle_px_corners = handle_px_corners.astype(np.int32)
+                            cv2.line(scene, tuple(handle_px_corners[0].astype(int)),
+                                     tuple(handle_px_corners[1].astype(int)),
+                                     (30, 30, 30), 5)
+                        
+                        #detected_valve_orientations.append(None)
                         #valve_centre_3d = transform_numpy_array("bumblebee2", "panel_centre", valve_centre[np.newaxis, valve_idx])
                         #v_centre_px = self.panel.detector.camera.project3dToPixel(valve_centre_3d)[0]
                         #try:
@@ -655,21 +723,23 @@ class VisualDetector(object):
                         #    scene[px_corners[:, 1], px_corners[:, 0]] = 255
                         #except IndexError:
                         #    pass
-                cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
+                    
+                #cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene))
         self.valve.pub.img.publish(img_msg)
+        return detected_valve_orientations
     
-    def detect_valve_orientation(self, im, bbox=None, HIGHLIGHT=True,
-            CannyThreshold1=50, CannyThreshold2=100,
-            HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=8,
-            HoughMinLineLength=60, HoughMaxLineGap=5):
-        """detect_valve_orientation(self, im, bbox=None) -> theta
+    def detect_valve_orientation(self, img, bbox=None,
+        HIGHLIGHT_VALVE=False, CannyThreshold1=50, CannyThreshold2=100,
+        HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=8,
+        HoughMinLineLength=60, HoughMaxLineGap=5):
+        """detect_valve_orientation(self, img, bbox=None) -> theta
         Estimate valve orientation using Hough transform:
         Estimate the orientation of the valve in the image within the specified
         bounding box (left, top, right, bottom) in pixels. If bbox==None, the
         entire image is used.
         """
-        im_box = im[np.ix_(np.arange(bbox[1], bbox[3]), 
+        im_box = img[np.ix_(np.arange(bbox[1], bbox[3]), 
                            np.arange(bbox[0], bbox[2]))]
         im_edges = cv2.Canny(im_box, CannyThreshold1, CannyThreshold2)
         # Zero lines in the borders using a circular mask
@@ -705,15 +775,20 @@ class VisualDetector(object):
         v_pt1 = valve_points[:2]
         v_pt2 = valve_points[2:]
         delta_xy = v_pt2 - v_pt1
-        if HIGHLIGHT and valve_points.shape[0]:
+        if HIGHLIGHT_VALVE and valve_points.shape[0]:
             if not bbox is None:
                 v_pt1 += [bbox[0], bbox[1]]
                 v_pt2 += [bbox[0], bbox[1]]
-            cv2.line(im, tuple(v_pt1), tuple(v_pt2), (0, 0, 0), 6)
+                cv2.line(img, tuple(v_pt1), tuple(v_pt2), (0, 0, 0), 6)
         
         # Get the angle using arctan
         valve_orientation = np.arctan2(delta_xy[1], delta_xy[0])
-        return valve_orientation
+        if -95 < valve_orientation*180/np.pi < -85:
+            valve_orientation = -valve_orientation
+        if -5 < valve_orientation < 95:
+            return valve_orientation
+        else:
+            return None
     
     def updateNavigation(self, nav):
         vehicle_pose = [nav.position.north, nav.position.east, nav.position.depth]
