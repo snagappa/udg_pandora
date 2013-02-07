@@ -551,6 +551,31 @@ def spherical_to_cartesian(spherical_vect, cart_vect=None):
     
     return cart_vect
 
+# Part of the PsychoPy library 
+# Copyright (C) 2010 Jonathan Peirce 
+# Distributed under the terms of the GNU General Public License (GPL). 
+def pol2cart(theta, radius, units='deg'):
+    """Convert from polar to cartesian coordinates
+    **usage**:
+        x,y = pol2cart(theta, radius, units='deg')
+    """
+    if units in ['deg', 'degs']:
+        theta = theta*np.pi/180.0 
+    xx = radius*np.cos(theta) 
+    yy = radius*np.sin(theta)
+    return xx,yy
+
+def cart2pol(x,y, units='deg'):
+    """Convert from cartesian to polar coordinates
+    **usage**:
+        theta, radius = pol2cart(x, y, units='deg')
+    units refers to the units (rad or deg) for theta that should be returned"""
+    radius= np.hypot(x,y)
+    theta= np.arctan2(y,x)
+    if units in ['deg', 'degs']:
+        theta=theta*180/np.pi
+    return theta, radius 
+
 
 # http://marc.info/?l=gimp-developer&m=118984615408912&w=4
 #   Implementation of a retinex algorithm similar to that described by

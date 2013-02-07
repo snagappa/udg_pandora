@@ -708,7 +708,8 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
         _CameraFeatureDetector_.__init__(self, feature_extractor, **kwargs)
 #        self.images.append(copy.deepcopy(self.images[0]))
     
-    def points3d_from_img(self, image_left, image_right, ratio_threshold=0.75):
+    def points3d_from_img(self, image_left, image_right, ratio_threshold=0.75,
+                          image_margins=(0, 0, 0, 0)):
         """get_points(self, image_left, image_right, ratio_threshold=0.6)
             -> points3d, keypoints, descriptors
         """
@@ -720,8 +721,25 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
         """
+        margin_l, margin_r, margin_t, margin_b = image_margins
+        mask_margins = np.any(image_margins)
         (images[0].keypoints, images[0].descriptors) = (
             self.get_features(image_left))
+        if mask_margins:
+            this_img_keypoints = images[0].keypoints
+            this_img_descriptors = images[0].descriptors
+            _img_pts_ = np.asarray([_kp_.pt for _kp_ in this_img_keypoints])
+            valid_idx = np.ones(_img_pts_.shape[0]).astype(np.bool)
+            valid_idx[_img_pts_[:, 0] < margin_l] = False
+            valid_idx[_img_pts_[:, 0] > (image_left.shape[1]-margin_r)] = False
+            valid_idx[_img_pts_[:, 1] < margin_t] = False
+            valid_idx[_img_pts_[:, 1] > (image_left.shape[0]-margin_b)] = False
+            valid_idx = np.where(valid_idx)[0]
+            _masked_keypoints_ = [this_img_keypoints[_idx_] for _idx_ in valid_idx]
+            _masked_descriptors_ = this_img_descriptors[valid_idx]
+            images[0].keypoints = _masked_keypoints_
+            images[0].descriptors = _masked_descriptors_
+        
         try:
             num_features = self.get_detector_num_features()
         except UnboundLocalError:
@@ -739,6 +757,20 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             """
             (images[1].keypoints, images[1].descriptors) = (
                 self.get_features(image_right))
+            if mask_margins:
+                this_img_keypoints = images[1].keypoints
+                this_img_descriptors = images[1].descriptors
+                _img_pts_ = np.asarray([_kp_.pt for _kp_ in this_img_keypoints])
+                valid_idx = np.ones(_img_pts_.shape[0]).astype(np.bool)
+                valid_idx[_img_pts_[:, 0] < margin_l] = False
+                valid_idx[_img_pts_[:, 0] > (image_left.shape[1]-margin_r)] = False
+                valid_idx[_img_pts_[:, 1] < margin_t] = False
+                valid_idx[_img_pts_[:, 1] > (image_left.shape[0]-margin_b)] = False
+                valid_idx = np.where(valid_idx)[0]
+                _masked_keypoints_ = [this_img_keypoints[_idx_] for _idx_ in valid_idx]
+                _masked_descriptors_ = this_img_descriptors[valid_idx]
+                images[1].keypoints = _masked_keypoints_
+                images[1].descriptors = _masked_descriptors_
             # Use the flann matcher to match keypoints
             im_left = images[0]
             im_right = images[1]
