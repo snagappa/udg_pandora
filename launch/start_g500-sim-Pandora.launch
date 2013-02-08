@@ -12,7 +12,7 @@
 	<rosparam command="load" file="$(find cola2_control)/config/velocity_controller_sim.yaml" />		
 	<rosparam command="load" file="$(find cola2_control)/config/pilot.yaml"/>	
 	<rosparam command="load" file="$(find cola2_navigation)/config/navigator.yaml" />
-	<rosparam command="load" file="$(find cola2_control)/../launch/mission.yaml" />
+	<rosparam command="load" file="$(find cola2_launch)/launch/mission.yaml" />
         <rosparam command="load" file="$(find cola2_control)/config/joy.yaml"/>
 	<rosparam command="load" file="$(find cola2_control)/config/joyArm.yaml"/>
         <rosparam command="load" file="$(find cola2_control)/config/arm_controller_5DoF.yaml" />
