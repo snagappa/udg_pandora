@@ -43,7 +43,7 @@ try:
     import navigation_g500.msg
 except:
     pass
-import visual_detector
+import slam_feature_detector
 import traceback
 
 USE_COLA_TOPICS =  True
@@ -324,7 +324,7 @@ class G500_SLAM():
             _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
                                               right_tf_frame+str_idx)
             # Set the far field of view
-            _map_.sensors.camera.set_near_far_fov(fov_far=visual_detector.FOV_FAR)
+            _map_.sensors.camera.set_near_far_fov(fov_far=slam_feature_detector.FOV_FAR)
         self.config.init.map = True
         """
         except:

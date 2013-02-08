@@ -33,6 +33,8 @@ import pc2wrapper
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import sys
+import scipy
+import scipy.ndimage
 #from operator import mul, add
 #import code
 
@@ -358,7 +360,7 @@ def get_resample_index(weights, nparticles=-1):
     return resampled_indices
     
     
-def mvnpdf(x, mu, sigma):
+def mvnpdf(x, mu, sigma, LOG=False):
     # Compute the residuals
     #if x.shape[0] == 1:
     #    residual = np.repeat(x, mu.shape[0], 0)
@@ -386,16 +388,22 @@ def mvnpdf(x, mu, sigma):
         inv_sqrt_sigma = blas.dtrtri(chol_sigma, 'l')
         exp_term = np.power(blas.dgemv(inv_sqrt_sigma,residual), 2).sum(axis=1)
     
-    pdf = np.exp(-0.5*exp_term)/np.sqrt(det_sigma*(2*np.pi)**residual.shape[1])
+    if LOG:
+        pdf = -0.5*exp_term - 0.5*(np.log(det_sigma)+residual.shape[1]*np.log(2*np.pi))
+    else:
+        pdf = np.exp(-0.5*exp_term)/np.sqrt(det_sigma*(2*np.pi)**residual.shape[1])
     return pdf
     
     
-def approximate_mvnpdf(x, mu, sigma):
+def approximate_mvnpdf(x, mu, sigma, LOG=False):
     residual = x-mu
     # Extract diagonals from sigma into a 2D array
     sigma_diag = sigma[:, range(sigma.shape[1]), range(sigma.shape[2])]
     exp_term = ((residual**2)*(1.0/sigma_diag)).sum(axis=1)
-    pdf = np.exp(-0.5*exp_term)/np.sqrt(sigma_diag.prod(axis=1)*(2*np.pi)**residual.shape[1])
+    if LOG:
+        pdf = -0.5*exp_term - 0.5*(np.log(sigma_diag).sum()+residual.shape[1]*np.log(2*np.pi))
+    else:
+        pdf = np.exp(-0.5*exp_term)/np.sqrt(sigma_diag.prod(axis=1)*(2*np.pi)**residual.shape[1])
     return pdf
 
 
@@ -542,3 +550,111 @@ def spherical_to_cartesian(spherical_vect, cart_vect=None):
     cart_vect[2] = spherical_vect[0] * np.cos(spherical_vect[1])
     
     return cart_vect
+
+# Part of the PsychoPy library 
+# Copyright (C) 2010 Jonathan Peirce 
+# Distributed under the terms of the GNU General Public License (GPL). 
+def pol2cart(theta, radius, units='deg'):
+    """Convert from polar to cartesian coordinates
+    **usage**:
+        x,y = pol2cart(theta, radius, units='deg')
+    """
+    if units in ['deg', 'degs']:
+        theta = theta*np.pi/180.0 
+    xx = radius*np.cos(theta) 
+    yy = radius*np.sin(theta)
+    return xx,yy
+
+def cart2pol(x,y, units='deg'):
+    """Convert from cartesian to polar coordinates
+    **usage**:
+        theta, radius = pol2cart(x, y, units='deg')
+    units refers to the units (rad or deg) for theta that should be returned"""
+    radius= np.hypot(x,y)
+    theta= np.arctan2(y,x)
+    if units in ['deg', 'degs']:
+        theta=theta*180/np.pi
+    return theta, radius 
+
+
+# http://marc.info/?l=gimp-developer&m=118984615408912&w=4
+#   Implementation of a retinex algorithm similar to that described by
+#   John McCann in 1999
+
+#   For more information about the algorithm see \
+# http://www.cs.sfu.ca/~colour/publications/IST-2000/index.html #   Brian Funt, Florian Ciurea, and John \
+# McCann "Retinex in Matlab," Proceedings of the IS&T/SID Eighth Color Imaging Conference: Color Science, \
+# Systems and Applications, 2000, pp 112-121.
+
+#   Copyright (C) 2007 John Fremlin
+#
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 2 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+class Retinex(object):
+    def __init__(self):
+        self.small_amount = 1/1024.0
+        self.difference_from_neighbours_kernel = np.array([ [-1, -1, -1], [-1,8,-1], [-1,-1,-1]],"d")
+        self.global_logscale = True
+    
+    def _shrink_(self, chan, scale):
+        return scipy.ndimage.zoom(chan, 1/float(scale), prefilter=False, order=5)
+    
+    def _image_clip_(self, chan):
+        if self.global_logscale:
+            return chan.clip(-np.inf, 0.0)
+        else:
+            return chan.clip(0.0,1.0)
+    
+    def _retinex_at_scale_(self, retinex, orig, scale):
+        assert(orig.size == retinex.size)
+        working = orig
+        diff = scipy.ndimage.convolve(working, self.difference_from_neighbours_kernel)
+        result = (retinex + diff)/2
+        working = (retinex + self._image_clip_(result))/2
+        return working
+    
+    def _resize_(self, chan, new_size):
+        orig = chan.shape
+        zoom = [((new+0.9)/float(old)) for old, new in zip(orig, new_size)]
+        ret = scipy.ndimage.zoom(chan, zoom, prefilter=False, order=5)
+        assert(new_size == ret.shape)
+        return ret
+
+    def _process_one_channel_(self, chan):
+        retinex = np.array([[chan.mean()]],"d")
+        
+        for logscale in range(int(np.log2(min(*chan.shape))), -1, -1):
+            scale = 1 << logscale
+            orig = self._shrink_(chan, scale)
+            retinex = self._retinex_at_scale_(self._resize_(retinex, orig.shape), orig, scale)
+        return retinex
+    #    return np.abs(chan-retinex)
+
+    def retinex(self, image, logscale=True):
+        self.global_logscale = logscale
+        if self.global_logscale:
+            image = np.log(image+self.small_amount)
+        if image.ndim == 2:
+            image = image[:, :, np.newaxis]
+        
+        [ width, height, channels ] = image.shape
+        for c in range(channels):
+            image[:,:,c] = self._process_one_channel_(image[:,:,c])
+        
+        if self.global_logscale:
+            image = np.exp(image)-self.small_amount
+        return image.squeeze()
+

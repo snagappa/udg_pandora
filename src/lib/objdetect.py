@@ -65,6 +65,9 @@ class Detector(object):
     def init_camera(self, camera_info, *dummy_args):
         self.camera.fromCameraInfo(camera_info)
     
+    def set_flann_ratio_threshold(self, flann_ratio_threshold):
+        self.flann_ratio_threshold = flann_ratio_threshold
+    
     def set_template(self, template_im=None, corners_3d=None, template_mask=None):
         """
         Define a new template and corners of the object in the world.
