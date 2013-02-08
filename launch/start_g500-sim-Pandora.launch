@@ -20,7 +20,7 @@
 	<rosparam param="urdf_root"> </rosparam>
 	
 	<!-- OVERRIDE BASIC MISSION PARAMETERS -->
-	<rosparam command="load" file="$(find cola2_safety)/../launch/basic_mission_parameters.yaml" />	
+	<rosparam command="load" file="$(find cola2_launch)/launch/basic_mission_parameters.yaml" />	
 
 	<group if="$(arg simulatedClock)">
 		<param name="/time_scale" value="2" />
