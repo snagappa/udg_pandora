@@ -1,2 +1,3 @@
-learning/record/filename : trajectory_demonstration
-learning/record/number_sample : 0
+learning/record/filename : trajectory_demonstration_arm
+learning/record/number_sample : 4
+learning/record/landmark_id : /pose_ekf_slam/landmark_update/valve_1

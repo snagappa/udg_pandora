@@ -121,11 +121,20 @@ class Detector(object):
     
     def process_images(self, images=()):
         assert type(images) is tuple, "Images must be a tuple"
+        # If images are colour, convert to grayscale, otherwise return as is
+        return [self._gray_(_im_) for _im_ in images]
         #return [self._binarise_(cv2.filter2D(_im_, -1, self.log_kernel),
         #                        self._object_.intensity_threshold)
         #        for _im_ in images]
         #return [self._sharpen_(_im_) for _im_ in images]
-        return list(images)
+        #return images
+    
+    def _gray_(self, im):
+        # Check if more than one channel
+        if (im.ndim == 2) or ((im.ndim == 3) and (im.shape[2] == 1)):
+            return im.copy()
+        else:
+            return cv2.cvtColor(im, cv2.cv.CV_BGR2GRAY)
     
     def _binarise_(self, im, intensity_threshold):
         if not intensity_threshold is None:

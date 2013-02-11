@@ -414,10 +414,10 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         # Use projection or frustums to evaluate pd
         # Apply projection to points and discard points on the boundaries
         image_points = self.project3dToPixel(rel_points1[idx_visible])
-        xmargin_l = 16
-        xmargin_r = 16
-        ymargin_t = 16
-        ymargin_b = 200
+        xmargin_l = 64
+        xmargin_r = 64
+        ymargin_t = 64
+        ymargin_b = 64
         # Discard points with image x-coordinate < margin
         _valid_ = image_points[:, 0] >= xmargin_l
         idx_visible = idx_visible[_valid_]
@@ -793,8 +793,8 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 # Valid matches are those where y co-ordinate of p1 and p2 are
                 # almost equal
                 # Subtract offset from inaccurate calibration
-                #pts_r[:, 1] += 39
-                y_diff = np.abs(pts_l[:, 1] - (pts_r[:, 1]+self.right.P[1, 3]))
+                #pts_r[:, 1] += 39.9
+                y_diff = np.abs(pts_l[:, 1] - pts_r[:, 1])
                 #print "Average y_diff = ", np.min(y_diff), np.mean(y_diff), np.max(y_diff)
                 #print "y_diff std = ", np.std(y_diff)
                 valid_disparity_mask = y_diff < 3.0

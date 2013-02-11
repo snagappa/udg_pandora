@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # ROS imports
-import roslib 
+import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
 import math
@@ -12,7 +12,7 @@ from scipy import interpolate
 # numpy.set_printoptions(threshold=100000)
 
 class learningDmp :
-    
+
     def __init__(self, name):
         self.name = name
         self.getConfig()
@@ -26,7 +26,7 @@ class learningDmp :
         self.Data = numpy.zeros(shape=(9,self.nbSamples*self.nbData))
         self.loadDemonstration()
         rospy.loginfo('Loaded demonstrations')
-        #                        dimensions, trajectory DoF, samples of One Demo 
+        #                        dimensions, trajectory DoF, samples of One Demo
 
 
     def getConfig(self):
@@ -64,17 +64,17 @@ class learningDmp :
             self.kV = rospy.get_param('learning/dmp/kV')
         else :
             rospy.logerr('Prameter kV not found')
-            
+
         if rospy.has_param('learning/dmp/kP') :
             self.kP = rospy.get_param('learning/dmp/kP')
         else :
             rospy.logerr('Prameter kP not found')
-                
+
         if rospy.has_param('learning/dmp/dt') :
             self.dt = rospy.get_param('learning/dmp/dt')
         else :
             rospy.logerr('Prameter dt not found')
-        
+
         if rospy.has_param('learning/dmp/kPmin') :
             self.kPmin = rospy.get_param('learning/dmp/kPmin')
         else :
@@ -132,25 +132,25 @@ class learningDmp :
             ori = numpy.vsplit(ori,[1])[1]
             nbDataTmp = pose.shape[0]-1 #shape(pose,1);
 #            rospy.loginfo(nbDataTmp)
-        #xx = linspace(1,nbDataTmp,nbData); 
+        #xx = linspace(1,nbDataTmp,nbData);
         #d(n).Data(posEndEffectorId,:) = spline(1:nbDataTmp, posEndEffector, xx);
             xx = numpy.linspace(0, nbDataTmp, self.nbData)
 #            rospy.loginfo(str(pose.T[1,:]))
 #            rospy.loginfo("range "+ str(range(nbDataTmp)))
-            f = interpolate.interp1d(range(nbDataTmp+1), pose.T, kind='cubic')           
+            f = interpolate.interp1d(range(nbDataTmp+1), pose.T, kind='cubic')
             yy = f(xx)
-            self.d[n,0:3,:] = yy 
+            self.d[n,0:3,:] = yy
             #Velocities generated from the interpolation
             #d(n).Data(velId,:) = ([d(n).Data(posId,2:end) d(n).Data(posId,end)] - d(n).Data(posId,:)) ./ m.dt;
             aux = numpy.zeros(shape=(3,self.nbData))
             aux[:,0:-1] = yy[:,1:]
-            aux[:,-1]= yy[:,-1]            
+            aux[:,-1]= yy[:,-1]
             self.d[n,3:6,:] = ( ( aux - yy ) / self.dt )
 
             #Accelerations generated from the interpolation
             #d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)] - d(n).Data(velId,:)) ./ m.dt;
             aux[:,0:-1] = self.d[n,3:6,1:]
-            aux[:,-1]= self.d[n,3:6,-1]            
+            aux[:,-1]= self.d[n,3:6,-1]
             self.d[n,6:9,:] = ( ( aux - self.d[n,3:6,:] ) / self.dt )
             self.Data[:,((n)*self.nbData):(self.nbData*(n+1)) ] = self.d[n,:,:]
 #           numpy.set_printoptions(threshold=100000)
@@ -162,20 +162,20 @@ class learningDmp :
     def trainningDMP(self):
         rospy.loginfo('Learning DMP ...')
         #compute weights
-        s = 1; 
+        s = 1;
         #Initialization of decay term
         H = numpy.zeros(shape=(self.nbData,self.nbStates))
         h = numpy.zeros(shape=(self.nbStates))
 
         for n in range(self.nbData):
             s = s + (-self.alpha*s)*self.dt #Update of decay term
-            t = -math.log(s)/self.alpha      
+            t = -math.log(s)/self.alpha
             for i in range(self.nbStates):
-                h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i,0,0]) #Probability to be in a given state                
+                h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i,0,0]) #Probability to be in a given state
             H[n,:] = h/numpy.sum(h) #Normalization
         #tile equivalent to repmat of matlab
         self.H = numpy.tile(H,(self.nbSamples,1)) # Repeat the process for each demonstration
-        
+
         #Batch least norm solution to find the centers of the states (or primitives) Mu_X (Y=Mu_x*H')
         #         acc                          pos             vel
         Y = self.Data[6:9,:]*(1/self.kP) + self.Data[0:3,:] + self.Data[3:6,:]*(self.kV/self.kP)
@@ -190,8 +190,8 @@ class learningDmp :
 
         #Compute residuals
         RI = numpy.eye(self.nbVar,self.nbVar)*1E-3 #Regularization term for matrix inversion
-        
-#        rospy.loginfo('Mu_x \n' + str(self.Mu_x) + '\n' ) 
+
+#        rospy.loginfo('Mu_x \n' + str(self.Mu_x) + '\n' )
 #        casa = raw_input('Check Mu_x')
 #        rospy.loginfo('H \n' + str(self.H) + '\n' )
 #        casa = raw_input('Check H')
@@ -213,20 +213,20 @@ class learningDmp :
             self.Wp[i,:,:] = numpy.linalg.inv(self.Sigma_x[i,:,:]+RI) #Use variation information to determine stiffness
 
         # Warning sigmas are different from the matlab results I don
-        
 
-#        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n') 
+
+#        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n')
 
         #Rescale Wp to stay within the [kPmin,kPmax] range
-        V=numpy.zeros(shape=(3,3,self.nbStates))
+        V=numpy.zeros(shape=(self.nbStates,3,3))
         lambda_var = numpy.zeros(shape=(3,self.nbStates))
-#        rospy.loginfo( 'Values of Wp \n' + str(self.Wp) + '\n' ) 
+#        rospy.loginfo( 'Values of Wp \n' + str(self.Wp) + '\n' )
         for i in range(self.nbStates) :
             [Dtmp,V[i,:,:]] = numpy.linalg.eig(self.Wp[i,:,:]) #Eigencomponents decomposition
             lambda_var[:,i] = Dtmp
             # The eigen values Dtmp can be different from the matlab answers
 
-#        rospy.loginfo( 'Values of V \n' + str(V) +'\n' ) 
+#        rospy.loginfo( 'Values of V \n' + str(V) +'\n' )
         lambda_min = numpy.min(lambda_var)
         lambda_max = numpy.max(lambda_var)
 
@@ -254,11 +254,11 @@ class learningDmp :
 ###     Inputs -----------------------------------------------------------------
 ###         o Data:  D x N array representing N datapoints of D dimensions.
 ###         o Mu:    D x K array representing the centers of the K GMM components.
-###         o Sigma: D x D x K array representing the covariance matrices of the 
+###         o Sigma: D x D x K array representing the covariance matrices of the
 ###                  K GMM components.
 ###     Outputs ----------------------------------------------------------------
-###         o prob:  1 x N array representing the probabilities for the 
-###                  N datapoints.     
+###         o prob:  1 x N array representing the probabilities for the
+###                  N datapoints.
         if numpy.shape(Data) == () :
             nbVar = 1
             nbData = 1
@@ -283,13 +283,13 @@ class learningDmp :
 
 
     def exportPlayData(self):
-    #EXPORTPLAYDATA 
+    #EXPORTPLAYDATA
     # This function export the data to be used with the prepare ekf_Track
     # source code.
        file = open( self.exportFilename, 'w')
 
        file.write('kV\n' + repr(self.kV) +'\n\n')
-       
+
        file.write('kP\n' + repr(self.kP) +'\n\n')
 
        file.write('Mu_t\n')
@@ -306,9 +306,9 @@ class learningDmp :
            file.write('\n')
 
 
- 
-       file.write('Mu_x\n' ) 
-       
+
+       file.write('Mu_x\n' )
+
        format = numpy.zeros(shape=(numpy.shape(self.Mu_x)))
 
        for i in range(self.Mu_x.shape[0]):
@@ -318,7 +318,7 @@ class learningDmp :
            file.write('\n')
 
        file.write('\n')
-       file.write('Wp\n' ) 
+       file.write('Wp\n' )
 
        format = numpy.zeros(shape=(numpy.shape(self.Wp)))
 
