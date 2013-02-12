@@ -32,10 +32,10 @@ from collections import deque
 
 USE_SIMULATOR = False
 if USE_SIMULATOR:
-    ROSTOPIC_CAM_ROOT = "/stereo_front"
+    ROSTOPIC_CAM_ROOT = "stereo_front"
 else:
-    ROSTOPIC_CAM_ROOT = "/stereo_camera"
-ROSTOPIC_CAM_SUB = "image_rect"
+    ROSTOPIC_CAM_ROOT = "stereo_camera"
+ROSTOPIC_CAM_SUB = "image_rect_color"
 
 
 # Check if ORB/SURF detector is available
@@ -455,15 +455,17 @@ class VisualDetector(object):
     
     def detect_panel(self, *args):
         #self.panel.sub.unregister()
-        _cvimage_ = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy()
+        panel = self.panel
+        if type(panel.detector) is objdetect.Detector:
+            args = (args[0],)
+        # Convert the images to BGR8 format
+        _cvimage_ = [np.asarray(self.ros2cvimg.cvimage(_img_, COLOUR_FMT="bgr8")).copy()
             for _img_ in args]
         #try:
         #    cvimage = [self.panel.Retinex.retinex(_img_).astype(_img_.dtype)
         #        for _img_ in _cvimage_]
         #except:
         #    print "Error using retinex()"
-        
-        panel = self.panel
         
         cvimage = _cvimage_
         panel.detector.detect(*cvimage)
@@ -504,8 +506,8 @@ class VisualDetector(object):
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
             cov[pos_diag_idx, pos_diag_idx] = (
-                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2)
-            panel.pose_msg.pose.covariance = cov.flatten().tolist()
+                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2).flatten()
+            panel.pose_msg.pose.covariance = cov.tolist()
             panel.pose_msg_pub.publish(panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
@@ -528,7 +530,7 @@ class VisualDetector(object):
             out_img = panel.detector.get_scene(0)
         
         # Publish image of detected panel
-        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img))
+        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img), encoding="bgr8")
         img_msg.header.stamp = time_now
         self.panel.img_pub.publish(img_msg)
         return
@@ -670,6 +672,7 @@ class VisualDetector(object):
                     valve_im_bbox = (left, top, right, bottom)
                     this_valve_orientation = self.detect_valve_orientation(
                         scene, valve_im_bbox, HoughMinLineLength=valve_length_px,
+                        HoughThreshold=int(0.9*valve_length_px),
                         HIGHLIGHT_VALVE=True)
                     
                     if not this_valve_orientation is None:
@@ -713,7 +716,7 @@ class VisualDetector(object):
                             handle_px_corners = handle_px_corners.astype(np.int32)
                             cv2.line(scene, tuple(handle_px_corners[0].astype(int)),
                                      tuple(handle_px_corners[1].astype(int)),
-                                     (30, 30, 30), 5)
+                                     (0, 0, 255), 5)
                         
                         #detected_valve_orientations.append(None)
                         #valve_centre_3d = transform_numpy_array("bumblebee2", "panel_centre", valve_centre[np.newaxis, valve_idx])
@@ -725,13 +728,13 @@ class VisualDetector(object):
                         #    pass
                     
                 #cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
-        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene))
+        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene), encoding="bgr8")
         self.valve.pub.img.publish(img_msg)
         return detected_valve_orientations
     
     def detect_valve_orientation(self, img, bbox=None,
         HIGHLIGHT_VALVE=False, CannyThreshold1=50, CannyThreshold2=100,
-        HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=8,
+        HoughRho=1, HoughTheta=np.pi/180, HoughThreshold=40,
         HoughMinLineLength=60, HoughMaxLineGap=5):
         """detect_valve_orientation(self, img, bbox=None) -> theta
         Estimate valve orientation using Hough transform:
@@ -739,12 +742,11 @@ class VisualDetector(object):
         bounding box (left, top, right, bottom) in pixels. If bbox==None, the
         entire image is used.
         """
-        im_box = img[np.ix_(np.arange(bbox[1], bbox[3]), 
-                           np.arange(bbox[0], bbox[2]))]
+        im_box = img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
         im_edges = cv2.Canny(im_box, CannyThreshold1, CannyThreshold2)
         # Zero lines in the borders using a circular mask
-        box_height, box_width = im_box.shape
-        mask = np.zeros(im_box.shape)
+        box_height, box_width = im_box.shape[:2]
+        mask = np.zeros(im_box.shape[:2])
         mask_centre = (int(box_width/2), int(box_height/2))
         mask_radius = int(max((box_height, box_width))/2*1.1)
         cv2.circle(mask, mask_centre, mask_radius, (255, 255, 255), thickness=-1)
@@ -779,13 +781,13 @@ class VisualDetector(object):
             if not bbox is None:
                 v_pt1 += [bbox[0], bbox[1]]
                 v_pt2 += [bbox[0], bbox[1]]
-                cv2.line(img, tuple(v_pt1), tuple(v_pt2), (0, 0, 0), 6)
+                cv2.line(img, tuple(v_pt1), tuple(v_pt2), (255, 0, 0), 6)
         
         # Get the angle using arctan
         valve_orientation = np.arctan2(delta_xy[1], delta_xy[0])
-        if -95 < valve_orientation*180/np.pi < -85:
+        if -92.5 < valve_orientation*180/np.pi < -87.5:
             valve_orientation = -valve_orientation
-        if -5 < valve_orientation < 95:
+        if -2.5 < valve_orientation < 92.5:
             return valve_orientation
         else:
             return None
@@ -807,9 +809,9 @@ class VisualDetector(object):
 if __name__ == '__main__':
     try:
         rospy.init_node('visual_detector')
-        remap_camera_name = rospy.resolve_name("stereo_camera")
+        remap_camera_name = rospy.resolve_name(ROSTOPIC_CAM_ROOT)
         rospy.loginfo("Using camera root: " + remap_camera_name)
-        remap_image_name = rospy.resolve_name("image_rect")
+        remap_image_name = rospy.resolve_name(ROSTOPIC_CAM_SUB)
         rospy.loginfo("Using image topic: " + remap_image_name)
         visual_detector = VisualDetector(rospy.get_name(), 
                                          remap_camera_name, remap_image_name)
