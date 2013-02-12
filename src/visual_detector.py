@@ -506,8 +506,8 @@ class VisualDetector(object):
             cov = np.zeros((6, 6))
             pos_diag_idx = range(3)
             cov[pos_diag_idx, pos_diag_idx] = (
-                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2).flatten()
-            panel.pose_msg.pose.covariance = cov.tolist()
+                (((1.2*np.linalg.norm(panel_centre))**2)*0.03)**2)
+            panel.pose_msg.pose.covariance = cov.flatten().tolist()
             panel.pose_msg_pub.publish(panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
