@@ -28,7 +28,7 @@
         <node name="phdslam" pkg="udg_pandora" type="g500slam.py" /> 
 
 	<!-- stereo image proc down & front-->	
-    <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
+        <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
     		<env name="ROS_NAMESPACE" value="/stereo_down"/>
   	</node>
 	<node name="image_proc_front" pkg="stereo_image_proc" type="stereo_image_proc">

@@ -7,3 +7,8 @@ learning/reproductor/interval_time : 0.01 #10Hz
 learning/reproductor/simulation : 0
 learning/reproductor/nbDataRepro : 500 
 learning/reproductor/exportFile : trajectoryPlayed.cvs
+learning/reproductor/demonstration_file : trajectory_demonstration_arm
+learning/reproductor/demonstrations : [ 0, 1, 2, 3, 4 ]
+learning/reproductor/frame_id_goal : '/valve_1'
+learning/reproductor/name_pub_demonstrate : '/learning/trajectory_demonstrated'
+learning/reproductor/name_pub_done : '/learning/trajectory'
