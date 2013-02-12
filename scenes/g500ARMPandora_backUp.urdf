@@ -37,12 +37,11 @@
       </visual>
    </link>
 
-   <joint name="base_to_shoulder" type="revolute"> 
+   <joint name="base_to_shoulder" type="continuous"> 
       <parent link="base"/>
       <child link="shoulder"/>
       <axis xyz="0 0 1"/>
       <origin rpy="0 0 0" xyz="0.25 -0.02 0.0"/>
-      <limit lower="-0.52" upper="1.57"  velocity="0.733" effort="1000.0"/>
    </joint>
 
 
@@ -55,12 +54,11 @@
       </visual>
    </link>
 
-   <joint name="shoulder_to_biceps" type="revolute">
+   <joint name="shoulder_to_biceps" type="continuous">
       <parent link="shoulder"/>
       <child link="biceps"/>
       <axis xyz="0 1 0"/>
-      <origin rpy="0 0 0" xyz="0.10 0.0 0.05"/>
-      <limit lower="0.0" upper="1.57"  velocity="0.733" effort="1000.0"/>
+      <origin rpy="0 0 0" xyz="0.10 0.0 0.0"/>
    </joint>
 
   <link name="forearm">
@@ -72,45 +70,14 @@
       </visual>
    </link>
 
-   <joint name="elbow" type="revolute">
+   <joint name="elbow" type="continuous">
 
       <parent link="biceps"/>
       <child link="forearm"/>
       <axis xyz="0 1 0"/>
-      <origin rpy="0 0 0" xyz="0.22 0.0 0.05"/>
-      <limit lower="-3.14" upper="-0.82"  velocity="0.733" effort="1000.0"/>
+      <origin rpy="0 -1.57 0" xyz="0.22 0.0 0.05"/>
    </joint>
 
- <!-- Inseerting virtual links and joints -->
- 
- <link name="virtual_wrist_1">
-   <visual>
-     <geometry>
-       <cylinder length="0.0" radius="0.0"/>
-     </geometry>
-   </visual>
- </link>
- 
- <joint name="virtual_wrist_roll" type="continuous">
-   <parent link="forearm"/>
-   <child link="virtual_wrist_1"/>
-   <axis xyz="0 1 0"/>
- </joint>
-   
-  <link name="virtual_wrist_2">
-   <visual>
-     <geometry>
-       <cylinder length="0.0" radius="0.0"/>
-     </geometry>
-   </visual>
- </link>
- 
-  <joint name="virtual_wrist_roll_2" type="continuous">
-   <parent link="virtual_wrist_1"/>
-   <child link="virtual_wrist_2"/>
-   <axis xyz="0 0 1"/>
- </joint>
- 
   <link name="palm">
       <visual>
 	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
@@ -121,7 +88,7 @@
    </link>
 
    <joint name="wrist" type="continuous">
-      <parent link="virtual_wrist_2"/>
+      <parent link="forearm"/>
       <child link="palm"/>
       <axis xyz="1 0 0"/>
       <origin rpy="0 0 0" xyz="0.2 0.01 -0.1"/>
