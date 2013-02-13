@@ -5,18 +5,18 @@
       <visual>
          <origin rpy="0.0 0 0.0" xyz="0.0 0 0.0"/>
          <geometry>
-           <!-- <mesh filename="file://robot2/GIRONA500v2/g500.osg"/> -->
-           <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500.osg"/>
+	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500.osg"/> -->
+	   <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500.osg"/>
          </geometry>
        </visual>
    </link>
 
    <link name="base">
       <visual>
-        <origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
-         <geometry>
-           <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part1.osg"/> 
-         </geometry>
+	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
+	 <geometry>
+	   <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part1.osg"/> 
+	 </geometry>
       </visual>
    </link>
 
@@ -30,10 +30,10 @@
 
   <link name="shoulder">
       <visual>
-         <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
-         <geometry>
-            <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part2.osg" />
-         </geometry>
+	 <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part2.osg" />
+	 </geometry>
       </visual>
    </link>
 
@@ -47,10 +47,10 @@
 
    <link name="biceps">
       <visual>
-         <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
-         <geometry>
-            <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part3.osg" />
-         </geometry>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part3.osg" />
+	 </geometry>
       </visual>
    </link>
 
@@ -63,10 +63,10 @@
 
   <link name="forearm">
       <visual>
-         <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
-         <geometry>
-            <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part4.osg" />
-         </geometry>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part4.osg" />
+	 </geometry>
       </visual>
    </link>
 
@@ -80,10 +80,10 @@
 
   <link name="palm">
       <visual>
-         <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
-         <geometry>
-            <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part5.osg" />
-         </geometry>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part5.osg" />
+	 </geometry>
       </visual>
    </link>
 

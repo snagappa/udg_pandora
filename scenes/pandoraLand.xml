@@ -69,20 +69,70 @@
   </camera>
 
   <vehicle>
-      <name>valvepanel</name>
+      <name>valve01</name>
       <file>scenes/valvePanel.urdf</file>
       <jointValues>
-          <joint> 0.75 </joint>
-          <joint> -0.75 </joint>
-          <joint> 0.30 </joint>
-          <joint> 1.57 </joint>
-          <joint> -1.0 </joint>
           <joint> 0.0 </joint>
-      </jointValues>
+      </jointValues> 
       <position>
-          <x> 0.0 </x>
-          <y> 0.0 </y>
-          <z> 2.0 </z>
+          <x> -1.8 </x>
+          <y> -0.1 </y>
+          <z> 2.91 </z>
+      </position>
+      <orientation>
+          <r>0</r>
+          <p>0</p>
+          <y>0</y>
+      </orientation>
+  </vehicle>
+
+
+  <vehicle>
+      <name>valve02</name>
+      <file>scenes/valvePanel.urdf</file>
+      <jointValues>
+          <joint> 0.0 </joint>
+      </jointValues> 
+      <position>
+          <x> -1.8 </x>
+          <y> -0.355 </y>
+          <z> 2.91 </z>
+      </position>
+      <orientation>
+          <r>0</r>
+          <p>0</p>
+          <y>0</y>
+      </orientation>
+  </vehicle>
+
+  <vehicle>
+      <name>valve03</name>
+      <file>scenes/valvePanel.urdf</file>
+      <jointValues>
+          <joint> 0.0 </joint>
+      </jointValues> 
+      <position>
+          <x> -1.8 </x>
+          <y> -0.61 </y>
+          <z> 2.91 </z>
+      </position>
+      <orientation>
+          <r>0</r>
+          <p>0</p>
+          <y>0</y>
+      </orientation>
+  </vehicle>
+
+  <vehicle>
+      <name>valve00</name>
+      <file>scenes/valvePanel.urdf</file>
+      <jointValues>
+          <joint> 0.0 </joint>
+      </jointValues> 
+      <position>
+          <x> -1.8 </x>
+          <y> -0.355 </y>
+          <z> 2.66 </z>
       </position>
       <orientation>
           <r>0</r>
@@ -158,7 +208,7 @@
       <position>
         <x>0.0</x>
         <y>-0.06</y>
-        <z>-0.7</z>
+        <z>-0.5</z> <!-- -0.7-->
       </position>
       <orientation>
         <r>-1.57</r>
@@ -176,7 +226,7 @@
       <position>
         <x>0.0</x>
         <y>0.06</y>
-        <z>-0.7</z>
+        <z>-0.5</z> <!-- -0.7 -->
       </position>
       <orientation>
         <r>-1.57</r>
@@ -265,14 +315,14 @@
 
   <object>
     <name> panel2 </name>
-	<file>data2/objects2/panel_b.osg</file>
+	<file>data2/objects2/new_panel2.osg</file>
     <position>
-      <x> -8.0 </x>
-      <y> 3.0 </y>
-      <z> 3 </z>
+      <x> -2.0 </x>
+      <y> 0.0 </y>
+      <z> 3.0 </z>
     </position>
     <orientation>
-      <r>3.14</r>
+      <r>1.57</r>
       <p>0</p>
       <y>0</y>
     </orientation>
@@ -352,18 +402,42 @@
 	<vehicleName> girona500 </vehicleName>
     </ArmToROSJointState>
     <ArmToROSJointState> 
-	<topic>/uwsim/valve_state</topic>
-	<vehicleName> valvepanel </vehicleName>
+	<topic>/uwsim/valve00</topic>
+	<vehicleName> valve00 </vehicleName>
     </ArmToROSJointState>
+    <ArmToROSJointState> 
+	<topic>/uwsim/valve01</topic>
+	<vehicleName> valve01 </vehicleName>
+    </ArmToROSJointState>
+    <ArmToROSJointState> 
+	<topic>/uwsim/valve02</topic>
+	<vehicleName> valve02 </vehicleName>
+    </ArmToROSJointState>
+    <ArmToROSJointState> 
+	<topic>/uwsim/valve03</topic>
+	<vehicleName> valve03 </vehicleName>
+    </ArmToROSJointState>
+
     <ROSJointStateToArm> 
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
     <ROSJointStateToArm> 
-	<topic>/uwsim/valve_state_command</topic>
-	<vehicleName> valvepanel </vehicleName>
+	<topic>/uwsim/valve00_command</topic>
+	<vehicleName> valve00 </vehicleName>
     </ROSJointStateToArm>
-
+    <ROSJointStateToArm> 
+	<topic>/uwsim/valve01_command</topic>
+	<vehicleName> valve01 </vehicleName>
+    </ROSJointStateToArm>
+    <ROSJointStateToArm> 
+	<topic>/uwsim/valve02_command</topic>
+	<vehicleName> valve02 </vehicleName>
+    </ROSJointStateToArm>
+    <ROSJointStateToArm> 
+	<topic>/uwsim/valve03_command</topic>
+	<vehicleName> valve03 </vehicleName>
+    </ROSJointStateToArm>
 
     <VirtualCameraToROSImage>
       <cameraName>right_down</cameraName>

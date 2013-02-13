@@ -3,6 +3,8 @@
 	<arg name="ROSMaster" value="http://narcis-mbp:11311/" />
 	<arg name="simulatedClock" value="false" />
         <arg name="enableTeleopArm" value="false" />
+        <arg name="enableOmega7" value="false" />
+        <arg name="enableIITController" value="true" />
 
 	<!-- LOAD PARAMETERS -->
 	<rosparam command="load" file="$(find cola2_safety)/config/safety_g500.yaml" />	
@@ -59,7 +61,11 @@
 
 	<group if="$(arg enableTeleopArm)">
               	<rosparam command="load" file="$(find cola2_control)/config/joyArm.yaml"/>
+
+              <!--  <node if="$(arg omega7)" name=               -->
 		<node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
+
+
 		<node respawn="true" pkg="joy" type="joy_node" name="joystick" > 
 	  		<param name="deadzone" value="0.05"/>
 			<param name="dev" value="/dev/input/js0"/>
@@ -71,9 +77,22 @@
 		<node name="keyboard" pkg="cola2_control" type="keyboard" />
  	</group>
 
-        <node name="arm_controller" pkg="cola2_control" type="arm_controller" output="screen" />
+        <node name="arm_manipulator" pkg="cola2_control" type="arm_manipulator.py" output="screen" />   
         
-	<node name="arm_manipulator" pkg="cola2_control" type="arm_manipulator.py" output="screen" />
+        <group if="$(arg enableIITController)">
+               <node name="arm_controller" pkg="cola2_control" type="arm_controller" output="screen">
+                     <param name="urdf_path" value="$(find udg_pandora)/scenes/g500ARMPandora.urdf"/>
+               </node>
+             <node name="omega7_controller" pkg="omega7" type="omega7_controller" output="screen"/> 
+             <node name="haptic_controler" pkg="haptic_controller" type="haptic_controler" output="screen"/> 
+        </group>
+
+	<group unless="$(arg enableIITController)">
+                <node name="arm_controller_New" pkg="cola2_control" type="arm_controller_New" output="screen" />        
+        </group>
+
+
+
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-a -x '(/camera/image_m(.)*)|(/camera/image_c(.)*)|(/camera/image_rect/(.)*)|(/camera/image_rect)|(/camera/image_raw)|(/camera/image_rect_color/compressed)|(/camera/image_raw/compressed)' --split --size 2048 -o /home/$(env LOGNAME)/g500" />
 

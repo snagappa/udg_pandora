@@ -24,12 +24,16 @@ from geometry_msgs.msg import Point
 #include message of the point
 from sensor_msgs.msg import Joy
 
+#include message to show the trajectories demonstrated
+from nav_msgs.msg import Path
 
 import math
 import numpy
 from scipy import interpolate
 
 import threading
+
+#import warnings
 
 #value to show all the numbers in a matrix
 # numpy.set_printoptions(threshold=100000)
@@ -70,6 +74,15 @@ class learningReproductor :
         self.lock = threading.Lock()
         self.pub_desired_position = rospy.Publisher("/arm/desired_position", PoseStamped )
         self.pub_arm_command = rospy.Publisher("/cola2_control/joystick_arm_data", Joy )
+        self.list_demos = []
+        for i in  range(len(self.demonstrations)) :
+            self.list_demos.append( rospy.Publisher( self.name_pub_demonstrate + "_" + str(self.demonstrations[i]), Path)  )
+
+        self.pub_path_trajectory = rospy.Publisher( self.name_pub_done, Path)
+
+        self.traj = Path()
+        self.traj.header.frame_id = self.frame_id_goal
+
 
         rospy.Subscriber('/arm/pose_stamped', PoseStamped , self.updateArmPosition )
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
@@ -77,6 +90,7 @@ class learningReproductor :
 
         rospy.loginfo('Configuration ' + str(name) +  ' Loaded ')
 
+#        self.loadDemonstration()
 
     def getConfig(self) :
         param_dict = {'reproductor_parameters': 'learning/reproductor/parameters',
@@ -88,7 +102,12 @@ class learningReproductor :
                       'interval_time': 'learning/reproductor/interval_time',
                       'simulation': 'learning/reproductor/simulation',
                       'nbDataRepro': 'learning/reproductor/nbDataRepro',
-                      'exportFile': 'learning/reproductor/exportFile'}
+                      'exportFile': 'learning/reproductor/exportFile',
+                      'demonstration_file': 'learning/reproductor/demonstration_file',
+                      'demonstrations': 'learning/reproductor/demonstrations',
+                      'frame_id_goal': 'learning/reproductor/frame_id_goal',
+                      'name_pub_demonstrate': 'learning/reproductor/name_pub_demonstrate',
+                      'name_pub_done': 'learning/reproductor/name_pub_done'}
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time) )
 
@@ -185,10 +204,6 @@ class learningReproductor :
         # raw_input()
 
 
-
-
-
-
         # action is a scalar value to evaluate the safety
         #currAcc = currAcc * math.fabs(self.action)
 
@@ -232,7 +247,11 @@ class learningReproductor :
         for i in xrange(self.numStates) :
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
-        h = h / numpy.sum(h)
+        if numpy.sum(h) == 0 :
+            rospy.loginfo('The time used in the demonstration is exhausted')
+            rospy.signal_shutdown('The time used in the demonstration is exhausted')
+        else :
+            h = h / numpy.sum(h)
 
         #init to vectors
         currTar = numpy.zeros(self.nbVar)
@@ -317,6 +336,20 @@ class learningReproductor :
         self.fileDesiredPose.write(s)
 
 
+        # pos_nav = PoseStamped()
+        # pos_nav.header.frame_id = self.frame_id_goal
+        # pos_nav.pose.position.x = float(self.desPos[0])
+        # pos_nav.pose.position.y = float(self.desPos[1])
+        # pos_nav.pose.position.z = float(self.desPos[2])
+
+        #orientation, is needed a conversion from euler to quaternion
+        # pos_nav.pose.point.position.x = pose_aux[0]
+        # pos_nav.pose.point.position.y = pose_aux[1]
+        # pos_nav.pose.point.position.z = pose_aux[2]
+
+        #add the pose, point to the path
+        # self.traj.poses.append(pos_nav)
+        # self.pub_path_trajectory.publish(self.traj)
         self.pub_arm_command.publish(joyCommand)
 
 
@@ -441,6 +474,52 @@ class learningReproductor :
 #        prob = numpy.sum( numpy.dot(Data,numpy.linalg.inv(Sigma)) * Data, axis=1)
         #realmin = numpy.finfo(numpy.double).tiny
 #        prob = math.exp(-0.5*prob) / math.sqrt((2*math.pi)^nbVar * (abs(numpy.linalg.det(Sigma))+numpy.finfo(numpy.double).tiny))
+
+
+    def loadDemonstration(self) :
+
+        for n in range(len(self.demonstrations)):
+            ni=self.demonstrations[n]
+            logfile = open(self.demonstration_file+"_"+str(ni)+".csv", "r").readlines()
+            pose = numpy.array([[0,0,0]])
+            ori = numpy.array([[0,0,0]])
+            counter = 0
+            traj_demo = Path()
+            for line in logfile :
+                pose_aux = numpy.array([])
+                ori_aux = numpy.array([])
+                for word in line.split() :
+                    if counter < 3 :
+                        pose_aux = numpy.append(pose_aux,word)
+                    else :
+                        ori_aux = numpy.append(ori_aux,word)
+                    counter+=1
+                #add positions to the path
+                pos_nav = PoseStamped()
+                pos_nav.header.frame_id = self.frame_id_goal
+                pos_nav.pose.position.x = float(pose_aux[0])
+                pos_nav.pose.position.y = float(pose_aux[1])
+                pos_nav.pose.position.z = float(pose_aux[2])
+
+                #orientation, is needed a conversion from euler to quaternion
+                # pos_nav.pose.point.position.x = pose_aux[0]
+                # pos_nav.pose.point.position.y = pose_aux[1]
+                # pos_nav.pose.point.position.z = pose_aux[2]
+
+                #add the pose, point to the path
+                traj_demo.poses.append(pos_nav)
+
+                #add positions to the matrix
+                pose = numpy.vstack((pose,pose_aux))
+                ori = numpy.vstack((ori,ori_aux))
+                counter = 0
+
+            #publish the message
+            traj_demo.header.frame_id = self.frame_id_goal
+            self.list_demos[n].publish(traj_demo)
+
+            pose = numpy.vsplit(pose,[1])[1]
+            ori = numpy.vsplit(ori,[1])[1]
 
 
 
