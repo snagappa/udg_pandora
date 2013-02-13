@@ -23,6 +23,7 @@ from tf.transformations import euler_from_quaternion
 
 #import to use mutex
 import threading
+import tf
 
 class LearningRecord:
 
@@ -35,7 +36,9 @@ class LearningRecord:
         rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
         #rospy.Subscriber("/pose_ekf_slam/landmark_update/valve_1", PoseWithCovarianceStamped, self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
+        #rospy.Subscriber("/visual_detector2/valve")
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
+        self.tflistener = tf.TransformListener()
 
 
     def getConfig(self):
@@ -71,7 +74,6 @@ class LearningRecord:
         finally:
             self.lock.release()
 
-
         self.file.write(s)
 
     def updateGoalPose(self, landMarkMap):
@@ -80,8 +82,15 @@ class LearningRecord:
 
             for mark in landMarkMap.landmark :
                 if self.landmark_id == mark.landmark_id :
-                    self.goalPose = mark.position
-
+#                    self.goalPose = mark.position
+                    try:
+                        self.tflistener.waitForTransform("world", "valve1", rospy.Time(), rospy.Duration(0.2))
+                        trans, rot = self.tflistener.lookupTransform("world", "valve1", rospy.Time())
+                        self.goalPose.x = trans[0]
+                        self.goalPose.y = trans[1]
+                        self.goalPose.z = trans[2]
+                    except tf.Exception:
+                        return
         finally:
             self.lock.release()
     def updateRobotPose (self, odometry):
