@@ -4,7 +4,7 @@
 	<arg name="simulatedClock" value="false" />
         <arg name="enableTeleopArm" value="false" />
         <arg name="enableOmega7" value="false" />
-        <arg name="enableIITController" value="true" />
+        <arg name="enableIITController" value="false" />
 
 	<!-- LOAD PARAMETERS -->
 	<rosparam command="load" file="$(find cola2_safety)/config/safety_g500.yaml" />	
@@ -62,8 +62,16 @@
 	<group if="$(arg enableTeleopArm)">
               	<rosparam command="load" file="$(find cola2_control)/config/joyArm.yaml"/>
 
-              <!--  <node if="$(arg omega7)" name=               -->
-		<node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
+                <group if="$(arg enableOmega7)">
+
+                             <node name="omega7_controller" pkg="omega7" type="omega7_controller" output="screen"/> 
+                             <node name="haptic_controler" pkg="haptic_controller" type="haptic_controler" output="screen"/> 
+
+                </group>
+                <group unless="$(arg enableOmega7)">
+                       <node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
+                </group>
+
 
 
 		<node respawn="true" pkg="joy" type="joy_node" name="joystick" > 
