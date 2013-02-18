@@ -280,7 +280,7 @@
       <z> -1.57 </z>
     </offsetr>
   </object>
-
+<!--
   <object>
     <name> panel </name>
 	<file>data2/objects2/panel2.osg</file>
@@ -295,7 +295,7 @@
       <y>0.0</y>
     </orientation>
   </object>
-
+-->
 
  <object>
     <name> chain </name>
