@@ -35,6 +35,12 @@ from cv_bridge import CvBridge, CvBridgeError
 import sys
 import scipy
 import scipy.ndimage
+import rospy
+import threading
+import message_filters
+import copy
+from sensor_msgs.msg import CameraInfo, Image
+import pickle
 #from operator import mul, add
 #import code
 
@@ -56,6 +62,157 @@ class STRUCT(object):
             dtype += ", " + str(var.dtype) + ", " + str(var.shape)
         return dtype
     
+
+class message_buffer(object):
+    def __init__(self, message_topic_list, message_type_list):
+        assert not isinstance(message_topic_list, basestring)
+        assert not isinstance(message_type_list, basestring)
+        self._topics_ = copy.deepcopy(message_topic_list)
+        self._topic_types_ = copy.deepcopy(message_type_list)
+        
+        # Storage for messages
+        self._messages_ = [None for _topic_ in message_topic_list]
+        self._message_time_ = rospy.Time(0)
+        
+        # List of callbacks and rates
+        self._callbacks_ = {}
+        self._last_callback_id_ = -1
+        self._last_callback_time_ = []
+        self._lock_ = threading.Lock()
+
+        # Subscribe to the topics
+        # Subscriber for the topics
+        self._sub_ = None
+        self._timesync_ = None
+        self._subscribe_()
+    
+    def _subscribe_(self):
+        self._sub_ = [
+            message_filters.Subscriber(_topic_, _type_)
+            for (_topic_, _type_) in zip(self._topics_, self._topic_types_)]
+        self._timesync_ = message_filters.TimeSynchronizer(self._sub_, 10)
+        self._timesync_.registerCallback(self._update_messages_)
+    
+    def _update_messages_(self, *args):
+        self._lock_.acquire()
+        if len(self._callbacks_):
+            self._messages_ = [_msg_ for _msg_ in args]
+            self._message_time_ = self._messages_[0].header.stamp
+            self._start_callback_threads_()
+        self._lock_.release()
+
+    def register_callback(self, callback, rate=None):
+        self._lock_.acquire()
+        self._last_callback_id_ += 1
+        time_delay = None if rate is None else rospy.Duration(1./rate)
+        self._callbacks_[self._last_callback_id_] = {"callback":callback,
+                                                     "timedelay":time_delay,
+                                                     "lasttime":rospy.Time(0),
+                                                     "block":0}
+        self._lock_.release()
+        return self._last_callback_id_
+
+    def unregister_callback(self, callback_id):
+        self._lock_.acquire()
+        try:
+            self._callbacks_.pop(callback_id)
+        except KeyError:
+            print "callback_id not found. already unregistered?"
+        finally:
+            self._lock_.release()
+
+    def _start_callback_threads_(self):
+        #self._lock_.acquire()
+        threads = []
+        unregister_callbacks_list = []
+        for _callback_ in self._callbacks_:
+            try:
+                callback_info = self._callbacks_[_callback_]
+                if ((not callback_info["block"]) and
+                    (callback_info["timedelay"] is None or
+                    self._message_time_ - callback_info["lasttime"] >= callback_info["timedelay"])):
+                    threads.append(threading.Thread(target=self._thread_wrapper_, args=(callback_info,)))
+                    threads[-1].start()
+                    callback_info["lasttime"] = copy.copy(self._message_time_)
+            except:
+                print "error in callback, unregistering..."
+                unregister_callbacks_list.append(_callback_)
+        for _callback_ in unregister_callbacks_list:
+            self._callbacks_.pop(_callback_)
+        #self._lock_.release()
+
+    def _thread_wrapper_(self, callback_info):
+        callback_info["block"] = 1
+        callback_info["callback"](*self._messages_)
+        callback_info["block"] = 0
+
+class camera_buffer(message_buffer):
+    def __init__(self, camera_root, image_topic, IS_STEREO=False):
+        assert type(camera_root) == str, "camera_root must be a string"
+        if len(camera_root):
+            camera_root = camera_root.rstrip('/') + '/'
+        image_topic = image_topic.lstrip('/')
+        if IS_STEREO:
+            message_topics = [camera_root+"left/"+image_topic,
+                             camera_root+"right/"+image_topic]
+            message_types = [Image, Image]
+        else:
+            message_topics = [camera_root+image_topic]
+            message_types = [Image]
+        message_buffer.__init__(self, message_topics, message_types)
+        self._is_stereo_ = IS_STEREO
+        
+        if IS_STEREO:
+            # Initialise topics as None
+            self._camera_info_topics_ = [camera_root+"left/camera_info",
+                                        camera_root+"right/camera_info"]
+            self._camera_info_ = (None, None)
+        else:
+            self._camera_info_topics_ = [camera_root+"camera_info"]
+            self._camera_info_ = (None,)
+        # Try to subscribe to the camera info
+        self._cam_info_from_topics_()
+    
+    def _cam_info_from_topics_(self):
+        try:
+            self._camera_info_ = tuple(
+                [rospy.wait_for_message(cam_info_topic, CameraInfo, 2)
+                 for cam_info_topic in self._camera_info_topics_])
+        except rospy.ROSException:
+            rospy.logerr("Could not read camera parameters")
+            camera_pickle_file = "bumblebee.p"
+            print "Loading information from "+camera_pickle_file
+            camera_info_pickle = roslib.packages.find_resource("udg_pandora",
+                camera_pickle_file)
+            if len(camera_info_pickle):
+                camera_info_pickle = camera_info_pickle[0]
+                try:
+                    self._camera_info_ = tuple(
+                        pickle.load(open(camera_info_pickle, "rb")))
+                except IOError:
+                    print "Failed to load camera information!"
+                    rospy.logerror("Could not read camera parameters")
+                    raise rospy.exceptions.ROSException(
+                        "Could not read camera parameters")
+            else:
+                print "Failed to load camera information!"
+                rospy.logerror("Could not read camera parameters")
+                raise rospy.exceptions.ROSException(
+                    "Could not read camera parameters")
+    
+    def fromCameraInfo(self, camera_info_left, camera_info_right=None):
+        if self._is_stereo_:
+            self._camera_info_ = tuple([copy.deepcopy(_info_)
+                for _info_ in (camera_info_left, camera_info_right)])
+        else:
+            self._camera_info_ = (copy.deepcopy(camera_info_left),)
+    
+    def get_camera_info(self, idx=None):
+        if not idx is None:
+            return (self._camera_info_[idx],)
+        else:
+            return self._camera_info_
+
 
 FLANN_INDEX_KDTREE = 1  # bug: flann enums are missing
 FLANN_INDEX_LSH    = 6
