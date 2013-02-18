@@ -1,7 +1,7 @@
 <launch>
 	<arg name="enableShadders" value="true" />
 	<arg name="enableLog" value="false" />
-    	<arg name="enableLandmarks" value="true" />
+  	<arg name="enableLandmarks" value="true" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
@@ -23,12 +23,12 @@
 	<rosparam command="load" file="$(find udg_pandora)/config/visual_detector.yaml" />
 
 	<!-- Load nodes -->
-	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/>
-	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/>
-        <node name="phdslam" pkg="udg_pandora" type="g500slam.py" /> 
+<!--	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/> -->
+<!--	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/> -->
+ <!--       <node name="phdslam" pkg="udg_pandora" type="g500slam.py" />  -->
 
 	<!-- stereo image proc down & front-->	
-    <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
+        <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
     		<env name="ROS_NAMESPACE" value="/stereo_down"/>
   	</node>
 	<node name="image_proc_front" pkg="stereo_image_proc" type="stereo_image_proc">
@@ -38,7 +38,6 @@
 	<!-- Load G500 components -->
  	<include if="$(arg enableLandmarks)" file="$(find cola2_detection)/launch/ar_landmark_sim.launch"/>
 	
-
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
     '(/cola2_navigation/(.)*)|(/cola2_control/(.)*)|(/pose_ekf_slam/(.)*)|(/ar_pose_markers)|(/stereo_front/left/image_raw)|(/stereo_front/left/camera_info)|(/tf)' --split --size 2048 -o /home/$(env LOGNAME)/sim" />
 

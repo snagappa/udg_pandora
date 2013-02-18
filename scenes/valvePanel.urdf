@@ -1,112 +1,29 @@
 <?xml version="1.0"?>
 <robot name="valvePanel">
-  <!-- base link is the body of the robot -->
-  <link name="panel">
-      <visual>
-         <origin rpy="0.0 0 0.0" xyz="0.0 0 0.0"/>
-         <geometry>
-	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500.osg"/> -->
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/panelWithoutHandles.osg"/>
-         </geometry>
-       </visual>
-   </link>
 
-   <link name="handle01">
+   <link name="bar">
       <visual>
-	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
+	<origin rpy="0 0 1.75" xyz="0.0 0.0 0.0"/> 
 	 <geometry>
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/handle.osg"/> 
+	   <mesh filename="package://udg_pandora/data2/objects2/handle.osg"/> 
 	 </geometry>
       </visual>
    </link>
 
-   <joint name="panel_to_handle_01" type="continuous">
-      <parent link="panel"/>
-      <child link="handle01"/>
+   <link name="handle">
+      <visual>
+	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
+	 <geometry>
+	   <mesh filename="package://udg_pandora/data2/objects2/handle.osg"/> 
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="valve" type="continuous">
+      <parent link="bar"/>
+      <child link="handle"/>
       <axis xyz="1 0 0"/>   
-      <origin rpy="0 0 0" xyz="0.04 -0.11 -0.09"/>
-   </joint>
-
-  <link name="handle02">
-      <visual>
-	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
-	 <geometry>
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/handle.osg"/> 
-	 </geometry>
-      </visual>
-   </link>
-
-   <joint name="panel_to_handle_02" type="continuous">
-      <parent link="panel"/>
-      <child link="handle02"/>
-      <axis xyz="1 0 0"/>
-      <origin rpy="0 0 0" xyz="0.04 -0.11 -0.34"/>
-   </joint>
-
-
-   <link name="handle03">
-      <visual>
-	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
-	 <geometry>
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/handle.osg"/> 
-	 </geometry>
-      </visual>
-   </link>
-
-   <joint name="panel_to_handle_03" type="continuous">
-      <parent link="panel"/>
-      <child link="handle03"/>
-      <axis xyz="1 0 0"/>
-      <origin rpy="0 0 0" xyz="0.04 -0.36 -0.09"/>
-   </joint>
-
-   <link name="handle04">
-      <visual>
-	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
-	 <geometry>
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/handle.osg"/> 
-	 </geometry>
-      </visual>
-   </link>
-
-   <joint name="panel_to_handle_04" type="continuous">
-      <parent link="panel"/>
-      <child link="handle04"/>
-      <axis xyz="1 0 0"/>
-      <origin rpy="0 0 0" xyz="0.04 -0.36 -0.34"/>
-   </joint>
-
-
-   <link name="handle05">
-      <visual>
-	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
-	 <geometry>
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/handle.osg"/> 
-	 </geometry>
-      </visual>
-   </link>
-
-   <joint name="panel_to_handle_05" type="continuous">
-      <parent link="panel"/>
-      <child link="handle05"/>
-      <axis xyz="1 0 0"/>
-      <origin rpy="0 0 0" xyz="0.04 -0.61 -0.09"/>
-   </joint>
-
-   <link name="handle06">
-      <visual>
-	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
-	 <geometry>
-	   <mesh filename="package://udg_pandora/data2/robot2/VALVE_PANEL/handle.osg"/> 
-	 </geometry>
-      </visual>
-   </link>
-
-   <joint name="panel_to_handle_06" type="continuous">
-      <parent link="panel"/>
-      <child link="handle06"/>
-      <axis xyz="1 0 0"/>
-      <origin rpy="0 0 0" xyz="0.04 -0.61 -0.34"/>
+      <origin rpy="0 0 0" xyz="0.05 0.01 0.0"/>
    </joint>
 
 
