@@ -11,7 +11,7 @@ import code
 import numpy as np
 import message_filters
 from lib.misctools import STRUCT, pcl_xyz_cov, approximate_mahalanobis, \
-    merge_states, image_converter
+    merge_states, image_converter, pcl_xyz
 from lib import cameramodels, image_feature_extractor
 import threading
 import copy
@@ -121,7 +121,7 @@ class stereo_image_buffer(object):
                  for cam_info_topic in self._camera_info_topic_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
-            camera_pickle_file = "bumblebee_new.p"
+            camera_pickle_file = "bumblebee.p"
             print "Loading information from "+camera_pickle_file
             camera_info_pickle = roslib.packages.find_resource("udg_pandora",
                 camera_pickle_file)
@@ -231,7 +231,7 @@ class VisualDetector(object):
         # Initialise feature detector for SLAM
         self.slam_features = STRUCT()
         slam_features_update_rate = None
-        num_slam_features = 100
+        num_slam_features = 40
         self.init_slam_feature_detector(slam_features_update_rate,
                                         num_features=num_slam_features,
                                         hessian_threshold=50)
@@ -274,7 +274,10 @@ class VisualDetector(object):
         # Create Publisher
         slam_features.pub = rospy.Publisher("/visual_detector2/features",
                                             PointCloud2)
+        slam_features.pub2 = rospy.Publisher("/visual_detector2/features_xyz",
+                                            PointCloud2)
         slam_features.pcl_helper = pcl_xyz_cov()
+        slam_features.pcl_helper2 = pcl_xyz()
         
         # Publish image with detected keypoints
         self.slam_features.img_pub = [
@@ -291,7 +294,8 @@ class VisualDetector(object):
         time_now = rospy.Time.now()
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
         points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r) = (
-            self.slam_features.camera.points3d_from_img(*cvimage, ratio_threshold=0.6))
+            self.slam_features.camera.points3d_from_img(*cvimage,
+                ratio_threshold=0.6, image_margins=(64, 64, 64, 64)))
         if points3d.shape[0]:
             points_range = np.sqrt((points3d**2).sum(axis=1))
         else:
@@ -312,7 +316,7 @@ class VisualDetector(object):
                                     points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis]))
         covs = np.array([x_cov_base, y_cov_base, z_cov_base])*points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
-        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=0.25)
+        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=0.1)
         print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
         if points3d_covs.shape[0]:
@@ -324,6 +328,12 @@ class VisualDetector(object):
         pcl_msg.header.frame_id = self.slam_features.camera.tfFrame
         # Publish the pcl message
         self.slam_features.pub.publish(pcl_msg)
+        
+        pcl_msg2 = self.slam_features.pcl_helper2.to_pcl(points3d_states)
+        pcl_msg2.header.stamp = time_now
+        pcl_msg2.header.frame_id = "/world"
+        self.slam_features.pub2.publish(pcl_msg2)
+        
         pts_l = pts_l.astype(np.int32)
         pts_r = pts_r.astype(np.int32)
         (pts_l_reproj, pts_r_reproj) = self.slam_features.camera.project3dToPixel(points3d_states)
@@ -332,11 +342,11 @@ class VisualDetector(object):
         if pts_l.shape[0]:
             cvimage[0][pts_l[:, 1], pts_l[:, 0]] = 255
             for landmark in pts_l_reproj:
-                cv2.circle(cvimage[0], tuple(landmark), 3, (0, 0, 0), -1)
+                cv2.circle(cvimage[0], tuple(landmark), 5, (0, 0, 0), -1)
         if pts_r.shape[0]:
             cvimage[1][pts_r[:, 1], pts_r[:, 0]] = 255
             for landmark in pts_r_reproj:
-                cv2.circle(cvimage[1], tuple(landmark), 3, (0, 0, 0), -1)
+                cv2.circle(cvimage[1], tuple(landmark), 5, (0, 0, 0), -1)
         img_msg = [self.ros2cvimg.img_msg(cv2.cv.fromarray(_scene_))
                    for _scene_ in cvimage]
         for idx in range(len(img_msg)):
