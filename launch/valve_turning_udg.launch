@@ -1,12 +1,12 @@
 <launch>
 	<arg name="enableShadders" value="true" />
-	<arg name="enableLog" value="true" />
+	<arg name="enableLog" value="false" />
     	<arg name="enableLandmarks" value="true" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
 	<!-- Load G500 components -->
- 	<include file="$(find udg_pandora)/launch/start_g500-sim-Pandora.launch" />
+ 	<include file="$(find cola2_launch)/launch/g500-sim.launch" />
 	
 	<!-- Run UWSim -->
 	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find
