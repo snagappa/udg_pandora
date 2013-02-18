@@ -11,7 +11,7 @@ import std_srvs.srv
 from udg_pandora.msg import Detection
 import hwu_meta_data.metaclient as metaclient
 import cv2
-#import code
+import code
 from lib import objdetect
 import numpy as np
 
@@ -100,7 +100,6 @@ class VisualDetector(object):
         self.name = name
         # Publish transforms
         self.tf_broadcaster = TransformBroadcaster()
-        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         # ROS image message to cvimage convertor
         self.ros2cvimg = image_converter()
         
@@ -123,12 +122,12 @@ class VisualDetector(object):
         self._camera_ = STRUCT()
         cam_info_msg = self.image_buffer.get_camera_info(0)[0]
         self._camera_.frame_id = cam_info_msg.header.frame_id
-        self._camera_.position = rospy.get_param(
-            "visual_detector/camera_position")
+        self._camera_.position = tuple(rospy.get_param(
+            "visual_detector/camera_position"))
         self._camera_.orientation = quaternion_from_euler(
             *rospy.get_param("visual_detector/camera_orientation"))
-        self._camera_.baseline = rospy.get_param(
-            "visual_detector/camera_baseline")
+        self._camera_.baseline = tuple(rospy.get_param(
+            "visual_detector/camera_baseline"))
         self._camera_.baseline_orientation = quaternion_from_euler(
             *rospy.get_param("visual_detector/camera_baseline_orientation"))
         
@@ -161,6 +160,7 @@ class VisualDetector(object):
         self.pub_chain = metaclient.Publisher('/visual_detector/chain',
                                               Detection, {})
         
+        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         # Enable panel detection by default
         self._enablePanelValveDetectionSrv_()
         print "Completed initialisation"
@@ -197,9 +197,9 @@ class VisualDetector(object):
                 "visual_detector/panel/real_template_mask")
         
         # Load geometry
-        panel_corners = rospy.get_param("visual_detector/panel/corners")
+        panel_corners = np.asarray(rospy.get_param("visual_detector/panel/corners"))
         valve_radius = rospy.get_param("visual_detector/valves/radius")
-        valve_centre = rospy.get_param("visual_detector/valves/centre")
+        valve_centre = np.asarray(rospy.get_param("visual_detector/valves/centre"))
         
         # Get update rate
         update_rate = rospy.get_param("visual_detector/panel/rate")
