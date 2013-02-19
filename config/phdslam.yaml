@@ -1,0 +1,9 @@
+phdslam/vars/pd: 0.8
+phdslam/vars/prune_threshold: 5e-3
+phdslam/vars/merge_threshold: 1
+phdslam/vars/max_num_components: 4000
+phdslam/vars/birth_intensity: 1e-1
+phdslam/vars/clutter_intensity: 200
+phdslam/vars/pd: 0.8
+
+

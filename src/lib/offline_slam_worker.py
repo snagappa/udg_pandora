@@ -24,6 +24,7 @@ import sys
 import traceback
 from joblib import Parallel, delayed
 from lib.rfs_merge import rfs_merge
+import rospy
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -63,23 +64,28 @@ class GMPHD(object):
         
         self.vars = STRUCT()
         # Prune components less than this weight
-        self.vars.prune_threshold = 5e-3
+        config_root = "phdslam/vars/"
+        self.vars.prune_threshold = (
+            rospy.get_param(config_root+"prune_threshold", 5e-3))
         # Merge components  closer than this threshold
-        self.vars.merge_threshold = 1
+        self.vars.merge_threshold = (
+            rospy.get_param(config_root+"merge_threshold", 1))
         # Maximum number of components to track
-        self.vars.max_num_components = 4000
+        self.vars.max_num_components = (
+            rospy.get_param(config_root+"max_num_components", 4000))
         # Intensity of new targets
-        self.vars.birth_intensity = 1e-1
+        self.vars.birth_intensity = (
+            rospy.get_param(config_root+"birth_intensity", 1e-1))
         # Intensity of clutter in the scene
-        self.vars.clutter_intensity = 200
+        self.vars.clutter_intensity = (
+            rospy.get_param(config_root+"clutter_intensity", 200))
         # Probability of detection of targets in the FoV
-        self.vars.pd = 0.8
+        self.vars.pd = rospy.get_param(config_root+"pd", 0.8)
         #self.vars.far_fov = 5.0
         #self.vars.ps = 1.0
         
         # Temporary variables to speed up some processing across different functions
         self.tmp = STRUCT()
-        self.tmp.detection_probability = np.empty(0)
         
         self.flags = STRUCT()
         self.flags.ESTIMATE_IS_VALID = False

@@ -317,7 +317,8 @@ class G500_SLAM():
             _map_.sensors.camera.set_tf_frame(left_tf_frame+str_idx, 
                                               right_tf_frame+str_idx)
             # Set the far field of view
-            _map_.sensors.camera.set_near_far_fov(fov_far=slam_feature_detector.FOV_FAR)
+            fov_far = rospy.get_param("slam_feature_detector/fov/far", 3)
+            _map_.sensors.camera.set_near_far_fov(fov_far=fov_far)
     
     def reset_navigation(self, req):
         print "Resetting navigation..."
