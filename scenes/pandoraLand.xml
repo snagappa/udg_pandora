@@ -155,7 +155,7 @@
     <position>
       <x> 0.0 </x>
       <y> 0.0 </y>
-      <z> 0.0 </z>
+      <z> -2.0 </z>
     </position>
     <orientation>
       <r>0</r>
@@ -165,13 +165,13 @@
 
     <virtualCamera>
       <name>left_down</name>
-      <relativeTo>base</relativeTo>
+      <relativeTo>base_link</relativeTo>
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.0</x>
+        <x>0.5</x>
         <y>-0.06</y>
-        <z>0.0</z>
+        <z>0.4</z>
       </position>
       <orientation>
         <r>-3.14159</r>
@@ -183,13 +183,13 @@
     </virtualCamera>
     <virtualCamera>
       <name>right_down</name>
-      <relativeTo>base</relativeTo>
+      <relativeTo>base_link</relativeTo>
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.0</x>
+        <x>0.5</x>
         <y>0.06</y>
-        <z>0.0</z>
+        <z>0.4</z>
       </position>
       <orientation>
         <r>-3.14159</r>
@@ -202,13 +202,13 @@
 
     <virtualCamera>
       <name>left_front</name>
-      <relativeTo>base</relativeTo>
+      <relativeTo>base_link</relativeTo>
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.0</x>
-        <y>-0.06</y>
-        <z>-0.5</z> <!-- -0.7-->
+        <x>0.6</x>
+        <y>-0.06</y> <!-- -0.06 -->
+        <z>0.2</z> <!-- -0.7-->
       </position>
       <orientation>
         <r>-1.57</r>
@@ -220,13 +220,13 @@
     </virtualCamera>
     <virtualCamera>
       <name>right_front</name>
-      <relativeTo>base</relativeTo>
+      <relativeTo>base_link</relativeTo>
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.0</x>
+        <x>0.6</x>
         <y>0.06</y>
-        <z>-0.5</z> <!-- -0.7 -->
+        <z>0.2</z> <!-- -0.7 -->
       </position>
       <orientation>
         <r>-1.57</r>
@@ -297,6 +297,23 @@
   </object>
 -->
 
+
+ <object>
+    <name> objecte </name>
+	<file>data2/objects2/valve.osg</file>
+    <position>
+      <x> 0.0 </x>
+      <y> 0.0 </y>
+      <z> -2.0 </z>
+    </position>
+    <orientation>
+      <r>0</r>
+      <p>0</p>
+      <y>0</y>
+    </orientation>
+  </object>
+
+
  <object>
     <name> chain </name>
 	<file>data2/objects2/chain.osg</file>
@@ -315,16 +332,16 @@
 
   <object>
     <name> panel2 </name>
-	<file>data2/objects2/new_panel2.osg</file>
+	<file>data2/objects2/new_panel3.osg</file>
     <position>
-      <x> -2.0 </x>
+      <x> 2.0 </x>
       <y> 0.0 </y>
-      <z> 3.0 </z>
+      <z> 0.5 </z>
     </position>
     <orientation>
       <r>1.57</r>
       <p>0</p>
-      <y>0</y>
+      <y>3.14</y>
     </orientation>
   </object>
 
