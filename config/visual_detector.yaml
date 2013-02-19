@@ -30,6 +30,11 @@ visual_detector/panel/simulator_template_mask: []
 visual_detector/panel/real_template: ["new_panel_template.png"]
 visual_detector/panel/real_template_mask: []
 
+# Detection parameters
+visual_detector/panel/num_features: 4000
+visual_detector/panel/flann_ratio: 0.6
+visual_detector/valves/filter_length: 5
+
 # Stereo or monocular detection
 visual_detector/panel/is_stereo: false
 

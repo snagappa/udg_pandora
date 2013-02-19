@@ -54,10 +54,10 @@ def get_default_parameters():
     # stereo_front position   : (0.6, 0.0, 0.2)
     # stereo_front orientation: (1.57, 0.0, 1.57)
     # stereo_baseline: (0.12, 0.0, 0.0)
-    parameters["visual_detector/camera_position"] = (0.6, 0.0, 0.2)
-    parameters["visual_detector/camera_orientation"] = (1.57, 0.0, 1.57)
-    parameters["visual_detector/camera_baseline"] = (0.12, 0.0, 0.0)
-    parameters["visual_detector/camera_baseline_orientation"] = (0., 0., 0.)
+    parameters["visual_detector/camera_position"] = [0.6, 0.0, 0.2]
+    parameters["visual_detector/camera_orientation"] = [1.57, 0.0, 1.57]
+    parameters["visual_detector/camera_baseline"] = [0.12, 0.0, 0.0]
+    parameters["visual_detector/camera_baseline_orientation"] = [0., 0., 0.]
     #
     # Simulator or real data
     parameters["visual_detector/panel/simulator"] = False
@@ -69,6 +69,13 @@ def get_default_parameters():
     parameters["visual_detector/panel/real_template"] = (
         ["new_panel_template.png"])
     parameters["visual_detector/panel/real_template_mask"] = []
+    #
+    # Detection options
+    parameters["visual_detector/panel/num_features"] = 4000
+    parameters["visual_detector/panel/flann_ratio"] = 0.6
+    parameters["visual_detector/valves/filter_length"] = 5
+    #
+    # Camera topics
     # Use monocular/stereo detection
     parameters["visual_detector/panel/is_stereo"] = False
     # Camera topic
@@ -212,9 +219,11 @@ class VisualDetector(object):
             panel.detector = objdetect.Detector(
                 feat_detector=_default_feature_extractor_)
         # Set number of features from detector
-        panel.detector.set_detector_num_features(4000)
+        num_features = rospy.get_param("visual_detector/panel/num_features")
+        panel.detector.set_detector_num_features(num_features)
         # Set flann ratio
-        panel.detector.set_flann_ratio_threshold(0.6)
+        flann_ratio = rospy.get_param("visual_detector/panel/flann_ratio")
+        panel.detector.set_flann_ratio_threshold(flann_ratio)
         
         # Get camera info msg and initialise camera
         cam_info = self.image_buffer.get_camera_info()
@@ -282,9 +291,11 @@ class VisualDetector(object):
                                           [ valves.radius, 0, 0, 0]])
 
         # Buffer to store valve orientations
+        valves_filter_length = rospy.get_param(
+            "visual_detector/valves/filter_length")
         valves.orientation = []
         for valve_count in range(valves.centre.shape[0]):
-            valves.orientation.append(deque(maxlen=5))
+            valves.orientation.append(deque(maxlen=valves_filter_length))
 
         self.panel.callback_id = None
         self.panel.update_rate = update_rate
