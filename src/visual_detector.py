@@ -54,10 +54,10 @@ def get_default_parameters():
     # stereo_front position   : (0.6, 0.0, 0.2)
     # stereo_front orientation: (1.57, 0.0, 1.57)
     # stereo_baseline: (0.12, 0.0, 0.0)
-    parameters["visual_detector/camera_position"] = (0.6, 0.0, 0.2)
-    parameters["visual_detector/camera_orientation"] = (1.57, 0.0, 1.57)
-    parameters["visual_detector/camera_baseline"] = (0.12, 0.0, 0.0)
-    parameters["visual_detector/camera_baseline_orientation"] = (0., 0., 0.)
+    parameters["visual_detector/camera_position"] = [0.6, 0.0, 0.2]
+    parameters["visual_detector/camera_orientation"] = [1.57, 0.0, 1.57]
+    parameters["visual_detector/camera_baseline"] = [0.12, 0.0, 0.0]
+    parameters["visual_detector/camera_baseline_orientation"] = [0., 0., 0.]
     #
     # Simulator or real data
     parameters["visual_detector/panel/simulator"] = False
