@@ -4,41 +4,59 @@
 import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
-from sensor_msgs.msg import CameraInfo, Image, PointCloud2
+from sensor_msgs.msg import Image, PointCloud2
 import hwu_meta_data.metaclient as metaclient
 import cv2
 import code
 import numpy as np
-import message_filters
 from lib.misctools import STRUCT, pcl_xyz_cov, approximate_mahalanobis, \
-    merge_states, image_converter, pcl_xyz
+    merge_states, image_converter, pcl_xyz, camera_buffer
 from lib import cameramodels, image_feature_extractor
-import threading
-import copy
-import pickle
-
-USE_SIMULATOR = False
-if USE_SIMULATOR:
-    ROSTOPIC_CAM_ROOT = "/stereo_front"
-else:
-    ROSTOPIC_CAM_ROOT = "/stereo_camera"
-ROSTOPIC_CAM_SUB = "image_rect"
 
 
-# Check if ORB/SURF detector is available
-try:
-    _default_feature_extractor_ = image_feature_extractor.Orb().__class__
-except AttributeError as attr_err:
-    print attr_err
-    try:
-        _default_feature_extractor_ = image_feature_extractor.Surf().__class__
-    except AttributeError as attr_err:
-        print attr_err
-        rospy.logfatal("No feature extractors available!")
-        raise rospy.exceptions.ROSException(
-            "Cannot initialise feature extractors")
+def get_default_parameters():
+    parameters = {}
+    parameters["slam_feature_detector/fov/near"] = 0.15
+    parameters["slam_feature_detector/fov/far"] = 4.0
+    parameters["slam_feature_extractor/name"] =  "Surf"
+    parameters["slam_feature_detector/num_features"] =  40
+    parameters["slam_feature_detector/flann_ratio"] =  0.6
+    
+    # Options for the surf extractor
+    parameters["slam_feature_detector/surf_extractor/hessian_threshold"] =  50
+    
+    # Options for the orb extractor
+    #slam_feature_detector/orb_extractor/
+    
+    # Update rate
+    parameters["slam_feature_detector/rate"] =  -1
+    
+    # CAMERA POSE
+    # stereo_down position    : [0.6, 0.0, 0.4]
+    # stereo_down orientation : [0.0, 0.0, 1.57]
+    # stereo_front position   : [0.6, 0.0, 0.2]
+    # stereo_front orientation: [1.57, 0.0, 1.57]
+    # stereo_baseline: [0.12, 0.0, 0.0]
+    parameters["slam_feature_detector/camera_position"] =  [0.6, 0.0, 0.4]
+    parameters["slam_feature_detector/camera_orientation"] =  [0.0, 0.0, 1.57]
+    parameters["slam_feature_detector/camera_baseline"] =  [0.12, 0.0, 0.0]
+    parameters["slam_feature_detector/camera_baseline_orientation"] =  [0., 0., 0.]
+    
+    # use camera_root/{left,right}/image_topic
+    parameters["slam_feature_detector/camera_root"] =  "/stereo_camera"
+    parameters["slam_feature_detector/image_topic"] =  "image_rect"
+    
+    # Noise scale factors
+    parameters["slam_feature_detector/sigma_scale_factor/x"] =  0.08
+    parameters["slam_feature_detector/sigma_scale_factor/y"] =  0.08
+    parameters["slam_feature_detector/sigma_scale_factor/z"] =  0.08
+    return parameters
 
-FOV_FAR = 3.0
+def set_default_parameters():
+    parameters = get_default_parameters()
+    for _param_name_ in parameters:
+        rospy.set_param(_param_name_, parameters[_param_name_])
+
 
 def merge_points(weights, states, covs, merge_threshold=1.):
     num_remaining_components = weights.shape[0]
@@ -74,215 +92,87 @@ def merge_points(weights, states, covs, merge_threshold=1.):
     return np.array(merged_wts), np.array(merged_sts), np.array(merged_cvs)
 
 
-class stereo_image_buffer(object):
-    def __init__(self, rostopic_camera_root="", image_sub_topic="/image_rect"):
-        self._image_messages_ = [None, None]
-        #self._cv_images_ = [None, None]
-        self._message_time_ = rospy.Time(0)
-        # Convert between sensor_msgs Image anc CV image
-        self.ros2cvimg = image_converter()
-
-        # Initialise topics as None
-        self._camera_info_topic_ = [None, None]
-        self._image_topic_ = [None, None]
-        self._camera_info_ = (None, None)
-        
-        # Create the topic names we need to subscribe to
-        if ((type(rostopic_camera_root) is str) and
-            (type(image_sub_topic) is str)):
-            # Strip trailing '/'
-            rostopic_camera_root = rostopic_camera_root.rstrip("/")
-            # Strip leading '/'
-            image_sub_topic = image_sub_topic.lstrip("/")
-            self._camera_info_topic_ = (
-                [rostopic_camera_root+"/left/camera_info",
-                 rostopic_camera_root+"/right/camera_info"])
-            self._image_topic_ = (
-                [rostopic_camera_root+"/left/"+image_sub_topic,
-                 rostopic_camera_root+"/right/"+image_sub_topic])
-        
-        # Try to subscribe to the camera info
-        self._cam_info_from_topics_()
-        
-        # List of callbacks and rates
-        self._callbacks_ = {}
-        self._last_callback_id_ = -1
-        self._last_callback_time_ = []
-        self._lock_ = threading.Lock()
-        
-        # Subscribe to left and right images
-        self._subscribe_()
-        
-    def _cam_info_from_topics_(self):
-        self._camera_info_ = [None, None]
-        try:
-            self._camera_info_ = tuple(
-                [rospy.wait_for_message(cam_info_topic, CameraInfo, 2)
-                 for cam_info_topic in self._camera_info_topic_])
-        except rospy.ROSException:
-            rospy.logerr("Could not read camera parameters")
-            camera_pickle_file = "bumblebee.p"
-            print "Loading information from "+camera_pickle_file
-            camera_info_pickle = roslib.packages.find_resource("udg_pandora",
-                camera_pickle_file)
-            if len(camera_info_pickle):
-                camera_info_pickle = camera_info_pickle[0]
-                try:
-                    self._camera_info_ = tuple(
-                        pickle.load(open(camera_info_pickle, "rb")))
-                except IOError:
-                    print "Failed to load camera information!"
-                    rospy.logfatal("Could not read camera parameters")
-                    raise rospy.exceptions.ROSException(
-                        "Could not read camera parameters")
-            else:
-                print "Failed to load camera information!"
-                rospy.logfatal("Could not read camera parameters")
-                raise rospy.exceptions.ROSException(
-                    "Could not read camera parameters")
-    
-    def fromCameraInfo(self, camera_info_left, camera_info_right=None):
-        self._camera_info_ = tuple([copy.deepcopy(_info_)
-            for _info_ in (camera_info_left, camera_info_right)])
-    
-    def _subscribe_(self):
-        self._img_sub_ = [
-            message_filters.Subscriber(_sub_image_raw_, Image)
-            for _sub_image_raw_ in self._image_topic_]
-        self.timesync = message_filters.TimeSynchronizer(self._img_sub_, 10)
-        self.timesync.registerCallback(self.update_images)
-    
-    def update_images(self, *args):
-        self._lock_.acquire()
-        if len(self._callbacks_):
-            self._image_messages_ = [_img_ for _img_ in args]
-            #self._cv_images_ = (
-            #    [np.asarray(self.ros2cvimg.cvimagegray(_img_)) for _img_ in args])
-            self._message_time_ = self._image_messages_[0].header.stamp
-            self._start_callback_threads_()
-        self._lock_.release()
-    
-    def register_callback(self, callback, rate=None):
-        self._lock_.acquire()
-        self._last_callback_id_ += 1
-        time_delay = None if rate is None else rospy.Duration(1./rate)
-        self._callbacks_[self._last_callback_id_] = {"callback":callback,
-                                                     "timedelay":time_delay,
-                                                     "lasttime":rospy.Time(0),
-                                                     "block":0}
-        self._lock_.release()
-        return self._last_callback_id_
-    
-    def unregister_callback(self, callback_id):
-        self._lock_.acquire()
-        try:
-            self._callbacks_.pop(callback_id)
-        except KeyError:
-            print "callback_id not found. already unregistered?"
-        finally:
-            self._lock_.release()
-    
-    def _start_callback_threads_(self):
-        #self._lock_.acquire()
-        threads = []
-        unregister_callbacks_list = []
-        for _callback_ in self._callbacks_:
-            try:
-                callback_info = self._callbacks_[_callback_]
-                if ((not callback_info["block"]) and
-                    (callback_info["timedelay"] is None or
-                    self._message_time_ - callback_info["lasttime"] >= callback_info["timedelay"])):
-                    threads.append(threading.Thread(target=self._thread_wrapper_, args=(callback_info,)))
-                    threads[-1].start()
-                    callback_info["lasttime"] = copy.copy(self._message_time_)
-            except:
-                print "error in callback, unregistering..."
-                unregister_callbacks_list.append(_callback_)
-        for _callback_ in unregister_callbacks_list:
-            self._callbacks_.pop(_callback_)
-        #self._lock_.release()
-    
-    def _thread_wrapper_(self, callback_info):
-        callback_info["block"] = 1
-        callback_info["callback"](*self._image_messages_)
-        callback_info["block"] = 0
-    
-    def get_camera_info(self, idx=None):
-        if not idx is None:
-            return (self._camera_info_[idx],)
-        else:
-            return self._camera_info_
-    
-
-class VisualDetector(object):
-    def __init__(self, name, rostopic_cam_root=ROSTOPIC_CAM_ROOT, 
-                 image_sub_topic=ROSTOPIC_CAM_SUB):
+class SlamFeatureDetector(object):
+    def __init__(self, name):
         self.name = name
-        self.rostopic_cam_root = rostopic_cam_root
-        self.image_sub_topic = image_sub_topic
-        
         # ROS image message to cvimage convertor
         self.ros2cvimg = image_converter()
         
+        camera_root = rospy.get_param("slam_feature_detector/camera_root")
+        image_topic = rospy.get_param("slam_feature_detector/image_topic")
         # Initialise image buffer
-        self.image_buffer = stereo_image_buffer(self.rostopic_cam_root,
-                                                self.image_sub_topic)
+        self.image_buffer = camera_buffer(camera_root, image_topic, True)
         
         # Initialise feature detector for SLAM
         self.slam_features = STRUCT()
-        slam_features_update_rate = None
-        num_slam_features = 40
-        self.init_slam_feature_detector(slam_features_update_rate,
-                                        num_features=num_slam_features,
-                                        hessian_threshold=50)
+        self.init_slam_feature_detector()
         print "Completed initialisation"
     
-    def init_slam_feature_detector(self, update_rate=1, num_features=50,
-                                   hessian_threshold=None):
+    def init_slam_feature_detector(self):
         slam_features = self.slam_features
+        # Extract parameters
+        extractor_name = rospy.get_param("slam_feature_detector/name")
+        update_rate = rospy.get_param("slam_feature_detector/rate")
+        num_features = rospy.get_param("slam_feature_detector/num_features")
+        flann_ratio = rospy.get_param("slam_feature_detector/flann_ratio")
+        fov_near = rospy.get_param("slam_feature_detector/fov/near")
+        fov_far = rospy.get_param("slam_feature_detector/fov/far")
+        x_std_base = rospy.get_param("slam_feature_detector/sigma_scale_factor/x")
+        y_std_base = rospy.get_param("slam_feature_detector/sigma_scale_factor/y")
+        z_std_base = rospy.get_param("slam_feature_detector/sigma_scale_factor/z")
+        
+        # Set update rate
+        update_rate = update_rate if update_rate > 0 else None
         slam_features.update_rate = update_rate
+        # Set flann ratio
+        slam_features.flann_ratio = flann_ratio
+        # Near and far FoV
+        slam_features.fov_near = fov_near
+        slam_features.fov_far = fov_far
+        # Noise variance scaling
+        slam_features.cov_scaling = np.asarray(
+            [x_std_base**2, y_std_base**2, z_std_base**2])
         
         # Initialise the detector and reset the number of features
+        feature_extractor = getattr(image_feature_extractor, extractor_name)
         slam_features.camera = cameramodels.StereoCameraFeatureDetector(
-            feature_extractor=image_feature_extractor.Surf, GRID_ADAPTED=False)
-        #if _default_feature_extractor_ is image_feature_extractor.Orb:
-        #    slam_features.camera._featuredetector_.set_num_features(num_features)
-        #elif _default_feature_extractor_ is image_feature_extractor.Surf:
-        #    slam_features.camera._featuredetector_.set_hessian_threshold(hessian_threshold)
-        #else:
-        #    rospy.logfatal("Could not reset the number of features for slam")
-        #    raise rospy.ROSException("Could not reset the number of features for slam")
+            feature_extractor=feature_extractor, GRID_ADAPTED=False)
         
-        # Set the hessian threshold if possible
-        set_hessian_threshold = getattr(slam_features.camera._featuredetector_,
-                                        "set_hessian_threshold", None)
-        if not set_hessian_threshold is None and not hessian_threshold is None:
-            print "Setting hessian threhosld to %s" % hessian_threshold
-            set_hessian_threshold(hessian_threshold)
-        slam_features.camera._featuredetector_.set_nOctaves(7)
-        slam_features.camera._featuredetector_.make_grid_adapted()
+        # Set SURF parameters
+        if feature_extractor is image_feature_extractor.Surf:
+            # Get hessian threshold
+            hessian_threshold = rospy.get_param(
+                "slam_feature_detector/surf_extractor/hessian_threshold", -1)
+            if hessian_threshold > 0:
+                print "Setting hessian threhosld to %s" % hessian_threshold
+                slam_features.camera._featuredetector_set_hessian_threshold(hessian_threshold)
+            # Set number of octaves
+            n_octaves = rospy.get_param(
+                "slam_feature_detector/surf_extractor/n_octaves", -1)
+            if n_octaves > 0:
+                slam_features.camera._featuredetector_.set_nOctaves(n_octaves)
+            # Convert to grid adapted to set num_features
+            slam_features.camera._featuredetector_.make_grid_adapted()
         
-        try:
-            slam_features.camera._featuredetector_.set_num_features(num_features)
-        except (AssertionError, UnboundLocalError) as assert_err:
-            print assert_err
-            rospy.logerr("Failed to set number of features for slam feature detector")
-            raise rospy.ROSException("Could not reset the number of features for slam")
+        # Set number of features
+        slam_features.camera._featuredetector_.set_num_features(num_features)
         
+        # Extract camera info
         slam_features.camera.fromCameraInfo(*self.image_buffer.get_camera_info())
-        slam_features.camera.set_near_far_fov(fov_far=FOV_FAR)
+        # Set near and far field of view
+        slam_features.camera.set_near_far_fov(fov_near, fov_far)
         # Create Publisher
-        slam_features.pub = rospy.Publisher("/visual_detector2/features",
+        slam_features.pub = rospy.Publisher("/slam_feature_detector/features",
                                             PointCloud2)
-        slam_features.pub2 = rospy.Publisher("/visual_detector2/features_xyz",
-                                            PointCloud2)
+        slam_features.pub2 = rospy.Publisher(
+            "/slam_feature_detector/features_xyz", PointCloud2)
         slam_features.pcl_helper = pcl_xyz_cov()
         slam_features.pcl_helper2 = pcl_xyz()
         
         # Publish image with detected keypoints
         self.slam_features.img_pub = [
-            metaclient.Publisher('/visual_detector2/features_img_l', Image, {}),
-            metaclient.Publisher('/visual_detector2/features_img_r', Image, {})]
+            metaclient.Publisher('/slam_feature_detector/features_img_l', Image, {}),
+            metaclient.Publisher('/slam_feature_detector/features_img_r', Image, {})]
         
         # Register the callback
         slam_features.callback_id = (
@@ -292,10 +182,12 @@ class VisualDetector(object):
     def detect_slam_features(self, *args):
         #time_now = args[0].header.stamp
         time_now = rospy.Time.now()
+        slam_features = self.slam_features
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
         points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r) = (
             self.slam_features.camera.points3d_from_img(*cvimage,
-                ratio_threshold=0.6, image_margins=(64, 64, 64, 64)))
+                ratio_threshold=slam_features.flann_ratio,
+                image_margins=(64, 64, 64, 64)))
         if points3d.shape[0]:
             points_range = np.sqrt((points3d**2).sum(axis=1))
         else:
@@ -304,18 +196,15 @@ class VisualDetector(object):
         #print "Found %s features at stage 1" % points3d.shape[0]
         #code.interact(local=locals())
         #print "Average distance = %s" % np.mean(points3d, axis=0)
-        points3d = points3d[points_range <= FOV_FAR]
-        points_range = points_range[points_range <= FOV_FAR]
+        points3d = points3d[points_range <= slam_features.fov_far]
+        points_range = points_range[points_range <= slam_features.fov_far]
         #print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        x_cov_base = (8e-2)**2
-        y_cov_base = (8e-2)**2
-        z_cov_base = (8e-2)**2
         points3d_scale = np.hstack((points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis], 
                                     points_range[:, np.newaxis]))
-        covs = np.array([x_cov_base, y_cov_base, z_cov_base])*points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
+        covs = slam_features.cov_scaling*points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
         _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=0.1)
         print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
@@ -352,29 +241,22 @@ class VisualDetector(object):
         for idx in range(len(img_msg)):
             img_msg[idx].header.stamp = time_now
             self.slam_features.img_pub[idx].publish(img_msg[idx])
-    
-    def updateNavigation(self, nav):
-        vehicle_pose = [nav.position.north, nav.position.east, nav.position.depth]
-        vehicle_orientation = [nav.orientation.roll, nav.orientation.pitch, nav.orientation.yaw]
-        d = self.geometric_detector.detectObjects(vehicle_pose, vehicle_orientation)
-        for i in range(len(d)):
-            if d[i].detected:
-                if i == 0:
-                    self.pub_valve_panel.publish(d[i])
-                elif i == 1:
-                    self.pub_valve.publish(d[i])
-                else:
-                    self.pub_chain.publish(d[i])
-    
+
 
 if __name__ == '__main__':
     try:
+        import subprocess
+        # Load ROS parameters
+        config_file_list = roslib.packages.find_resource(
+            "udg_pandora", "slam_feature_detector.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            print "Could not locate slam_feature_detector.yaml, using default parameters"
+            set_default_parameters()
+        
         rospy.init_node('slam_feature_detector')
-        remap_camera_name = rospy.resolve_name("stereo_camera")
-        rospy.loginfo("Using camera root: " + remap_camera_name)
-        remap_image_name = rospy.resolve_name("image_rect")
-        rospy.loginfo("Using image topic: " + remap_image_name)
-        visual_detector = VisualDetector(rospy.get_name(), 
-                                         remap_camera_name, remap_image_name)
+        slam_feature_detector = SlamFeatureDetector(rospy.get_name())
         rospy.spin()
     except rospy.ROSInterruptException: pass

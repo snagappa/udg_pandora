@@ -1,0 +1,35 @@
+slam_feature_detector/fov/near: 0.15
+slam_feature_detector/fov/far: 4.0
+slam_feature_extractor/name: "Surf"
+slam_feature_detector/num_features: 40
+slam_feature_detector/flann_ratio: 0.6
+#
+# Options for the surf extractor
+slam_feature_detector/surf_extractor/hessian_threshold: 50
+#
+# Options for the orb extractor
+#slam_feature_detector/orb_extractor/
+
+# Update rate
+slam_feature_detector/rate: -1
+
+# CAMERA POSE
+# stereo_down position    : [0.6, 0.0, 0.4]
+# stereo_down orientation : [0.0, 0.0, 1.57]
+# stereo_front position   : [0.6, 0.0, 0.2]
+# stereo_front orientation: [1.57, 0.0, 1.57]
+# stereo_baseline: [0.12, 0.0, 0.0]
+slam_feature_detector/camera_position: [0.6, 0.0, 0.4]
+slam_feature_detector/camera_orientation: [0.0, 0.0, 1.57]
+slam_feature_detector/camera_baseline: [0.12, 0.0, 0.0]
+slam_feature_detector/camera_baseline_orientation: [0., 0., 0.]
+
+# use camera_root/{left,right}/image_topic
+slam_feature_detector/camera_root: "/stereo_camera"
+slam_feature_detector/image_topic: "image_rect"
+
+# Noise scale factors
+slam_feature_detector/sigma_scale_factor/x: 0.08
+slam_feature_detector/sigma_scale_factor/y: 0.08
+slam_feature_detector/sigma_scale_factor/z: 0.08
+
