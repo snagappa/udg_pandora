@@ -32,6 +32,7 @@ import numpy
 from scipy import interpolate
 
 import threading
+import tf
 
 #import warnings
 
@@ -62,14 +63,15 @@ class learningReproductor :
         self.currPosSim = numpy.zeros(3)
         self.currPosSim[0] = 3.4
         self.currNbDataRepro = 0
-        self.file = open( self.exportFile, 'w')
+
+        if self.simulation : self.file = open( self.exportFile, 'w')
 
         #Debugging
-        self.filePub = open( 'pub_arm_pose.csv', 'w' )
-        self.fileDistance = open( 'distance.csv', 'w')
-        self.filePoseGoal = open( 'pose_goal.csv', 'w')
-        self.filePoseArmRobot = open( 'pose_ar.csv', 'w')
-        self.fileDesiredPose = open('desired_pose.csv', 'w')
+        # self.filePub = open( 'pub_arm_pose.csv', 'w' )
+        # self.fileDistance = open( 'distance.csv', 'w')
+        # self.filePoseGoal = open( 'pose_goal.csv', 'w')
+        # self.filePoseArmRobot = open( 'pose_ar.csv', 'w')
+        # self.fileDesiredPose = open('desired_pose.csv', 'w')
 
         self.lock = threading.Lock()
         self.pub_desired_position = rospy.Publisher("/arm/desired_position", PoseStamped )
@@ -89,6 +91,8 @@ class learningReproductor :
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
 
         rospy.loginfo('Configuration ' + str(name) +  ' Loaded ')
+
+        self.tflistener = tf.TransformListener()
 
 #        self.loadDemonstration()
 
@@ -114,9 +118,9 @@ class learningReproductor :
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
         try:
-
             for mark in landMarkMap.landmark :
                 if self.landmark_id == mark.landmark_id :
+                    #rospy.loginfo('Ha arribat alguna cosa')
                     self.goalPose = mark.position
                     if not self.dataGoalReceived :
                         rospy.loginfo('Goal Pose Received')
@@ -173,7 +177,6 @@ class learningReproductor :
         #CurrWp = Sigma of the GMM * weight of the State
 
         for i in xrange(self.numStates ) :
-
             currTar = currTar + self.Mu_x[:,i]*h[i]
             currWp = currWp + self.Wp[i,:,:]*h[i]
 
@@ -288,28 +291,41 @@ class learningReproductor :
     def publishJoyMessage(self) :
         joyCommand = Joy()
 
+#        trans, rot = self.tflistener.lookupTransform("panel_centre", "world", rospy.Time())
+#        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+#        desired_pose = numpy.asarray([self.desPos[0], self.desPos[1], self.desPos[2], 1])
+#        desired_pose_tf = numpy.dot(rotation_matrix, desired_pose)[:3]
+
+      #  rospy.loginfo('Desired pose ' + str(self.desPos[0]) +', '+ str(self.desPos[1]) +', '+ str(self.desPos[2]) )
+
+#        rospy.loginfo('Desired Pose Converted  ' + str(desired_pose_tf[0]) +', '+ str(desired_pose_tf[1]) +', '+ str(desired_pose_tf[2]) )
+
         newArmPose_x = self.goalPose.x + self.desPos[0]
         newArmPose_y = self.goalPose.y + self.desPos[1]
         newArmPose_z = self.goalPose.z + self.desPos[2]
 
-        currArmPose_x = self.armPose.pose.position.x + self.robotPose.pose.pose.position.x
-        currArmPose_y = self.armPose.pose.position.y + self.robotPose.pose.pose.position.y
-        currArmPose_z = self.armPose.pose.position.z + self.robotPose.pose.pose.position.z
+        trans, rot = self.tflistener.lookupTransform("girona500", "world", rospy.Time())
+        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+        arm_pose = numpy.asarray([self.armPose.pose.position.x, self.armPose.pose.position.y, self.armPose.pose.position.z, 1])
+        arm_pose_tf = numpy.dot(rotation_matrix, arm_pose)[:3]
+
+        currArmPose_x = arm_pose_tf[0] + self.robotPose.pose.pose.position.x
+        currArmPose_y = arm_pose_tf[1] + self.robotPose.pose.pose.position.y
+        currArmPose_z = arm_pose_tf[2] + self.robotPose.pose.pose.position.z
+
+        rospy.loginfo('Current pose ' + str(currArmPose_x) +', '+ str(currArmPose_y) +', '+ str(currArmPose_z) )
+        rospy.loginfo('Desired pose ' + str(newArmPose_x) +', '+ str(newArmPose_y) +', '+ str(newArmPose_z) )
+
 
         # command_x = newArmPose_x - currArmPose_x
         # command_y = newArmPose_y - currArmPose_y
         # command_z = newArmPose_z - currArmPose_z
 
-        command_x = currArmPose_x - newArmPose_x
-        command_y = currArmPose_y - newArmPose_y
+        #No entenc perque esta invertit
+        command_x = -(newArmPose_x - currArmPose_x)
+        command_y = -(newArmPose_y - currArmPose_y)
         #the z has to be inverted to send the command
         command_z = newArmPose_z - currArmPose_z
-
-#        rospy.loginfo('Desired pose ' + str(self.desPos[0]) +', '+ str(self.desPos[1]) +', '+ str(self.desPos[2]) )
-#        rospy.loginfo('Current pose ' + str( currArmPose_x - self.goalPose.x ) +', '+ str( currArmPose_y - self.goalPose.y ) +', '+ str( currArmPose_z - self.goalPose.z  ) )
-#        rospy.loginfo('Command ' + str(command_x) +', '+ str(command_y) +', '+ str(command_z) )
-
-        #raw_input()
 
         joyCommand.axes.append( command_x )
         joyCommand.axes.append( command_y )
@@ -319,23 +335,19 @@ class learningReproductor :
         joyCommand.axes.append( 0.0 )
 
 
+        # Files to debug.
+        # s = repr( command_x ) + " " + repr( command_y ) +  " " + repr( command_z ) + "\n"
+        # self.filePub.write(s)
+        # s = repr(  self.goalPose.x - (self.armPose.pose.position.x + self.robotPose.pose.pose.position.x ) ) + " " + repr( self.goalPose.y - (self.armPose.pose.position.y + self.robotPose.pose.pose.position.y  )  ) +  " " + repr( self.goalPose.z - (self.armPose.pose.position.z + self.robotPose.pose.pose.position.z  ) ) + "\n"
+        # self.fileDistance.write(s)
+        # s = repr( self.goalPose.x) + " " + repr( self.goalPose.y ) +  " " + repr( self.goalPose.z ) + "\n"
+        # self.filePoseGoal.write(s)
+        # s = repr( self.armPose.pose.position.x + self.armPose.pose.position.x  ) + " " + repr( self.armPose.pose.position.y + self.armPose.pose.position.y  ) +  " " + repr( self.armPose.pose.position.z + self.armPose.pose.position.z  ) + "\n"
+        # self.filePoseArmRobot.write(s)
+        # s = repr( self.desPos[0] ) + " " + repr( self.desPos[1] ) +  " " + repr( self.desPos[2] ) + "\n"
+        # self.fileDesiredPose.write(s)
 
-        s = repr( command_x ) + " " + repr( command_y ) +  " " + repr( command_z ) + "\n"
-        self.filePub.write(s)
-
-        s = repr(  self.goalPose.x - (self.armPose.pose.position.x + self.robotPose.pose.pose.position.x ) ) + " " + repr( self.goalPose.y - (self.armPose.pose.position.y + self.robotPose.pose.pose.position.y  )  ) +  " " + repr( self.goalPose.z - (self.armPose.pose.position.z + self.robotPose.pose.pose.position.z  ) ) + "\n"
-        self.fileDistance.write(s)
-
-        s = repr( self.goalPose.x) + " " + repr( self.goalPose.y ) +  " " + repr( self.goalPose.z ) + "\n"
-        self.filePoseGoal.write(s)
-
-        s = repr( self.armPose.pose.position.x + self.armPose.pose.position.x  ) + " " + repr( self.armPose.pose.position.y + self.armPose.pose.position.y  ) +  " " + repr( self.armPose.pose.position.z + self.armPose.pose.position.z  ) + "\n"
-        self.filePoseArmRobot.write(s)
-
-        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1] ) +  " " + repr( self.desPos[2] ) + "\n"
-        self.fileDesiredPose.write(s)
-
-
+        # Publish the map to create the path
         # pos_nav = PoseStamped()
         # pos_nav.header.frame_id = self.frame_id_goal
         # pos_nav.pose.position.x = float(self.desPos[0])
@@ -350,6 +362,7 @@ class learningReproductor :
         #add the pose, point to the path
         # self.traj.poses.append(pos_nav)
         # self.pub_path_trajectory.publish(self.traj)
+
         self.pub_arm_command.publish(joyCommand)
 
 
@@ -357,28 +370,33 @@ class learningReproductor :
         self.lock.acquire()
         try:
             self.armPose = data
+            trans, rot = self.tflistener.lookupTransform("girona500", "world", rospy.Time())
+            rotation_matrix = tf.transformations.quaternion_matrix(rot)
+            arm_pose = numpy.asarray([self.armPose.pose.position.x, self.armPose.pose.position.y, self.armPose.pose.position.z, 1])
+            arm_pose_tf = numpy.dot(rotation_matrix, arm_pose)[:3]
+
             if self.dataRobotReceived and self.dataGoalReceived :
                 if self.dataReceived == 0 :
-                    self.currPos[0] = ( (data.pose.position.x + self.robotPose.pose.pose.position.x ) - self.goalPose.x)
-                    self.currPos[1] = ( (data.pose.position.y  + self.robotPose.pose.pose.position.y ) - self.goalPose.y)
-                    self.currPos[2] = ( (data.pose.position.z  + self.robotPose.pose.pose.position.z ) - self.goalPose.z)
+                    self.currPos[0] = ( (arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) - self.goalPose.x)
+                    self.currPos[1] = ( (arm_pose_tf[1]  + self.robotPose.pose.pose.position.y ) - self.goalPose.y)
+                    self.currPos[2] = ( (arm_pose_tf[2]  + self.robotPose.pose.pose.position.z ) - self.goalPose.z)
                     self.currTime = data.header.stamp.secs + (data.header.stamp.nsecs*1E-9)
                     self.dataReceived += 1
                 elif self.dataReceived == 1 :
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-                    self.currPos[0] = ( (data.pose.position.x + self.robotPose.pose.pose.position.x ) - self.goalPose.x)
-                    self.currPos[1] = ( (data.pose.position.y  + self.robotPose.pose.pose.position.y ) - self.goalPose.y)
-                    self.currPos[2] = ( (data.pose.position.z  + self.robotPose.pose.pose.position.z ) - self.goalPose.z)
+                    self.currPos[0] = ( (arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) - self.goalPose.x)
+                    self.currPos[1] = ( (arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) - self.goalPose.y)
+                    self.currPos[2] = ( (arm_pose_tf[2]  + self.robotPose.pose.pose.position.z ) - self.goalPose.z)
                     self.currTime = data.header.stamp.secs + (data.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
                     self.dataReceived += 1
                 else :
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-                    self.currPos[0] = ( (data.pose.position.x + self.robotPose.pose.pose.position.x ) - self.goalPose.x)
-                    self.currPos[1] = ( (data.pose.position.y  + self.robotPose.pose.pose.position.y ) - self.goalPose.y)
-                    self.currPos[2] = ( (data.pose.position.z  + self.robotPose.pose.pose.position.z ) - self.goalPose.z)
+                    self.currPos[0] = ( (arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) - self.goalPose.x)
+                    self.currPos[1] = ( (arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) - self.goalPose.y)
+                    self.currPos[2] = ( (arm_pose_tf[2] + self.robotPose.pose.pose.position.z ) - self.goalPose.z)
                     self.currTime = data.header.stamp.secs + (data.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
             else:

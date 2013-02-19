@@ -239,7 +239,9 @@ class learningDmp :
             #Standard DMP
             #self.Wp[:,:,i]=numpy.diag(numpy.ones(shape=(self.nbVar,1))*self.kP)
 
-        rospy.loginfo('\nValues Wp \n ' + str(self.Wp) + '\n' )
+        #rospy.loginfo('\nValues Wp \n ' + str(self.Wp) + '\n' )
+
+        rospy.loginfo('Learning finished successfully')
 
         self.exportPlayData()
 
@@ -330,6 +332,8 @@ class learningDmp :
            file.write('\n')
 
        file.close()
+
+       rospy.loginfo('The parameters learned has been exported to ' + self.exportFilename )
 
 
 if __name__ == '__main__':
