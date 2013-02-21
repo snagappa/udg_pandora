@@ -77,8 +77,16 @@ class LearningRecord:
             arm_pose = np.asarray([armPose.pose.position.x, armPose.pose.position.y, armPose.pose.position.z, 1])
             arm_pose_tf = np.dot(rotation_matrix, arm_pose)[:3]
             s = repr((arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) - self.goalPose.x )+" "+ repr( (arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) - self.goalPose.y ) + " " + repr( ( arm_pose_tf[2] + self.robotPose.pose.pose.position.z ) - self.goalPose.z ) +" "+ repr(euler[0])  +" "+ repr(euler[1])  +" "+ repr(euler[2]) +"\n"
-#            print arm_pose_tf[0], self.robotPose.pose.pose.position.x, self.goalPose.x
-#            print arm_pose_tf[0] + self.robotPose.pose.pose.position.x - self.goalPose.x
+
+            # rospy.loginfo( 'Arm robot Pose: ' + str(arm_pose_tf[0]) )
+            # rospy.loginfo( 'Arm robot pose : ' + str(armPose.pose.position.x) )
+            # rospy.loginfo( 'Robot global pose : ' + str(self.robotPose.pose.pose.position.x) )
+
+            rospy.loginfo( 'Arm global Pose: ' + str(arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) +', ' + str(arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) +', ' + str(arm_pose_tf[2] + self.robotPose.pose.pose.position.z ))
+
+            rospy.loginfo('Valve centre global pose: ' + str(self.goalPose.x ) +', ' + str(self.goalPose.y ) +', ' +  str(self.goalPose.z ))
+
+            rospy.loginfo('Distance Arm Valve' + str(arm_pose_tf[0] - self.goalPose.x) +', ' + str(arm_pose_tf[1] - self.goalPose.y) +', ' + str(arm_pose_tf[2] - self.goalPose.z) )
 
         finally:
             self.lock.release()
