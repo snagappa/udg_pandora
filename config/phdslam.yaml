@@ -1,9 +1,9 @@
-phdslam/vars/pd: 0.8
-phdslam/vars/prune_threshold: 5e-3
-phdslam/vars/merge_threshold: 1
-phdslam/vars/max_num_components: 4000
-phdslam/vars/birth_intensity: 1e-1
-phdslam/vars/clutter_intensity: 200
-phdslam/vars/pd: 0.8
-
-
+phdslam/vars/prune_threshold: 0.0025
+phdslam/vars/merge_threshold: 0.75
+phdslam/vars/max_num_components: 8000
+phdslam/vars/birth_intensity: 0.05
+phdslam/vars/clutter_intensity: 1
+phdslam/vars/pd: 0.6
+phdslam/vars/prediction_noise_scaling0: 16
+phdslam/vars/prediction_noise_scaling1: 32
+phdslam/vars/imm_ratio: 0.25

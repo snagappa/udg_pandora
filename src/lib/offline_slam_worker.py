@@ -66,21 +66,21 @@ class GMPHD(object):
         # Prune components less than this weight
         config_root = "phdslam/vars/"
         self.vars.prune_threshold = (
-            rospy.get_param(config_root+"prune_threshold", 5e-3))
+            rospy.get_param(config_root+"prune_threshold"))
         # Merge components  closer than this threshold
         self.vars.merge_threshold = (
-            rospy.get_param(config_root+"merge_threshold", 1))
+            rospy.get_param(config_root+"merge_threshold"))
         # Maximum number of components to track
         self.vars.max_num_components = (
-            rospy.get_param(config_root+"max_num_components", 4000))
+            rospy.get_param(config_root+"max_num_components"))
         # Intensity of new targets
         self.vars.birth_intensity = (
-            rospy.get_param(config_root+"birth_intensity", 1e-1))
+            rospy.get_param(config_root+"birth_intensity"))
         # Intensity of clutter in the scene
         self.vars.clutter_intensity = (
-            rospy.get_param(config_root+"clutter_intensity", 200))
+            rospy.get_param(config_root+"clutter_intensity"))
         # Probability of detection of targets in the FoV
-        self.vars.pd = rospy.get_param(config_root+"pd", 0.8)
+        self.vars.pd = rospy.get_param(config_root+"pd")
         #self.vars.far_fov = 5.0
         #self.vars.ps = 1.0
         
@@ -196,6 +196,7 @@ class GMPHD(object):
         """
         self.flags.ESTIMATE_IS_VALID = False
         # Container for slam parent update
+        self.slam_info.log_likelihood = 1.
         self.slam_info.likelihood = 1.
         num_observations, z_dim = (observations.shape + (3,))[0:2]
         
@@ -241,12 +242,25 @@ class GMPHD(object):
                         self.sensors.camera.observation_jacobian()[np.newaxis], 
                         order='C')
                     pred_z = self.sensors.camera.observations(detected.states)[0]
-                    observation_noise = observation_noise[0]
-                    detected.covs, kalman_info = kf_update_cov(
-                        detected.covs, h_mat, observation_noise, INPLACE=True)
+                    # Do a single covariance update if equal observation noise
+                    if np.all(observation_noise == observation_noise[0]):
+                        EQUAL_OBS_NOISE = True
+                        this_observation_noise = observation_noise[0]
+                        _this_detected_covs_, kalman_info = kf_update_cov(
+                            detected.covs, h_mat, this_observation_noise,
+                            INPLACE=False)
+                    else:
+                        EQUAL_OBS_NOISE = False
                 # We need to update the states and find the updated weights
                 for (_observation_, obs_count) in zip(observations, 
                                                       range(num_observations)):
+                    if not EQUAL_OBS_NOISE:
+                        this_observation_noise = observation_noise[obs_count]
+                        this_detected_covs, kalman_info = kf_update_cov(
+                            detected.covs, h_mat, this_observation_noise,
+                            INPLACE=False)
+                    else:
+                        this_detected_covs = _this_detected_covs_.copy()
                     #new_x = copy.deepcopy(x)
                     # Apply the Kalman update to get the new state - 
                     # update in-place and return the residuals
@@ -278,7 +292,7 @@ class GMPHD(object):
                     # Create new state with new_x and P to add to _states_
                     updated.weights += [upd_weights.copy()]
                     updated.states += [upd_states.copy()]
-                    updated.covs += [detected.covs.copy()]
+                    updated.covs += [this_detected_covs]
                     #print upd_weights.sum()
             else:
                 self.slam_info.sum__clutter_with_pd_updwt = np.ones(num_observations)
@@ -288,6 +302,9 @@ class GMPHD(object):
             self.covs = np.concatenate(updated.covs)
             
             # SLAM, finalise:
+            self.slam_info.log_likelihood = (
+                np.log(self.slam_info.exp_sum__pd_predwt) +
+                np.log(self.slam_info.sum__clutter_with_pd_updwt).sum())
             self.slam_info.likelihood = (self.slam_info.exp_sum__pd_predwt * 
                                     self.slam_info.sum__clutter_with_pd_updwt.prod())
             assert self.weights.shape[0] == self.states.shape[0] == self.covs.shape[0], "Lost states!!"
@@ -985,15 +1002,25 @@ class PHDSLAM(object):
             for i in range(self.vars.nparticles)]
         #slam_info = Parallel(n_jobs=2)(delayed(_update_features_parallel_)(self, idx, features_pos, features_noise) for idx in range(self.vars.nparticles))
         print "map size: ", self.vehicle.maps[0].weights.shape[0]
-        slam_weight_update = np.array([slam_info[i].likelihood
+        # Overflow errors
+        #slam_weight_update = np.array([slam_info[i].likelihood
+        #    for i in range(self.vars.nparticles)])
+        #self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
+        #self.vehicle.weights /= self.vehicle.weights.sum()
+        # Use log to avoid overflows
+        slam_weight_log_update = np.array([slam_info[i].log_likelihood
             for i in range(self.vars.nparticles)])
+        log_weights = np.log(self.vehicle.weights)
+        slam_weight_log_update -= slam_weight_log_update.max()
+        slam_weight_log_update_sum = np.log(np.sum(np.exp(slam_weight_log_update)))
+        log_weights += slam_weight_log_update - slam_weight_log_update_sum
+        self.vehicle.weights = np.exp(log_weights)
+        self.vehicle.weights /= self.vehicle.weights.sum()
         # Create birth terms
         #if features.shape[0]:
         #    b_wt, b_st, b_cv = self.vehicle.maps[0].birth(features_pos, 
         #        features_noise, APPEND=False)
         #    nothing = [_map_.append(b_wt, b_st, b_cv) for _map_ in self.vehicle.maps]
-        self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
-        self.vehicle.weights /= self.vehicle.weights.sum()
         #print "post update weights = ", self.vehicle.weights
     
     def compress_maps(self, *args, **kwargs):
@@ -1402,6 +1429,7 @@ class RBPHDSLAM2(object):
         
         self.vars = STRUCT()
         self.vars.nparticles = nparticles
+        self.vars._nparticles_ = nparticles
         self.vars.resample_threshold = resample_threshold
         
         self.vars.F = None
@@ -1411,7 +1439,15 @@ class RBPHDSLAM2(object):
         self.vars.gpsR = None
         self.vars.dvl_w_R = None
         self.vars.dvl_b_R = None
-        self.vars.prediction_noise_scaling = 4.
+        if nparticles > 1:
+            prediction_noise_scaling = rospy.get_param(
+                "/phdslam/vars/prediction_noise_scaling0", 4)
+        else:
+            prediction_noise_scaling = 0
+        self.vars.prediction_noise_scaling = prediction_noise_scaling
+        
+        self.vars.imm_ratio = rospy.get_param(
+                "/phdslam/vars/imm_ratio", 0.5)
         
         self.vehicle = STRUCT()
         # Kalman filter is used to estimate the velocity
@@ -1552,6 +1588,8 @@ class RBPHDSLAM2(object):
         pred_kf_state_cov = np_kf_predict_cov(
             vehicle.kf_state_cov, kf_trans_mat, kf_process_noise)
         
+        # Assume constant position model for first half of particles and
+        # constant velocity model for the other half
         # Particle filter prediction
         # Draw noise samples from the Kalman filter distribution (covariance)
         kf_noise_samples = np.random.multivariate_normal(
@@ -1560,6 +1598,8 @@ class RBPHDSLAM2(object):
         # Generate samples for the velocity
         velocity_samples = kf_noise_samples[:, 3:]
         velocity_samples += pred_kf_state[3:]
+        half_nparticles = np.floor(self.vars.imm_ratio*self.vars.nparticles)
+        velocity_samples[:half_nparticles] = 0
         # Get the rotation matrix
         rot_mat = pf_trans_mat[:, 3:]
         # Predict according to motion model
@@ -1610,7 +1650,9 @@ class RBPHDSLAM2(object):
         else:
             if PERFORM_UPDATE:
                 delta_kf_state = upd_kf_state - pred_kf_state
-                vehicle.position += delta_kf_state[:3]
+                # Correct the position of the second half of particles
+                half_nparticles = np.floor(self.vars.imm_ratio*self.vars.nparticles)
+                vehicle.position[half_nparticles:] += delta_kf_state[:3]
             return None
     
     def update_gps(self, gps):
@@ -1660,9 +1702,19 @@ class RBPHDSLAM2(object):
             for i in range(self.vars.nparticles)]
         #slam_info = Parallel(n_jobs=2)(delayed(_update_features_parallel_)(self, idx, features_pos, features_noise) for idx in range(self.vars.nparticles))
         print "map size: ", self.vehicle.maps[0].weights.shape[0]
-        slam_weight_update = np.array([slam_info[i].likelihood
+        # Overflow errors
+        #slam_weight_update = np.array([slam_info[i].likelihood
+        #    for i in range(self.vars.nparticles)])
+        #self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
+        #self.vehicle.weights /= self.vehicle.weights.sum()
+        # Use log to avoid overflows
+        slam_weight_log_update = np.array([slam_info[i].log_likelihood
             for i in range(self.vars.nparticles)])
-        self.vehicle.weights *= slam_weight_update/slam_weight_update.sum()
+        log_weights = np.log(self.vehicle.weights)
+        slam_weight_log_update -= slam_weight_log_update.max()
+        slam_weight_log_update_sum = np.log(np.sum(np.exp(slam_weight_log_update)))
+        log_weights += slam_weight_log_update - slam_weight_log_update_sum
+        self.vehicle.weights = np.exp(log_weights)
         self.vehicle.weights /= self.vehicle.weights.sum()
         if features_pos.shape[0]:
             [self.vehicle.maps[i].birth(features_pos, features_noise, APPEND=True)
@@ -1703,8 +1755,12 @@ class RBPHDSLAM2(object):
         print "Resampling"
         if np.any(np.isnan(vehicle.weights)):
             print "\n\n***  NaNs in weights  ***\n\n"
+        # Scale the number of particles
+        #self.vars._nparticles_ *= 1.0015
+        #self.vars.nparticles = int(min((self.vars._nparticles_, 400)))
+        nparticles = self.vars.nparticles
         # Otherwise we need to resample
-        resample_index = misctools.get_resample_index(vehicle.weights)
+        resample_index = misctools.get_resample_index(vehicle.weights, nparticles)
         # self.states is a numpy array so the indexing operation forces a copy
         vehicle.weights = np.ones(nparticles, dtype=float)/nparticles
         vehicle.position = np.asarray(vehicle.position[resample_index], order='C')
@@ -1718,5 +1774,6 @@ class RBPHDSLAM2(object):
             # Reinitialise to unique ids
             for count in range(nparticles):
                 resampled_maps[count].sensors.camera.set_tf_frame(
-                    *self.vehicle.maps[count].sensors.camera.get_tf_frame())
+                    *('slam_sensor'+str(count), 'slam_sensor_right'+str(count)))
+                        #*self.vehicle.maps[count].sensors.camera.get_tf_frame())
             vehicle.maps = resampled_maps

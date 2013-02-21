@@ -28,6 +28,7 @@ import cv2
 import os
 import math
 from subprocess import call
+import yaml
 
 #for plotting
 import matplotlib as mpl
@@ -182,21 +183,26 @@ def rosinit():
     # Load default parameters
     
     cola2_base_dir = roslib.stacks.get_stack_dir("cola2")
+    udg_pandora_base_dir = roslib.packages.get_pkg_dir("udg_pandora")
     param_files = [
-        "/cola2_safety/config/safety_g500.yaml",
-        "/cola2_safety/config/fake_main_board.yaml",
-        "/cola2_navigation/config/dynamics_odin.yaml",
-        "/cola2_control/config/thruster_allocator_sim.yaml",
-        "/cola2_control/config/velocity_controller_sim.yaml",
-        "/cola2_control/config/joy.yaml",
-        "/cola2_control/config/pilot.yaml",
-        "/cola2_navigation/config/navigator.yaml",
-        "/cola2_control/../launch/mission.yaml",
-        "/cola2_control/config/arm_controller_5DoF.yaml",
-        "/cola2_safety/../launch/basic_mission_parameters.yaml"]
+        cola2_base_dir+"/cola2_safety/config/safety_g500.yaml",
+        cola2_base_dir+"/cola2_safety/config/fake_main_board.yaml",
+        cola2_base_dir+"/cola2_navigation/config/dynamics_odin.yaml",
+        cola2_base_dir+"/cola2_control/config/thruster_allocator_sim.yaml",
+        cola2_base_dir+"/cola2_control/config/velocity_controller_sim.yaml",
+        cola2_base_dir+"/cola2_control/config/joy.yaml",
+        cola2_base_dir+"/cola2_control/config/pilot.yaml",
+        cola2_base_dir+"/cola2_navigation/config/navigator.yaml",
+        cola2_base_dir+"/cola2_control/../launch/mission.yaml",
+        cola2_base_dir+"/cola2_control/config/arm_controller_5DoF.yaml",
+        cola2_base_dir+"/cola2_safety/../launch/basic_mission_parameters.yaml",
+        udg_pandora_base_dir+"/config/slam_feature_detector.yaml",
+        udg_pandora_base_dir+"/config/phdslam.yaml"]
     for _param_file_ in param_files:
-        subprocess.call(["rosparam", "load", cola2_base_dir+_param_file_])
-    return roscore_port, roscore_process
+        subprocess.call(["rosparam", "load", _param_file_])
+    config = yaml.load(open(udg_pandora_base_dir+"/config/phdslam.yaml"))
+    config.update(yaml.load(open(udg_pandora_base_dir+"/config/slam_feature_detector.yaml")))
+    return roscore_port, roscore_process, config
 
 def plotEllipse(pos, P, edge='black', face='0.3'):
     # Copyright Tinne De Laet, Oct 2009
@@ -209,7 +215,7 @@ def plotEllipse(pos, P, edge='black', face='0.3'):
     ax.add_patch(ellipsePlot);
     return ellipsePlot;
 
-def process_bags(bagfiles_list, roscore_process, PERFORM_SLAM=False, OUT_DIR=None):
+def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT_DIR=None):
     image_proc_process = None
     try:
         if PERFORM_SLAM:
@@ -232,14 +238,15 @@ def process_bags(bagfiles_list, roscore_process, PERFORM_SLAM=False, OUT_DIR=Non
         # Create g500slam
         if not USE_PF:
             # Using EKF
-            g500slam = G500_SLAM("phdslam", nparticles=1)
+            nparticles = 1
         else:
             # OR particle filter
-            g500slam = G500_SLAM("phdslam", nparticles=50)
+            nparticles = 50
             #g500slam.slam_worker._filter_update_ = g500slam.slam_worker._pf_update_
             #g500slam.slam_worker._filter_update_ = g500slam.slam_worker._opt_pf_update_
+        g500slam = G500_SLAM("phdslam", nparticles=nparticles)
+        config["phdslam/nparticles"] = nparticles
         
-        #code.interact(local=locals())
         print "Creating callback dictionary..."
         # Create dictionary for callbacks
         SENSOR_ROOT = "/navigation_g500/" #"/cola2_navigation/"
@@ -249,11 +256,11 @@ def process_bags(bagfiles_list, roscore_process, PERFORM_SLAM=False, OUT_DIR=Non
         
         if PERFORM_SLAM:
             # Start visual detector - only needed for slam
-            v_detector = slam_feature_detector.VisualDetector(rospy.get_name(), PUB_CAMERA_ROOT)
+            v_detector = slam_feature_detector.SlamFeatureDetector(rospy.get_name())
             
-            features_topic = "/visual_detector2/features"
+            features_topic = "/slam_feature_detector/features"
             features = message_loopback(in_topic=features_topic, in_type=PointCloud2)
-            img_features = message_loopback(in_topic="/visual_detector2/features_img_l", in_type=Image)
+            img_features = message_loopback(in_topic="/slam_feature_detector/features_img_l", in_type=Image)
             img_landmarks_pub = message_loopback("/phdslam/img_landmarks", Image)
             imc = image_converter()
         cam_img_l = message_loopback(PUB_CAMERA_ROOT+"left/image_raw", Image,
@@ -303,7 +310,7 @@ def process_bags(bagfiles_list, roscore_process, PERFORM_SLAM=False, OUT_DIR=Non
                 BAG_CAMERA_ROOT+"left/camera_info"  : cam_info_l.publish,
                 BAG_CAMERA_ROOT+"right/image_raw"   : cam_img_r.publish,
                 BAG_CAMERA_ROOT+"right/camera_info" : cam_info_r.publish,
-                "/visual_detector2/features"        : g500slam.update_features})
+                "/slam_feature_detector/features"   : g500slam.update_features})
         
         # File name for output bag
         if OUT_DIR is None:
@@ -329,7 +336,7 @@ def process_bags(bagfiles_list, roscore_process, PERFORM_SLAM=False, OUT_DIR=Non
             # image rect
             subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/stereo_camera/left/image_rect_color"])
             # features
-            subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/visual_detector2/features_img_l"])
+            subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/slam_feature_detector/features_img_l"])
             # image landmarks
             subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/phdslam/img_landmarks"])
         
@@ -346,6 +353,7 @@ def process_bags(bagfiles_list, roscore_process, PERFORM_SLAM=False, OUT_DIR=Non
         else:
             out_directory = OUT_DIR
             call(["mkdir", "-p", OUT_DIR])
+        yaml.dump(config, open(out_directory+"/config.yaml", 'w'))
         last_transform_time = rospy.Time(0)
         slam_cam_init = False
         img_savefile_num = 0
@@ -639,7 +647,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Start roscore
-    roscore_port, roscore_process = rosinit()
+    roscore_port, roscore_process, config = rosinit()
     
     rospy.init_node("phdslam")
     rospy.set_param("/use_sim_time", True)
@@ -651,7 +659,7 @@ if __name__ == "__main__":
     for _filename_ in bagfiles_list:
         print _filename_
     try:
-        process_bags(bagfiles_list, roscore_process, args.withslam, OUT_DIR=args.outdir)
+        process_bags(bagfiles_list, roscore_process, config, args.withslam, OUT_DIR=args.outdir)
     except rospy.ROSException:
         roscore_process.send_signal(signal.SIGINT)
         roscore_process.wait()

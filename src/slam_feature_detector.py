@@ -18,7 +18,7 @@ def get_default_parameters():
     parameters = {}
     parameters["slam_feature_detector/fov/near"] = 0.15
     parameters["slam_feature_detector/fov/far"] = 4.0
-    parameters["slam_feature_extractor/name"] =  "Surf"
+    parameters["slam_feature_extractor/extractor_name"] =  "Surf"
     parameters["slam_feature_detector/num_features"] =  40
     parameters["slam_feature_detector/flann_ratio"] =  0.6
     
@@ -111,7 +111,7 @@ class SlamFeatureDetector(object):
     def init_slam_feature_detector(self):
         slam_features = self.slam_features
         # Extract parameters
-        extractor_name = rospy.get_param("slam_feature_detector/name")
+        extractor_name = rospy.get_param("slam_feature_detector/extractor_name")
         update_rate = rospy.get_param("slam_feature_detector/rate")
         num_features = rospy.get_param("slam_feature_detector/num_features")
         flann_ratio = rospy.get_param("slam_feature_detector/flann_ratio")
@@ -145,7 +145,7 @@ class SlamFeatureDetector(object):
                 "slam_feature_detector/surf_extractor/hessian_threshold", -1)
             if hessian_threshold > 0:
                 print "Setting hessian threhosld to %s" % hessian_threshold
-                slam_features.camera._featuredetector_set_hessian_threshold(hessian_threshold)
+                slam_features.camera._featuredetector_.set_hessian_threshold(hessian_threshold)
             # Set number of octaves
             n_octaves = rospy.get_param(
                 "slam_feature_detector/surf_extractor/n_octaves", -1)
@@ -201,9 +201,10 @@ class SlamFeatureDetector(object):
         #print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        points3d_scale = np.hstack((points_range[:, np.newaxis], 
-                                    points_range[:, np.newaxis], 
-                                    points_range[:, np.newaxis]))
+        avg_range = np.ones(weights.shape[0]) #*points_range.mean()
+        points3d_scale = np.hstack((avg_range[:, np.newaxis], 
+                                    avg_range[:, np.newaxis], 
+                                    avg_range[:, np.newaxis]))
         covs = slam_features.cov_scaling*points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
         _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=0.1)
         print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
