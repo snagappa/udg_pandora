@@ -7,7 +7,6 @@ Created on Tue Oct 30 12:20:27 2012
 from image_geometry import cameramodels as ros_cameramodels
 import numpy as np
 cimport numpy as np
-from cpython cimport bool
 import tf
 import rospy
 import blas
@@ -43,23 +42,15 @@ def get_transform(target_frame, source_frame, timestamp=None):
     mat44 = tflistener.asMatrix(target_frame, point.header)
     return mat44
 
-def transform_numpy_array(target_frame, source_frame,
-                          np.ndarray[double, ndim=2] numpy_points not None,
-                          timestamp=None, bool ROTATE_BEFORE_TRANSLATE=True):
+def transform_numpy_array(target_frame, source_frame, numpy_points,
+                          timestamp=None, ROTATE_BEFORE_TRANSLATE=True):
     assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
-            (numpy_points.shape[0]*numpy_points.shape[1] == 0)), (
+            (np.prod(numpy_points.shape) == 0)), (
             "Points must be Nx3 numpy array")
-    
-    cdef int arr_len = numpy_points.shape[0]
-    cdef np.ndarray[double, ndim=2] mat44
-    cdef np.ndarray[double, ndim=2] tf_np_points
-    cdef np.ndarray[double, ndim=2] homogenous_points
-    cdef np.ndarray[double, ndim=1] translation
-    cdef np.ndarray[double, ndim=2] rot_mat
-    
     if numpy_points.shape[0] == 0:
         return np.empty(0)
     
+    arr_len = numpy_points.shape[0]
     try:
         mat44 = get_transform(target_frame, source_frame, timestamp)
     except:
@@ -101,8 +92,7 @@ def transform_numpy_array(target_frame, source_frame,
 #    return tf_np_points
 
 
-cdef class _FoV_(object):
-    cdef double pd, fov_near, fov_far, observation_volume
+class _FoV_(object):
     def __init__(self):
         """Class to model field of view"""
         # Probability of target detection
@@ -136,13 +126,17 @@ cdef class _FoV_(object):
                 print tferror
                 print "Error initialising tflistener, may be unavailable"
     
-    def set_near_far_fov(self, double fov_near=0.3, double fov_far=3.0):
+    def set_near_far_fov(self, fov_near=0.3, fov_far=3.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0) -> None
         Set the near and far distances visible by the camera
         """
         self.fov_near = fov_near
         self.fov_far = fov_far
         self.observation_volume = self._observation_volume_()
+    
+    def set_x_y_far(self, x_deg=None, y_deg=None, far_m=None):
+        """Compatibility Function - sets the far distance only"""
+        self.set_near_far_fov(self.fov_near, far_m)
     
     def fov_vertices_2d(self):
         """fov_vertices_2d(self) -> fov_vertices
@@ -160,70 +154,62 @@ cdef class _FoV_(object):
     def _observation_volume_(self):
         return 4/3*np.pi*(self.fov_far**3 - self.fov_near**3)
     
-    def set_const_pd(self, double pd=0.9):
+    def set_const_pd(self, pd=0.9):
         """set_const_pd(self, pd=0.9) -> None
         Set the probability of target detection for the model
         """
         self.pd = pd
     
-    def _pdf_detection_(self, np.ndarray[double, ndim=2] rel_points1 not None,
-                        np.ndarray[double, ndim=2] rel_points2=None, **kwargs):
+    def _pdf_detection_(self, rel_points1, rel_points2=None, **kwargs):
         """_pdf_detection_(self, rel_points1, rel_points2=None, **kwargs)->pd
         Returns the probability of detection for points lying between two
         spheres specified by fov_near and fov_far. Points are specified
         according to the camera coordinate system.
         """
-        cdef np.ndarray[double, ndim=1] euclid_distance, pd
         euclid_distance = np.power(np.power(rel_points1, 2).sum(axis=1), 0.5)
         pd = np.zeros(rel_points1.shape[0])
         pd[np.logical_and(self.fov_near < euclid_distance, 
                           euclid_distance < self.fov_far)] = self.pd
         return pd
     
-    def pdf_detection(self, np.ndarray[double, ndim=2] points not None, **kwargs):
+    def pdf_detection(self, points, **kwargs):
         """pdf_detection(self, points) -> pd
         Returns the probability of detection for points specified according to 
         world co-ordinates.
         """
         if points.shape[0] == 0:
             return np.empty(0)
-        cdef np.ndarray[double, ndim=2] rel_points
         rel_points = self.from_world_coords(points)[0]
         return self._pdf_detection_(rel_points, **kwargs)
     
-    def is_visible(self, np.ndarray[double, ndim=2] points, **kwargs):
+    def is_visible(self, points, **kwargs):
         """is_visible(self, points) -> bool_vector
         """
         if points.shape[0] == 0:
             return np.empty(0, dtype=np.bool)
-        cdef np.ndarray[double, ndim=1] pd
         pd = self.pdf_detection(points, **kwargs)
         return (pd > 0)
     
-    def is_visible_relative2sensor(self, np.ndarray[double, ndim=2] rel_points1 not None,
-                                   np.ndarray[double, ndim=2] rel_points2=None, **kwargs):
+    def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
         if rel_points1.shape[0] == 0:
             return np.empty(0, dtype=np.bool)
-        cdef np.ndarray[double, ndim=1] pd
         pd = self._pdf_detection_(rel_points1, **kwargs)
         return (pd > 0)
     
-    def pdf_clutter(self, np.ndarray[double, ndim=2] points1 not None,
-                    np.ndarray[double, ndim=2] points2=None, **kwargs):
+    def pdf_clutter(self, points1, points2=None, **kwargs):
         """pdf_clutter(self, points) -> clutter_pdf
         Calculate the probability distribution for the clutter at the given
         points
         """
-        cdef np.ndarray[double, ndim=1] clutter_pdf
         #pd = self._pdf_detection_(points1, points2, **kwargs).astype(np.bool)
-        clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0], dtype=np.double)
+        clutter_pdf = (1.0/self.observation_volume)*np.ones(points1.shape[0])
         #clutter_pdf[pd == 0] = 1
         return clutter_pdf
     
     def set_tf_frame(self, frame_id):
         self.tfFrame = frame_id
     
-    def to_world_coords(self, np.ndarray[double, ndim=2] numpy_points not None):
+    def to_world_coords(self, numpy_points):
         """to_world_coords(self, numpy_points)->world_points
         Convert Nx3 numpy array of points from camera coordinate system to
         world coordinates"""
@@ -234,7 +220,7 @@ cdef class _FoV_(object):
         return transform_numpy_array(target_frame, source_frame, numpy_points,
                                      ROTATE_BEFORE_TRANSLATE=True)
     
-    def from_world_coords(self, np.ndarray[double, ndim=2] numpy_points not None):
+    def from_world_coords(self, numpy_points):
         """from_world_coords(self, numpy_points)->(camera_points,)
         Convert Nx3 numpy array of points from world coordinate system to
         camera coordinates"""
@@ -271,8 +257,7 @@ cdef class _FoV_(object):
                              source_coord_XYZ)
         return absolute_position
     
-    def observations(self, np.ndarray[double, ndim=2] points not None):
-        cdef np.ndarray[double, ndim=2] rel_states
+    def observations(self, points):
         rel_states = self.from_world_coords(points)
         return rel_states
     
@@ -294,9 +279,9 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         Pinhole camera model derived from image_geometry.PinholeCameraModel
         Additional methods to estimate detection probability and clutter pdf.
         """
+        _FoV_.__init__(self)
         ros_cameramodels.PinholeCameraModel.__init__(self)
         self.tfFrame = None
-        _FoV_.__init__(self)
         self._normals_ = np.empty(0)
         self._camera_info_ = None
     
@@ -307,7 +292,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         new_camera.set_tf_frame(self.tfFrame)
         return new_camera
     
-    def set_near_far_fov(self, double fov_near=0.3, double fov_far=5.0):
+    def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0)
         Set near and far field of view
         """
@@ -324,7 +309,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         self.observation_volume = self._observation_volume_()
         self._create_normals_()
     
-    def project3dToPixel(self, np.ndarray[double, ndim=2] point not None):
+    def project3dToPixel(self, point):
         """
         :param point:     numpy array of size Nx3 (x, y, z)->(right, up, far)
         
@@ -332,11 +317,6 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         using the camera :math:`P` matrix.
         This is the inverse of :meth:`projectPixelTo3dRay`.
         """
-        cdef np.ndarray[double, ndim=2] src
-        cdef np.ndarray[double, ndim=2] P
-        cdef np.ndarray[double, ndim=2] dst
-        cdef np.ndarray[double, ndim=2] pixels
-        cdef np.ndarray[double, ndim=1] w
         if not point.shape[0]:
             return np.empty(0)
         src = np.empty((point.shape[0], 4), dtype=np.float64)
@@ -350,7 +330,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         pixels /= w[:, np.newaxis]
         return pixels
     
-    def projectPixelTo3dRay(self, np.ndarray[double, ndim=2] uv not None):
+    def projectPixelTo3dRay(self, uv):
         """
         :param uv:        rectified pixel coordinates
         :type uv:         (u, v)
@@ -359,8 +339,6 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         using the camera :math:`P` matrix.
         This is the inverse of :meth:`project3dToPixel`.
         """
-        cdef np.ndarray[double, ndim=2] points
-        cdef np.ndarray[double, ndim=1] norm
         points = np.empty((uv.shape[0], 3))
         points[:, 0] = (uv[:, 0] - self.cx()) / self.fx()
         points[:, 1] = (uv[:, 1] - self.cy()) / self.fy()
@@ -408,26 +386,18 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         obs_volume = 0.33*base_width*base_height*self.fov_far
         return obs_volume
     
-    def _pdf_detection_(self, np.ndarray[double, ndim=2] rel_points1 not None, rel_points2=None, **kwargs):
+    def _pdf_detection_(self, rel_points1, rel_points2=None, **kwargs):
         """pdf_detection(self, points, <margin=1e-1>) -> pd
         Determines the probability of detection for points specified according
         to the camera coordinate system.
         """
-        cdef double margin
-        cdef np.ndarray[int, ndim=1] idx_visible
-        cdef np.ndarray[double, ndim=2] pd
-        cdef np.ndarray[double, ndim=1] dot_product
-        cdef np.ndarray[double, ndim=2] image_points
-        cdef double xmargin_l, xmargin_r, ymargin_t, ymargin_b
-        #cdef np.ndarray[dtype=np.bool, ndim=1] _valid_
-        
         margin = kwargs.get("margin", 0)
         #USE_PROJECTION_METHOD = kwargs.get("USE_PROJECTION_METHOD", True)
         
         # Track indices of visible points
         idx_visible = np.arange(rel_points1.shape[0])
         # Initialise pd as 0
-        pd = np.zeros(rel_points1.shape[0], dtype=np.double)
+        pd = np.zeros(rel_points1.shape[0], dtype=np.float)
         if idx_visible.shape[0] == 0: return pd
         # Check near plane
         idx_visible = idx_visible[rel_points1[idx_visible, 2] > (self.fov_near+margin)]
@@ -499,8 +469,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
             [np.cross(edge_unit_vectors[idx], edge_unit_vectors[idx-1]) 
             for idx in range(edge_unit_vectors.shape[0])])
     
-    def pdf_clutter(self, np.ndarray[double, ndim=2] points1 not None,
-                    np.ndarray[double, ndim=2] points2=None, **kwargs):
+    def pdf_clutter(self, points1, points2=None, **kwargs):
         """pdf_clutter(self, points) -> clutter_pdf
         Calculate the probability distribution for the clutter at the given
         points
@@ -521,9 +490,10 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
 class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def __init__(self):
         """Idealised stereo camera"""
+        _FoV_.__init__(self)
+        ros_cameramodels.StereoCameraModel.__init__(self)
         self.left = PinholeCameraModel()
         self.right = PinholeCameraModel()
-        _FoV_.__init__(self)
         self.tfFrame = None
         self._camera_info_ = None
     
@@ -552,14 +522,14 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def get_height(self):
         return self.left.get_height()
     
-    def set_near_far_fov(self, double fov_near=0.3, double fov_far=5.0):
+    def set_near_far_fov(self, fov_near=0.3, fov_far=5.0):
         """set_near_far_fov(self, fov_near=0.3, fov_far=5.0) -> None
         Set the near and far field of view
         """
         self.left.set_near_far_fov(fov_near, fov_far)
         self.right.set_near_far_fov(fov_near, fov_far)
     
-    def set_const_pd(self, double pd=0.9):
+    def set_const_pd(self, pd=0.9):
         """set_const_pd(self, pd=0.9)
         Set a constant probability of detection for the targets in the scene
         """
@@ -572,29 +542,21 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         else:
             return np.empty((0, 2))
     
-    def pdf_detection(self, np.ndarray[double, ndim=2] points not None, **kwargs):
+    def pdf_detection(self, points, **kwargs):
         """pdf_detection(self, points) -> pd
         Calculate the probability of detection for the points
         """
         # Convert points to left reference frame
-        cdef np.ndarray[double, ndim=2] rel_points
-        cdef np.ndarray[double, ndim=1] l_pdf
-        cdef np.ndarray[double, ndim=1] r_pdf
-        
         rel_points = self.left.from_world_coords(points)[0]
         l_pdf = self.left._pdf_detection_(rel_points, **kwargs)
         r_pdf = self.right._pdf_detection_(rel_points, **kwargs)
         l_pdf = np.vstack((l_pdf, r_pdf))
         return np.min(l_pdf, axis=0)
     
-    def is_visible(self, np.ndarray[double, ndim=2] points not None, **kwargs):
+    def is_visible(self, points, **kwargs):
         return (self.pdf_detection(points, **kwargs) > 0).astype(np.bool)
     
-    def is_visible_relative2sensor(self, np.ndarray[double, ndim=2] rel_points1 not None,
-                                   np.ndarray[double, ndim=2] rel_points2=None, **kwargs):
-        cdef np.ndarray[double, ndim=1] l_pdf
-        cdef np.ndarray[double, ndim=1] r_pdf
-        
+    def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
         if rel_points1.shape[0] == 0:
             return np.empty(0, dtype=np.bool)
         l_pdf = self.left._pdf_detection_(rel_points1, None, **kwargs)
@@ -605,13 +567,10 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         else:
             return (l_pdf > 0).astype(np.bool)
     
-    def pdf_clutter(self, np.ndarray[double, ndim=2] points1 not None,
-                    np.ndarray[double, ndim=2] points2=None, **kwargs):
+    def pdf_clutter(self, points1, points2=None, **kwargs):
         """pdf_clutter(self, points) -> clutter_pdf
         Calculate the pdf of the clutter at the given points
         """
-        cdef np.ndarray[double, ndim=1] clutter_l
-        cdef np.ndarray[double, ndim=1] clutter_r
         clutter_l = self.left.pdf_clutter(points1, None, **kwargs)
         if not points2 is None:
             clutter_r = self.right.pdf_clutter(points2, None, **kwargs)
@@ -619,14 +578,11 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             clutter_l[replace_idx] = clutter_r[replace_idx]
         return clutter_l
     
-    def triangulate(self, np.ndarray[double, ndim=2] pts_left not None,
-                    np.ndarray[double, ndim=2] pts_right not None):
+    def triangulate(self, pts_left, pts_right):
         """triangulate(self, pts_left, pts_right) -> points3d
         Triangulate points using rectified camera. pts_left and pts_right must
         be Nx2 numpy arrays
         """
-        cdef np.ndarray[double, ndim=2] points4d
-        cdef np.ndarray[double, ndim=2] points3d
         # Triangulate the points
         assert (pts_left.ndim == 2) and (pts_right.ndim == 2), "pts must be Nx2 numpy array"
         assert pts_left.shape == pts_right.shape, "pts_{left/right} must have the same shape"
@@ -636,10 +592,10 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
                                          np.asarray(self.right.P),
                                          pts_left.T, pts_right.T)
         points4d /= points4d[3]  #(wx,wy,wz,w) -> (x,y,z,1)
-        points3d = np.asarray((points4d[0:3, :]).T, order='C')
+        points3d = np.asarray((points4d[0:3, :]).T, dtype=np.float, order='C')
         return points3d
     
-    def from_world_coords(self, np.ndarray[double, ndim=2] numpy_points not None):
+    def from_world_coords(self, numpy_points):
         """from_world_coords(self, numpy_points)
             -> (camera_points_l, camera_points_r)
         Convert Nx3 numpy array of points from world coordinate system to
@@ -655,8 +611,7 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.left.tfFrame, self.right.tfFrame)
     
-    def observations(self, np.ndarray[double, ndim=2] states not None):
-        cdef np.ndarray[double, ndim=2] rel_states
+    def observations(self, states):
         rel_states = self.from_world_coords(states)
         return rel_states
 
@@ -681,9 +636,8 @@ class _CameraFeatureDetector_(object):
         (keypoints, descriptors) = self._featuredetector_.get_features(image, mask)
         return keypoints, descriptors
     
-    def detect_and_match(self, obj_kp, np.ndarray[double, ndim=2] obj_desc not None,
-                         scene_kp, np.ndarray[double, ndim=2] scene_desc not None, 
-                         double ratio=0.6):
+    def detect_and_match(self, obj_kp, obj_desc, scene_kp, scene_desc, 
+                           ratio=0.6):
         """
         _detect_and_match_(obj_kp, obj_desc, scene_kp, scene_desc, ratio)
         Returns pt1, pt2, valid_idx1, valid_idx2
@@ -708,20 +662,14 @@ class _CameraFeatureDetector_(object):
         #kp_pairs = zip(match_kp1, match_kp2)
         return pts_1, pts_2, valid_idx1, valid_idx2 #, kp_pairs
     
-    def find_homography(self, np.ndarray[double, ndim=2] pts_1 not None,
-                        np.ndarray[double, ndim=2] pts_2 not None,
-                        method=cv2.RANSAC, double ransacReprojThreshold=3.0,
-                        int min_inliers=10):
+    def find_homography(self, pts_1, pts_2, method=cv2.RANSAC, 
+                                       ransacReprojThreshold=3.0,
+                                       min_inliers=10):
         """find_homography(self, pts_1, pts_2, method=cv2.RANSAC,
         ransacReprojThreshold=5.0, min_inliers=10) 
            -> status, h_mat, num_inliers, inliers_status
         Compute the homography from two matched sets of points
         """
-        cdef bool status
-        cdef np.ndarray[double, ndim=2] h_mat
-        cdef int num_inliers
-        cdef np.ndarray[int, ndim=2] inliers_status
-        
         status = False
         h_mat = None
         num_inliers = 0

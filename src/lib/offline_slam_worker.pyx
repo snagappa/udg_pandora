@@ -361,8 +361,8 @@ class GMPHD(object):
         #              self._estimate_.state.copy(), 
         #              self._estimate_.covariance.copy())
     
-    def prune(self, double override_prune_threshold=None, 
-              int override_max_num_components=None):
+    def prune(self, double override_prune_threshold=-1, 
+              int override_max_num_components=-1):
         """phd.prune()
         Remove landmarks in the map with low weights.
         """
