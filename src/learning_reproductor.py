@@ -65,6 +65,7 @@ class learningReproductor :
         self.currNbDataRepro = 0
 
         if self.simulation : self.file = open( self.exportFile, 'w')
+        else : self.fileTraj = open( 'real_traj.csv', 'w')
 
         #Debugging
         # self.filePub = open( 'pub_arm_pose.csv', 'w' )
@@ -291,18 +292,18 @@ class learningReproductor :
     def publishJoyMessage(self) :
         joyCommand = Joy()
 
-#        trans, rot = self.tflistener.lookupTransform("panel_centre", "world", rospy.Time())
-#        rotation_matrix = tf.transformations.quaternion_matrix(rot)
-#        desired_pose = numpy.asarray([self.desPos[0], self.desPos[1], self.desPos[2], 1])
-#        desired_pose_tf = numpy.dot(rotation_matrix, desired_pose)[:3]
+        trans, rot = self.tflistener.lookupTransform("girona500", "world", rospy.Time())
+        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+        desired_pose = numpy.asarray([self.desPos[0], self.desPos[1], self.desPos[2], 1])
+        desired_pose_tf = numpy.dot(rotation_matrix, desired_pose)[:3]
 
-      #  rospy.loginfo('Desired pose ' + str(self.desPos[0]) +', '+ str(self.desPos[1]) +', '+ str(self.desPos[2]) )
+#        rospy.loginfo('Desired pose ' + str(self.desPos[0]) +', '+ str(self.desPos[1]) +', '+ str(self.desPos[2]) )
 
-#        rospy.loginfo('Desired Pose Converted  ' + str(desired_pose_tf[0]) +', '+ str(desired_pose_tf[1]) +', '+ str(desired_pose_tf[2]) )
+        newArmPose_x = self.goalPose.x + self.desPos[0] # desired_pose_tf[0]
+        newArmPose_y = self.goalPose.y + self.desPos[1] # desired_pose_tf[1]
+        newArmPose_z = self.goalPose.z + self.desPos[2] # desired_pose_tf[2]
 
-        newArmPose_x = self.goalPose.x + self.desPos[0]
-        newArmPose_y = self.goalPose.y + self.desPos[1]
-        newArmPose_z = self.goalPose.z + self.desPos[2]
+        rospy.loginfo('Desired Pose Converted  ' + str(newArmPose_x) +', '+ str(newArmPose_y) +', '+ str(newArmPose_z) )
 
         trans, rot = self.tflistener.lookupTransform("girona500", "world", rospy.Time())
         rotation_matrix = tf.transformations.quaternion_matrix(rot)
@@ -313,23 +314,27 @@ class learningReproductor :
         currArmPose_y = arm_pose_tf[1] + self.robotPose.pose.pose.position.y
         currArmPose_z = arm_pose_tf[2] + self.robotPose.pose.pose.position.z
 
+ #       rospy.loginfo('Valve Center pose  ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z) )
         rospy.loginfo('Current pose ' + str(currArmPose_x) +', '+ str(currArmPose_y) +', '+ str(currArmPose_z) )
-        rospy.loginfo('Desired pose ' + str(newArmPose_x) +', '+ str(newArmPose_y) +', '+ str(newArmPose_z) )
 
-
-        # command_x = newArmPose_x - currArmPose_x
-        # command_y = newArmPose_y - currArmPose_y
-        # command_z = newArmPose_z - currArmPose_z
-
-        #No entenc perque esta invertit
-        command_x = -(newArmPose_x - currArmPose_x)
-        command_y = -(newArmPose_y - currArmPose_y)
-        #the z has to be inverted to send the command
+        #World orientation
+        command_x = (newArmPose_x - currArmPose_x)
+        command_y = (newArmPose_y - currArmPose_y)
         command_z = newArmPose_z - currArmPose_z
 
-        joyCommand.axes.append( command_x )
-        joyCommand.axes.append( command_y )
-        joyCommand.axes.append( command_z )
+        rospy.loginfo('Command ' + str(command_x) +', '+ str(command_y) +', '+ str(command_z) )
+
+        trans, rot = self.tflistener.lookupTransform("world", "girona500", rospy.Time())
+        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+        command = numpy.asarray([command_x, command_y, command_z, 1])
+        command_tf = numpy.dot(rotation_matrix, command)[:3]
+
+        rospy.loginfo('Command Oriented ' + str(command_tf[0]) +', '+ str(command_tf[1]) +', '+ str(command_tf[2]) )
+        rospy.loginfo('*******************************************************')
+
+        joyCommand.axes.append( command_tf[0] )
+        joyCommand.axes.append( command_tf[1] )
+        joyCommand.axes.append( command_tf[2] )
         joyCommand.axes.append( 0.0 )
         joyCommand.axes.append( 0.0 )
         joyCommand.axes.append( 0.0 )
@@ -362,6 +367,9 @@ class learningReproductor :
         #add the pose, point to the path
         # self.traj.poses.append(pos_nav)
         # self.pub_path_trajectory.publish(self.traj)
+
+        s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
+        self.fileTraj.write(s)
 
         self.pub_arm_command.publish(joyCommand)
 
