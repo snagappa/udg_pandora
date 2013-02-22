@@ -114,7 +114,7 @@ class learningDmp :
             ni=self.demonstrations[n]
             logfile = open(self.demonstration_file+"_"+str(ni)+".csv", "r").readlines()
             pose = numpy.array([[0,0,0]])
-            ori = numpy.array([[0,0,0]])
+            ori = numpy.array([[0,0,0,0]])
             counter = 0
             for line in logfile :
                 pose_aux = numpy.array([])

@@ -71,22 +71,26 @@ class LearningRecord:
 
         self.lock.acquire()
         try:
-#            s = repr(self.goalPose.x - (armPose.pose.position.x + self.robotPose.pose.pose.position.x  ) )+" "+ repr( self.goalPose.y - (armPose.pose.position.y + self.robotPose.pose.pose.position.y ) ) + " " + repr( self.goalPose.z - ( armPose.pose.position.z + self.robotPose.pose.pose.position.z ) ) +" "+ repr(euler[0])  +" "+ repr(euler[1])  +" "+ repr(euler[2]) +"\n"
-            trans, rot = self.tflistener.lookupTransform("girona500", "world", rospy.Time())
-            rotation_matrix = tf.transformations.quaternion_matrix(rot)
-            arm_pose = np.asarray([armPose.pose.position.x, armPose.pose.position.y, armPose.pose.position.z, 1])
-            arm_pose_tf = np.dot(rotation_matrix, arm_pose)[:3]
-            s = repr((arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) - self.goalPose.x )+" "+ repr( (arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) - self.goalPose.y ) + " " + repr( ( arm_pose_tf[2] + self.robotPose.pose.pose.position.z ) - self.goalPose.z ) +" "+ repr(euler[0])  +" "+ repr(euler[1])  +" "+ repr(euler[2]) +"\n"
+            arm_pose, rot = self.tflistener.lookupTransform("world", "end_effector", self.tflistener.getLatestCommonTime("world","end_effector"))
+
+            rospy.loginfo( 'Arm global Pose ' + str(arm_pose)  )
+
+            # trans, rot = self.tflistener.lookupTransform("world", "girona500", self.tflistener.getLatestCommonTime("world","girona500"))
+            # rotation_matrix = tf.transformations.quaternion_matrix(rot)
+            # arm_pose = np.asarray([armPose.pose.position.x, armPose.pose.position.y, armPose.pose.position.z, 1])
+            # arm_pose_tf = np.dot(rotation_matrix, arm_pose)[:3]
+
+            s = repr(arm_pose[0] - self.goalPose.x )+" "+ repr( arm_pose[1] - self.goalPose.y ) + " " + repr( arm_pose[2] - self.goalPose.z ) +" "+ repr(rot[0])  +" "+ repr(rot[1])  +" "+ repr(rot[2]) + " " + repr(rot[3])+"\n"
 
             # rospy.loginfo( 'Arm robot Pose: ' + str(arm_pose_tf[0]) )
             # rospy.loginfo( 'Arm robot pose : ' + str(armPose.pose.position.x) )
             # rospy.loginfo( 'Robot global pose : ' + str(self.robotPose.pose.pose.position.x) )
 
-            rospy.loginfo( 'Arm global Pose: ' + str(arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) +', ' + str(arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) +', ' + str(arm_pose_tf[2] + self.robotPose.pose.pose.position.z ))
+            #rospy.loginfo( 'Arm global Pose: ' + str(arm_pose_tf[0] + self.robotPose.pose.pose.position.x ) +', ' + str(arm_pose_tf[1] + self.robotPose.pose.pose.position.y ) +', ' + str(arm_pose_tf[2] + self.robotPose.pose.pose.position.z ))
 
-            rospy.loginfo('Valve centre global pose: ' + str(self.goalPose.x ) +', ' + str(self.goalPose.y ) +', ' +  str(self.goalPose.z ))
+            #rospy.loginfo('Valve centre global pose: ' + str(self.goalPose.x ) +', ' + str(self.goalPose.y ) +', ' +  str(self.goalPose.z ))
 
-            rospy.loginfo('Distance Arm Valve' + str(arm_pose_tf[0] - self.goalPose.x) +', ' + str(arm_pose_tf[1] - self.goalPose.y) +', ' + str(arm_pose_tf[2] - self.goalPose.z) )
+            #rospy.loginfo('Distance Arm Valve' + str(arm_pose_tf[0] - self.goalPose.x) +', ' + str(arm_pose_tf[1] - self.goalPose.y) +', ' + str(arm_pose_tf[2] - self.goalPose.z) )
 
         finally:
             self.lock.release()
