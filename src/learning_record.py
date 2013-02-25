@@ -7,6 +7,11 @@ import rospy
 import std_msgs.msg
 import std_srvs.srv
 
+import numpy
+
+#use to load the configuration function
+import cola2_ros_lib
+
 #include "geometry_msgs/PoseStamped.h"
 from geometry_msgs.msg import PoseStamped
 #include message of the ekf giving the valve position
@@ -32,6 +37,7 @@ class LearningRecord:
         self.name = name
         self.getConfig()
         self.goalPose = Point()
+        self.goalPoseOld = Point()
         self.robotPose = Odometry()
 	self.initTF = False
         self.lock = threading.Lock()
@@ -44,24 +50,15 @@ class LearningRecord:
 
 
     def getConfig(self):
-       if rospy.has_param('learning/record/filename') :
-           self.filename = rospy.get_param('learning/record/filename')
-       else :
-           rospy.logerr('Prameter filename not found')
-
-       if rospy.has_param('learning/record/number_sample') :
-           self.numberSample = rospy.get_param('learning/record/number_sample')
-           print 'number samples '+ str(self.numberSample)
-       else :
-           rospy.logerr('Prameter nbDataRepro not found')
-
-       if rospy.has_param('learning/record/landmark_id') :
-           self.landmark_id = rospy.get_param('learning/record/landmark_id')
-       else :
-           rospy.logerr('Prameter landmark_id not found')
-
-
-       self.file = open( self.filename + "_" + str(self.numberSample) +".csv", 'w')
+        param_dict = {'filename': 'learning/record/filename',
+                      'numberSample': 'learning/record/number_sample',
+                      'landmark_id': 'learning/record/landmark_id',
+                      'frame_goal_id': 'learning/record/frame_goal_id',
+                      'poseGoal_x': 'learning/record/poseGoal_x',
+                      'poseGoal_y': 'learning/record/poseGoal_y',
+                      'poseGoal_z': 'learning/record/poseGoal_z'}
+        cola2_ros_lib.getRosParams(self, param_dict)
+        self.file = open( self.filename + "_" + str(self.numberSample) +".csv", 'w')
 
     def updateArmPose(self, armPose):
 #        euler = euler_from_quaternion( armPose.pose.orientation, 'sxyz' )  #,  axes='sxyz' );
@@ -73,7 +70,7 @@ class LearningRecord:
         try:
             arm_pose, rot = self.tflistener.lookupTransform("world", "end_effector", self.tflistener.getLatestCommonTime("world","end_effector"))
 
-            rospy.loginfo( 'Arm global Pose ' + str(arm_pose)  )
+            #rospy.loginfo( 'Arm global Pose ' + str(arm_pose)  )
 
             # trans, rot = self.tflistener.lookupTransform("world", "girona500", self.tflistener.getLatestCommonTime("world","girona500"))
             # rotation_matrix = tf.transformations.quaternion_matrix(rot)
@@ -104,15 +101,33 @@ class LearningRecord:
             for mark in landMarkMap.landmark :
                 if self.landmark_id == mark.landmark_id :
                     self.goalPose = mark.position
-                    """try:
-                        self.tflistener.waitForTransform("world", "valve1", rospy.Time(), rospy.Duration(0.2))
-                        trans, rot = self.tflistener.lookupTransform("world", "valve1", rospy.Time())
+
+                    try:
+                        #Try to read the original pose detected with the visual detector
+                        trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world","self.frame_goal_id"))
                         self.goalPose.x = trans[0]
                         self.goalPose.y = trans[1]
                         self.goalPose.z = trans[2]
-			if not self.initTF : self.initTF=True
+                        rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+
+                        #test the valve position
+                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime( "world", "panel_centre" ))
+                        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
+                        rospy.loginfo('Abs Pose: ' + str(mark.position.x + self.goalPose_rot[0]) +', '+ str(mark.position.y + self.goalPose_rot[1]) +', '+ str(mark.position.z + self.goalPose_rot[2]))
                     except tf.Exception:
-                        return"""
+                        #add the theoretical distance of the valve to the center
+                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime("world", "panel_centre" ))
+                        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
+
+                        #rospy.loginfo('Rotatet (0,0,1): '+ str(numpy.dot(rotation_matrix, numpy.array([0,0,1,1]))[:3]) )
+                        self.goalPose.x = mark.position.x + goalPose_rot[0]
+                        self.goalPose.y = mark.position.y + goalPose_rot[1]
+                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+                        rospy.loginfo('Goal Pose App: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
         finally:
             self.lock.release()
     def updateRobotPose (self, odometry):
@@ -121,8 +136,6 @@ class LearningRecord:
             self.robotPose = odometry
         finally:
             self.lock.release()
-
-
 
 
 if __name__ == '__main__':
