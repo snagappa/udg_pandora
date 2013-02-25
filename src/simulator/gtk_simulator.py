@@ -50,6 +50,8 @@ import pickle
 
 LANDMARKS = "landmarks"
 WAYPOINTS = "waypoints"
+SIMULATE = "simulate"
+VIEW = "view"
 
 #sensor orientation: "front" or "down"
 SENSOR_ORIENTATION = "down"
@@ -88,6 +90,7 @@ class gtk_slam_sim:
         self.estimator.roll_pitch_yaw = np.zeros(3)
         self.estimator.fov_poly_vertices = np.empty(0)
         self.estimator.landmarks = np.empty(0)
+        self.estimator.path = np.empty((0, 2))
         
         # Container for estimated vehicle position and landmarks from navigator
         self.simple_estimator = STRUCT()
@@ -116,6 +119,7 @@ class gtk_slam_sim:
         self.viewer = STRUCT()
         self.viewer.size = STRUCT()
         self.viewer.textview = STRUCT()
+        self.viewer.mode = VIEW
         
         self.viewer.NED_spinbutton = STRUCT()
         self.viewer.NED_spinbutton.east = 0.0
@@ -249,6 +253,12 @@ class gtk_slam_sim:
     
     def on_MainWindow_delete_event(self, widget, event):
         gtk.main_quit()
+    
+    def set_mode_simulate(self, widget):
+        self.viewer.mode = SIMULATE
+    
+    def set_mode_view(self, widget):
+        self.viewer.mode = VIEW
     
     def set_mode_landmarks(self, widget):
         self.scene.__current_list__ = self.scene.landmarks
@@ -480,7 +490,9 @@ class gtk_slam_sim:
         vertices = np.dot(np.array([[cy, sy], [-sy, cy]]), vertices.T).T
         # Translation to vehicle position
         north, east, depth = position
-        vertices += np.array([east, north])
+        position_2d = np.array([east, north])
+        vertices += position_2d
+        self.estimator.path = np.vstack((self.estimator.path, position_2d))
         self.estimator.fov_poly_vertices = vertices
         
     def simple_estimator_update_position(self, nav):
@@ -581,6 +593,8 @@ class gtk_slam_sim:
         self.estimator.landmarks = self.ros.pcl_helper.from_pcl(pcl_msg)
         
     def publish_visible_landmarks(self, *args, **kwargs):
+        if self.viewer.mode == VIEW:
+            return
         self.update_visible_landmarks()
         self.print_numlandmarks()
         self.vehicle.LOCK.acquire()
@@ -665,6 +679,8 @@ class gtk_slam_sim:
         print rel_landmarks #self.vehicle.visible_landmarks.rel
     
     def publish_transforms(self, *args, **kwargs):
+        if self.viewer.mode == VIEW:
+            return
         timestamp = rospy.Time.now()
         #Publish TF
         br = tf.TransformBroadcaster()
@@ -697,19 +713,20 @@ class gtk_slam_sim:
         self.viewer.DRAW_CANVAS = not self.viewer.DRAW_CANVAS
         
     def draw_vehicle(self):
-        # True position from simulator
-        yaw = self.vehicle.roll_pitch_yaw[2]
-        north, east, depth = self.vehicle.north_east_depth
         arrow_width = 0.015*self.viewer.size.width
         arrow_length = 0.05*self.viewer.size.height
-        self.viewer.axis.arrow(east, north, arrow_length*np.sin(yaw), 
-                               arrow_length*np.cos(yaw), width=arrow_width,
-                               length_includes_head=True, color='b')
-        # Draw fov
-        fov_vertices = self.vehicle.visible_landmarks.fov_poly_vertices.copy()
-        if fov_vertices.shape[0]:
-            fov_vertices = np.vstack((fov_vertices, fov_vertices[0]))
-            self.viewer.axis.plot(fov_vertices[:,0], fov_vertices[:,1], c='b')
+        if self.viewer.mode == SIMULATE:
+            # True position from simulator
+            yaw = self.vehicle.roll_pitch_yaw[2]
+            north, east, depth = self.vehicle.north_east_depth
+            self.viewer.axis.arrow(east, north, arrow_length*np.sin(yaw), 
+                                   arrow_length*np.cos(yaw), width=arrow_width,
+                                   length_includes_head=True, color='b')
+            # Draw fov
+            fov_vertices = self.vehicle.visible_landmarks.fov_poly_vertices.copy()
+            if fov_vertices.shape[0]:
+                fov_vertices = np.vstack((fov_vertices, fov_vertices[0]))
+                self.viewer.axis.plot(fov_vertices[:,0], fov_vertices[:,1], c='b')
         
         # Estimation from navigator
         yaw = self.estimator.roll_pitch_yaw[2]
@@ -721,13 +738,15 @@ class gtk_slam_sim:
         if fov_vertices.shape[0]:
             fov_vertices = np.vstack((fov_vertices, fov_vertices[0]))
             self.viewer.axis.plot(fov_vertices[:,0], fov_vertices[:,1], c='r')
-            
+        if self.estimator.path.shape[0]:
+            self.viewer.axis.plot(self.estimator.path[:, 0], self.estimator.path[:, 1], c='r', linewidth=2)
     def draw_visible_landmarks(self):
-        # Plot visible landmarks
-        points = np.array(self.vehicle.visible_landmarks.abs)
-        if points.shape[0]:
-            self.viewer.axis.scatter(points[:,1], points[:,0], s=36, 
-                                     marker='o')
+        if self.viewer.mode == SIMULATE:
+            # Plot visible landmarks
+            points = np.array(self.vehicle.visible_landmarks.abs)
+            if points.shape[0]:
+                self.viewer.axis.scatter(points[:,1], points[:,0], s=36, 
+                                         marker='o')
         # Plot estimated landmarks
         points = self.estimator.landmarks
         if points.shape[0]:

@@ -25,6 +25,10 @@ import traceback
 from joblib import Parallel, delayed
 from lib.rfs_merge import rfs_merge
 import rospy
+#for plotting
+import matplotlib as mpl
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -280,7 +284,7 @@ class GMPHD(object):
                     #code.interact(local=locals())
                     # Normalise the weights
                     normalisation_factor = ( clutter_intensity[obs_count] + 
-                                             #self.vars.birth_intensity +
+                                             self.vars.birth_intensity +
                                              upd_weights.sum() )
                     upd_weights /= normalisation_factor
                     #print "Obs Index: ", str(obs_count+1)
@@ -363,18 +367,18 @@ class GMPHD(object):
         #              self._estimate_.state.copy(), 
         #              self._estimate_.covariance.copy())
     
-    def prune(self, override_prune_threshold=None, 
-              override_max_num_components=None):
+    def prune(self, override_prune_threshold=-1, 
+              override_max_num_components=-1):
         """phd.prune()
         Remove landmarks in the map with low weights.
         """
         try:
             # Get the threshold for weight based pruning
             prune_threshold = self.vars.prune_threshold
-            if not override_prune_threshold is None:
+            if override_prune_threshold >= 0:
                 prune_threshold = override_prune_threshold
             max_num_components = self.vars.max_num_components
-            if not override_max_num_components is None:
+            if override_max_num_components >= 0:
                 max_num_components = override_max_num_components
             # Check if we need to prune
             if ((not self.weights.shape[0]) or 
@@ -390,7 +394,8 @@ class GMPHD(object):
                 self.covs = self.covs[valid_idx]
             
             # Prune to the maximum number of components
-            if self.weights.shape[0] > max_num_components:
+            if ((max_num_components > 0) and 
+                (self.weights.shape[0] > max_num_components)):
                 print "Hit maximum number of components, pruning..."
                 # Sort in ascending order and 
                 # select the last max_num_components states
@@ -554,8 +559,8 @@ class GMPHD(object):
         #self.prune(override_prune_threshold=self.vars.prune_threshold/10, 
         #           override_max_num_components=np.inf)
         # Add birth terms
-        #if observations.shape[0]:
-        #    self.birth(observations, obs_noise, APPEND=True)
+        if observations.shape[0]:
+            self.birth(observations, obs_noise, APPEND=True)
         # Prune extremely small components
         #self.prune(override_prune_threshold=self.vars.prune_threshold/10,
         #           override_max_num_components=np.inf)
@@ -1446,10 +1451,18 @@ class RBPHDSLAM2(object):
             prediction_noise_scaling = 0
         self.vars.prediction_noise_scaling = prediction_noise_scaling
         
-        self.vars.imm_ratio = rospy.get_param(
-                "/phdslam/vars/imm_ratio", 0.5)
+        self.vars.imm_ratio = rospy.get_param("/phdslam/vars/imm_ratio")
+        self.vars.use_jms = rospy.get_param("/phdslam/vars/use_jms")
         
         self.vehicle = STRUCT()
+        # Mode for model: constant position=0, constant velocity=1
+        if self.vars.use_jms:
+            self.vehicle.mode = np.random.randint(0, 2, self.vars.nparticles)
+        else:
+            self.vehicle.mode = np.ones(self.vars.nparticles)
+            cp_nparticles = int(np.floor(self.vars.imm_ratio*self.vars.nparticles))
+            self.vehicle.mode[:cp_nparticles] = 0
+        
         # Kalman filter is used to estimate the velocity
         self.vehicle.kf_state = None #np.zeros(3)
         self.vehicle.kf_state_cov = None #np.zeros((3, 3))
@@ -1598,8 +1611,20 @@ class RBPHDSLAM2(object):
         # Generate samples for the velocity
         velocity_samples = kf_noise_samples[:, 3:]
         velocity_samples += pred_kf_state[3:]
-        half_nparticles = np.floor(self.vars.imm_ratio*self.vars.nparticles)
-        velocity_samples[:half_nparticles] = 0
+        
+        # Jump Markov model
+        # Sample the mode (constant position/velocity)
+        if self.vars.use_jms:
+            mode = np.random.random(self.vars.nparticles)
+            mode[mode > self.vars.imm_ratio] = 1
+            mode[mode < 1] = 0
+            mode += vehicle.mode
+            mode = mode % 2
+            vehicle.mode = mode
+        cp_nparticles = np.where(vehicle.mode == 0)[0]
+        
+        # Set velocity_samples to zero for mode=0
+        velocity_samples[cp_nparticles] = 0
         # Get the rotation matrix
         rot_mat = pf_trans_mat[:, 3:]
         # Predict according to motion model
@@ -1650,9 +1675,9 @@ class RBPHDSLAM2(object):
         else:
             if PERFORM_UPDATE:
                 delta_kf_state = upd_kf_state - pred_kf_state
-                # Correct the position of the second half of particles
-                half_nparticles = np.floor(self.vars.imm_ratio*self.vars.nparticles)
-                vehicle.position[half_nparticles:] += delta_kf_state[:3]
+                # Correct the position of particles with CV model
+                cv_nparticles = np.where(self.vehicle.mode == 1)[0]
+                vehicle.position[cv_nparticles] += delta_kf_state[:3]
             return None
     
     def update_gps(self, gps):
@@ -1698,6 +1723,11 @@ class RBPHDSLAM2(object):
         else:
             features_pos = np.empty((0, 3))
             features_noise = np.empty((0, 3, 3))
+        #fig = plt.figure(4)
+        #ax = fig.gca(projection="3d")
+        #ax.cla()
+        #ax.scatter3D(self.vehicle.position[:, 0], self.vehicle.position[:, 1], self.vehicle.weights)
+        #ax.set_title("Before Update")
         slam_info = [self.vehicle.maps[i].iterate(features_pos, features_noise) 
             for i in range(self.vars.nparticles)]
         #slam_info = Parallel(n_jobs=2)(delayed(_update_features_parallel_)(self, idx, features_pos, features_noise) for idx in range(self.vars.nparticles))
@@ -1716,9 +1746,16 @@ class RBPHDSLAM2(object):
         log_weights += slam_weight_log_update - slam_weight_log_update_sum
         self.vehicle.weights = np.exp(log_weights)
         self.vehicle.weights /= self.vehicle.weights.sum()
-        if features_pos.shape[0]:
-            [self.vehicle.maps[i].birth(features_pos, features_noise, APPEND=True)
-                for i in range(self.vars.nparticles)]
+        #fig = plt.figure(5)
+        #ax = fig.gca(projection="3d")
+        #ax.cla()
+        #ax.scatter3D(self.vehicle.position[:, 0], self.vehicle.position[:, 1], self.vehicle.weights)
+        #ax.set_title("After Update")
+        #code.interact(local=locals())
+        
+        #if features_pos.shape[0]:
+        #    [self.vehicle.maps[i].birth(features_pos, features_noise, APPEND=True)
+        #        for i in range(self.vars.nparticles)]
     
     def compress_maps(self, *args, **kwargs):
         """compress_maps(self, *args, **kwargs)
@@ -1760,7 +1797,16 @@ class RBPHDSLAM2(object):
         #self.vars.nparticles = int(min((self.vars._nparticles_, 400)))
         nparticles = self.vars.nparticles
         # Otherwise we need to resample
-        resample_index = misctools.get_resample_index(vehicle.weights, nparticles)
+        # Resample imm_ratio for CP model plus 1-imm_ratio for CV model
+        if not self.vars.use_jms:
+            cp_nparticles = int(np.floor(self.vars.imm_ratio*nparticles))
+            cv_nparticles = nparticles - cp_nparticles
+            cp_resample_index = misctools.get_resample_index(vehicle.weights, cp_nparticles)
+            cv_resample_index = misctools.get_resample_index(vehicle.weights, cv_nparticles)
+            resample_index = np.hstack((cp_resample_index, cv_resample_index))
+        else:
+            resample_index = misctools.get_resample_index(vehicle.weights, nparticles)
+            vehicle.mode = vehicle.mode[resample_index]
         # self.states is a numpy array so the indexing operation forces a copy
         vehicle.weights = np.ones(nparticles, dtype=float)/nparticles
         vehicle.position = np.asarray(vehicle.position[resample_index], order='C')

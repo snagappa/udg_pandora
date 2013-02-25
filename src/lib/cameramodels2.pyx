@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#cython: wraparound=False, boundscheck=False
 """
 Created on Tue Oct 30 12:20:27 2012
 
@@ -272,7 +273,7 @@ class SphericalCamera(_FoV_):
         self.observation_volume = self._observation_volume_()
     
 
-class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
+class PinholeCameraModel(_FoV_, ros_cameramodels.PinholeCameraModel):
     def __init__(self):
         """
         PinholeCameraModel() -> pinholecamera
@@ -487,7 +488,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         return (self.tfFrame,)
     
 
-class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
+class StereoCameraModel(_FoV_, ros_cameramodels.StereoCameraModel):
     def __init__(self):
         """Idealised stereo camera"""
         _FoV_.__init__(self)

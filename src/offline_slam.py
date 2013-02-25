@@ -79,10 +79,13 @@ from std_srvs.srv import Empty, EmptyResponse
 from cola2_navigation.srv import SetNE, SetNEResponse #, SetNERequest
 
 # import pyximport; pyximport.install()
-import lib.offline_slam_worker
+# Python version:
+#import lib.offline_slam_worker as offline_slam_worker
+# Cython version:
+import lib.offline_slam_worker2 as offline_slam_worker
 #from lib.slam_worker import PHDSLAM
-#PHDSLAM = lib.offline_slam_worker.PHDSLAM
-PHDSLAM = lib.offline_slam_worker.RBPHDSLAM2
+#PHDSLAM = offline_slam_worker.PHDSLAM
+PHDSLAM = offline_slam_worker.RBPHDSLAM2
 
 import numpy as np
 from lib.ros_helper import get_g500_config
@@ -303,7 +306,9 @@ class G500_SLAM():
         
         self.fromCameraInfo(camera_info_left, camera_info_right)
         self.config.init.map = True
-        return ros
+        prediction_noise_scaling1 = rospy.get_param(
+            "/phdslam/vars/prediction_noise_scaling1")
+        self.config.prediction_extra_noise_scaling = prediction_noise_scaling1
     
     def fromCameraInfo(self, camera_info_left, camera_info_right):
         left_tf_frame = "slam_sensor"
@@ -491,7 +496,8 @@ class G500_SLAM():
         else:
             # Perform prediction with larger process noise
             _noise_scaling_ = self.slam_worker.vars.prediction_noise_scaling
-            self.slam_worker.vars.prediction_noise_scaling = 32
+            self.slam_worker.vars.prediction_noise_scaling = (
+                self.config.prediction_extra_noise_scaling)
             self.predict(config.last_time.dvl)
             self.slam_worker.vars.prediction_noise_scaling = _noise_scaling_
             rospy.loginfo('%s, invalid DVL velocity measurement!', 
@@ -524,9 +530,11 @@ class G500_SLAM():
             self.vehicle.altitude = dvl.altitude
             mode = 'w'
         else:
-            self.slam_worker.vars.prediction_noise_scaling = 256
+            _noise_scaling_ = self.slam_worker.vars.prediction_noise_scaling
+            self.slam_worker.vars.prediction_noise_scaling = (
+                self.config.prediction_extra_noise_scaling)
             self.predict(config.last_time.dvl)
-            self.slam_worker.vars.prediction_noise_scaling = 16
+            self.slam_worker.vars.prediction_noise_scaling = _noise_scaling_
             self.vehicle.altitude = INVALID_ALTITUDE
             rospy.loginfo('Invalid DVL velocity msg')
             return
@@ -672,7 +680,7 @@ class G500_SLAM():
         
     def update_features(self, pcl_msg):
         init = self.config.init
-        if (not init.init) or (not init.dvl) or (not init.map):
+        if (not init.init) or (not init.dvl) or (not init.svs) or (not init.map):
             print "Not initialised, not updating features"
             return
         
