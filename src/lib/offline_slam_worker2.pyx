@@ -26,12 +26,14 @@ from lib.rfs_merge import rfs_merge
 from cpython cimport bool
 import rospy
 from cython.parallel import parallel, prange
+import pickle
 
 DEBUG = True
 blas.SET_DEBUG(False)
 
 
 SAMPLE = namedtuple("SAMPLE", "weight state covariance")
+MIXTURE = namedtuple("MIXTURE", "weights states covs parent_ned parent_rpy")
 
 class GMPHD(object):
     #cdef np.ndarray weights, parent_ned, parent_rpy
@@ -692,6 +694,11 @@ class GMPHD(object):
         print "Generated image points"
         return img_points
     
+    def save_to_file(self, filename):
+        mixture = MIXTURE(self.weights, self.states, self.covs, self.parent_ned, self.parent_rpy)
+        pickle_file = open(filename, "w")
+        pickle.dump(mixture, pickle_file)
+        pickle_file.close()
 
 ###############################################################################
 ###############################################################################
@@ -765,11 +772,13 @@ class RBPHDSLAM2(object):
         self._estimate_ = STRUCT()
         self._estimate_.vehicle = STRUCT()
         self._estimate_.vehicle.ned = SAMPLE(1, np.zeros(3), np.zeros((3, 3)))
+        self._estimate_.vehicle.cam_ned = SAMPLE(1, np.zeros(3), np.zeros((3, 3)))
         self._estimate_.vehicle.vel_xyz = SAMPLE(1, np.zeros(3), 
                                                  np.zeros((3, 3)))
         self._estimate_.vehicle.rpy = SAMPLE(1, np.zeros(3), np.zeros((3, 3)))
         self._estimate_.map = SAMPLE(np.zeros(0), 
                                      np.zeros((0, 3)), np.zeros((0, 3, 3)))
+        self._estimate_.mixture = None
     
     def set_parameters(self, Q, gpsH, gpsR, dvlH, dvl_b_R, dvl_w_R):
         """set_parameters(self, Q, gpsH, gpsR, dvlH, dvl_b_R, dvl_w_R)
@@ -1041,12 +1050,20 @@ class RBPHDSLAM2(object):
         Generate the state and map estimates
         """
         if not self.flags.ESTIMATE_IS_VALID:
+            cam_positions = [self.vehicle.maps[_idx_].sensors.camera.to_world_coords(np.zeros((1, 3)))
+                            for _idx_ in range(self.vars.nparticles)]
+            cam_positions = np.squeeze(cam_positions)
+            
             vehicle = self.vehicle
             position, cov = misctools.sample_mn_cv(vehicle.position, 
                                                    vehicle.weights)
+            cam_position, _cov_ = misctools.sample_mn_cv(cam_positions, 
+                                                   vehicle.weights)
             self._estimate_.vehicle.ned = SAMPLE(1, position, cov)
+            self._estimate_.vehicle.cam_ned = SAMPLE(1, cam_position, cov)
             max_weight_idx = vehicle.weights.argmax()
             self._estimate_.map = vehicle.maps[max_weight_idx].estimate()
+            self._estimate_.mixture = vehicle.maps[max_weight_idx].copy()
             self.flags.ESTIMATE_IS_VALID = True
         return self._estimate_
     

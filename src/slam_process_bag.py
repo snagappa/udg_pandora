@@ -29,6 +29,7 @@ import os
 import math
 from subprocess import call
 import yaml
+from collections import namedtuple
 
 #for plotting
 import matplotlib as mpl
@@ -38,6 +39,7 @@ from matplotlib.patches import Ellipse
 
 mpl.rcParams['legend.fontsize'] = 10
 
+MIXTURE = namedtuple("MIXTURE", "weights states covs parent_ned parent_rpy")
 
 class ROSClock(STRUCT):
     def __init__(self, init_time=None, publish_freq=1000):
@@ -175,7 +177,7 @@ def rosinit():
         roscore_port = np.random.randint(1025, 65535)
         roscore_process = subprocess.Popen(["roscore", "-p"+str(roscore_port)])
         print "Waiting for roscore to settle..."
-        time.sleep(2)
+        time.sleep(5)
         roscore_started = roscore_process.poll()
     # Set ros master uri
     os.environ["ROS_MASTER_URI"] = 'http://localhost:'+str(roscore_port)
@@ -444,10 +446,15 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                             img_landmarks_pub.publish(img_landmarks_msg)
                             
                     # Publish and save nav_sts
-                    nav_msg, pcl_map_msg = g500slam.publish_data()
+                    nav_msg, pcl_map_msg, cam_nav_msg, mixture = g500slam.publish_data()
+                    
                     if not nav_msg is None:
                         slamout_bag.write("/phdslam/nav_sts", nav_msg, bag_entry[2])
                         slamout_bag.write("/phdslam/features", pcl_map_msg, bag_entry[2])
+                        try:
+                            slamout_bag.write("/phdslam/cam_nav_sts", cam_nav_msg, bag_entry[2])
+                        except:
+                            code.interact(local=locals())
                         if (nav_msg.header.stamp.to_sec()-timestamp[-1]) > 0.25:
                             timestamp.append(nav_msg.header.stamp.to_sec())
                             nav_ned.append((nav_msg.position.north,
@@ -456,6 +463,21 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                             weights = g500slam.slam_worker.vehicle.weights
                 if update_figures and not ((nav_msg is None) or (pcl_map_msg is None)): #bag_clock.get_elapsed_time()-plot_last_time > 0.5:
                     update_figures = False
+                    filename_num_str = "%06.0f" % img_savefile_num
+                    
+                    if not mixture is None:
+                        mixture_pickle_filename = out_directory+"/mixture"+filename_num_str+".p"
+                        p_obj = MIXTURE(mixture.weights, mixture.states, 
+                                           mixture.covs, mixture.parent_ned, mixture.parent_rpy)
+                        pickle_file = open(mixture_pickle_filename, "w")
+                        try:
+                            pickle.dump(p_obj, pickle_file)
+                            pickle_file.close()
+                        except:
+                            print "Pickling error"
+                            code.interact(local=locals())
+                        #mixture.save_to_file(mixture_pickle_filename)
+                        
                     # trajectory
                     fig = plt.figure(1)
                     ax = fig.gca()
@@ -467,7 +489,6 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                     ax.axis(plot_limits)
                     ax.grid(True)
                     ax.legend()
-                    filename_num_str = "%06.0f" % img_savefile_num
                     figure_filename = out_directory+"/trajectory_"+filename_num_str+".png"
                     fig.savefig(figure_filename)
                     

@@ -82,10 +82,11 @@ from cola2_navigation.srv import SetNE, SetNEResponse #, SetNERequest
 # Python version:
 #import lib.offline_slam_worker as offline_slam_worker
 # Cython version:
-import lib.offline_slam_worker2 as offline_slam_worker
+import lib.offline_slam_worker2
+import lib.offline_slam_worker
 #from lib.slam_worker import PHDSLAM
-#PHDSLAM = offline_slam_worker.PHDSLAM
-PHDSLAM = offline_slam_worker.RBPHDSLAM2
+#PHDSLAM = lib.offline_slam_worker.PHDSLAM
+PHDSLAM = lib.offline_slam_worker2.RBPHDSLAM2
 
 import numpy as np
 from lib.ros_helper import get_g500_config
@@ -267,7 +268,9 @@ class G500_SLAM():
         # Create publishers
         ros.nav = STRUCT()
         ros.nav.msg = NavSts()
+        ros.nav.cam_nav_msg = NavSts()
         ros.nav.publisher = rospy.Publisher("/phdslam/nav_sts", NavSts)
+        ros.nav.cam_publisher = rospy.Publisher("/phdslam/cam_nav_sts", NavSts)
         ros.odom = STRUCT()
         ros.odom.msg = Odometry()
         ros.odom.publisher = rospy.Publisher("/phdslam/odom", Odometry)
@@ -495,11 +498,12 @@ class G500_SLAM():
             #self.publish_data()
         else:
             # Perform prediction with larger process noise
-            _noise_scaling_ = self.slam_worker.vars.prediction_noise_scaling
-            self.slam_worker.vars.prediction_noise_scaling = (
-                self.config.prediction_extra_noise_scaling)
-            self.predict(config.last_time.dvl)
-            self.slam_worker.vars.prediction_noise_scaling = _noise_scaling_
+            _noise_scaling_ = getattr(self.slam_worker.vars, "prediction_noise_scaling", None)
+            if not _noise_scaling_ is None:
+                self.slam_worker.vars.prediction_noise_scaling = (
+                    self.config.prediction_extra_noise_scaling)
+                self.predict(config.last_time.dvl)
+                self.slam_worker.vars.prediction_noise_scaling = _noise_scaling_
             rospy.loginfo('%s, invalid DVL velocity measurement!', 
                           self.ros.name)
         
@@ -847,10 +851,13 @@ class G500_SLAM():
             print "Not initialised yet..."
             # self.ros.last_update_time = rospy.Time.now()
             # self.config.init = True
-            return None, None
+            return None, None, None, None
         nav_msg = self.ros.nav.msg
+        cam_nav_msg = self.ros.nav.cam_nav_msg
         slam_estimate = self.slam_worker.estimate()
+        mixture = getattr(slam_estimate, "mixture", None)
         est_state = slam_estimate.vehicle.ned.state
+        cam_est_state = slam_estimate.vehicle.cam_ned.state
         est_cov = slam_estimate.vehicle.ned.covariance
         est_state_vel = slam_estimate.vehicle.vel_xyz.state
         angle = tf.transformations.euler_from_quaternion(
@@ -887,6 +894,33 @@ class G500_SLAM():
         
         #Publish topics
         self.ros.nav.publisher.publish(nav_msg)
+        
+        # Publish camera pose
+        nav_msg.header.stamp = timestamp
+        nav_msg.header.frame_id = self.ros.name
+        world_frame_id = "world"
+                   
+        #Fill Nav status topic
+        cam_nav_msg.position.north = cam_est_state[0]
+        cam_nav_msg.position.east = cam_est_state[1]
+        cam_nav_msg.position.depth = cam_est_state[2]
+        cam_nav_msg.body_velocity.x = est_state_vel[0]
+        cam_nav_msg.body_velocity.y = est_state_vel[1]
+        cam_nav_msg.body_velocity.z = est_state_vel[2]
+        cam_nav_msg.orientation.roll = angle[0]
+        cam_nav_msg.orientation.pitch = angle[1]
+        cam_nav_msg.orientation.yaw = angle[2]
+        cam_nav_msg.orientation_rate.roll = self.vehicle.twist_angular[0]
+        cam_nav_msg.orientation_rate.pitch = self.vehicle.twist_angular[1]
+        cam_nav_msg.orientation_rate.yaw = self.vehicle.twist_angular[2]
+        cam_nav_msg.altitude = self.vehicle.altitude
+        
+        # Variance
+        cam_nav_msg.position_variance.north = est_cov[0, 0]
+        cam_nav_msg.position_variance.east = est_cov[1, 1]
+        cam_nav_msg.position_variance.depth = est_cov[2, 2]
+        
+        self.ros.nav.cam_publisher.publish(cam_nav_msg)
         
         # Publish odometry message
         odom_msg = self.ros.odom.msg
@@ -933,4 +967,4 @@ class G500_SLAM():
         pcl_msg.header.stamp = timestamp
         pcl_msg.header.frame_id = world_frame_id
         self.ros.map.publisher.publish(pcl_msg)
-        return nav_msg, pcl_msg
+        return nav_msg, pcl_msg, cam_nav_msg, mixture
