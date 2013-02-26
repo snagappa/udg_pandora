@@ -113,6 +113,9 @@ class learningReproductor :
                       'demonstration_file': 'learning/reproductor/demonstration_file',
                       'demonstrations': 'learning/reproductor/demonstrations',
                       'frame_id_goal': 'learning/reproductor/frame_id_goal',
+                      'poseGoal_x': 'learning/record/poseGoal_x',
+                      'poseGoal_y': 'learning/record/poseGoal_y',
+                      'poseGoal_z': 'learning/record/poseGoal_z',
                       'name_pub_demonstrate': 'learning/reproductor/name_pub_demonstrate',
                       'name_pub_done': 'learning/reproductor/name_pub_done'}
         cola2_ros_lib.getRosParams(self, param_dict)
@@ -124,10 +127,23 @@ class learningReproductor :
             for mark in landMarkMap.landmark :
                 if self.landmark_id == mark.landmark_id :
                     #rospy.loginfo('Ha arribat alguna cosa')
-                    self.goalPose = mark.position
-                    if not self.dataGoalReceived :
-                        rospy.loginfo('Goal Pose Received')
-                        self.dataGoalReceived = True
+                    try:
+                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime( "world", "panel_centre" ))
+                        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
+
+                        self.goalPose = mark.position
+                        self.goalPose.x = mark.position.x + goalPose_rot[0]
+                        self.goalPose.y = mark.position.y + goalPose_rot[1]
+                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+
+                        if not self.dataGoalReceived :
+                            rospy.loginfo('Goal Pose Received')
+                            self.dataGoalReceived = True
+
+                    except tf.Expetion:
+                        pass
         finally:
             self.lock.release()
 
@@ -337,7 +353,7 @@ class learningReproductor :
         rospy.loginfo('Command ' + str(command_x) +', '+ str(command_y) +', '+ str(command_z) )
 
         trans, rot = self.tflistener.lookupTransform("girona500", "world", self.tflistener.getLatestCommonTime("girona500","world"))
-        euler = tf.transformations.euler_from_quaternion(rot)
+#        euler = tf.transformations.euler_from_quaternion(rot)
 #        rospy.loginfo('Euler: ' + str(euler))
         rotation_matrix = tf.transformations.quaternion_matrix(rot)
         command = numpy.asarray([command_x, command_y, command_z, 1])

@@ -127,7 +127,7 @@ class LearningRecord:
                         self.goalPose.x = mark.position.x + goalPose_rot[0]
                         self.goalPose.y = mark.position.y + goalPose_rot[1]
                         self.goalPose.z = mark.position.z + goalPose_rot[2]
-                        rospy.loginfo('Goal Pose App: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+                        #rospy.loginfo('Goal Pose App: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
         finally:
             self.lock.release()
     def updateRobotPose (self, odometry):
