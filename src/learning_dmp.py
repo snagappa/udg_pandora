@@ -186,8 +186,6 @@ class learningDmp :
 
         # Mu_x and H are equal to matlab. Y seem equal but Its difficult to see too many values
 
-#------------------------ Fins Aki sembla tot okey -------------------------------------------
-
         #Compute residuals
         RI = numpy.eye(self.nbVar,self.nbVar)*1E-3 #Regularization term for matrix inversion
 
@@ -203,13 +201,7 @@ class learningDmp :
             a = Y-numpy.tile(self.Mu_x[:,i].reshape(len(self.Mu_x[:,i]),1),(1,self.nbData*self.nbSamples))
             b = numpy.diag(self.H[:,i])
             product = numpy.dot(a,b)
-#            rospy.loginfo('Product Shape: ' + str( numpy.shape(product) ) + 'Product Shape Transpose ' + str( numpy.shape(product.T) ) + '\n' )
-#            casa = raw_input('prova Reshape')
-#            self.Sigma_x[:,:,i] = numpy.cov( product.reshape(len(self.Mu_x[:,i]),3) )
-#            casa = raw_input('Bien')
             self.Sigma_x[i,:,:] = numpy.cov( product )
- #           rospy.loginfo('Sigma '+ str(i) + ' Value \n' + str(self.Sigma_x[:,:,i]) + '\n' )
- #           casa = raw_input('prova')
             self.Wp[i,:,:] = numpy.linalg.inv(self.Sigma_x[i,:,:]+RI) #Use variation information to determine stiffness
 
         # Warning sigmas are different from the matlab results I don
