@@ -114,7 +114,7 @@ class learningDmp :
             ni=self.demonstrations[n]
             logfile = open(self.demonstration_file+"_"+str(ni)+".csv", "r").readlines()
             pose = numpy.array([[0,0,0]])
-            ori = numpy.array([[0,0,0]])
+            ori = numpy.array([[0,0,0,0]])
             counter = 0
             for line in logfile :
                 pose_aux = numpy.array([])
@@ -239,7 +239,9 @@ class learningDmp :
             #Standard DMP
             #self.Wp[:,:,i]=numpy.diag(numpy.ones(shape=(self.nbVar,1))*self.kP)
 
-        rospy.loginfo('\nValues Wp \n ' + str(self.Wp) + '\n' )
+        #rospy.loginfo('\nValues Wp \n ' + str(self.Wp) + '\n' )
+
+        rospy.loginfo('Learning finished successfully')
 
         self.exportPlayData()
 
@@ -330,6 +332,8 @@ class learningDmp :
            file.write('\n')
 
        file.close()
+
+       rospy.loginfo('The parameters learned has been exported to ' + self.exportFilename )
 
 
 if __name__ == '__main__':

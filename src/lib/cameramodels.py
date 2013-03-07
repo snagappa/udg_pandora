@@ -397,6 +397,7 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
         idx_visible = np.arange(rel_points1.shape[0])
         # Initialise pd as 0
         pd = np.zeros(rel_points1.shape[0], dtype=np.float)
+        if idx_visible.shape[0] == 0: return pd
         # Check near plane
         idx_visible = idx_visible[rel_points1[idx_visible, 2] > (self.fov_near+margin)]
         if idx_visible.shape[0] == 0: return pd

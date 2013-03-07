@@ -7,9 +7,46 @@ visual_detector/image_x_size: 640
 visual_detector/image_y_size: 480
 # meters and radians
 visual_detector/visibility: 4.0
-visual_detector/camera_position: [0, 0, 0]
-visual_detector/camera_orientation: [0, 1.57, 0]
 visual_detector/panel_position: [-1.05, 1.0, 2.5]
 visual_detector/valve_position: [-1.05, 1.0, 2.5]
 visual_detector/chain_position: [3.1, 1.0, 5.0]
 
+# CAMERA POSE
+# stereo_down position    : [0.6, 0.0, 0.4]
+# stereo_down orientation : [0.0, 0.0, 1.57]
+# stereo_front position   : [0.6, 0.0, 0.2]
+# stereo_front orientation: [1.57, 0.0, 1.57]
+# stereo_baseline: [0.12, 0.0, 0.0]
+visual_detector/camera_position: [0.6, -0.06, 0.0]
+visual_detector/camera_orientation: [1.57, 0.0, 1.57]
+visual_detector/camera_baseline: [0.12, 0.0, 0.0]
+visual_detector/camera_baseline_orientation: [0., 0., 0.]
+
+# Panel detection
+# To select between the simulated and real templates
+visual_detector/panel/simulator: true
+visual_detector/panel/simulator_template: ["simulator_panel2.png"]
+visual_detector/panel/simulator_template_mask: []
+visual_detector/panel/real_template: ["new_panel_template.png"]
+visual_detector/panel/real_template_mask: []
+
+# Detection parameters
+visual_detector/panel/num_features: 4000
+visual_detector/panel/flann_ratio: 0.6
+visual_detector/valves/filter_length: 5
+
+# Stereo or monocular detection
+visual_detector/panel/is_stereo: false
+
+# if is_stereo == true,
+#   use camera_root/{left,right}/image_topic
+# otherwise,
+#   use camera_root/image_topic
+visual_detector/panel/camera_root: "/stereo_front/left"
+visual_detector/panel/image_topic: "image_raw"
+# Detection rate
+visual_detector/panel/rate: -1
+# Geometry
+visual_detector/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
+visual_detector/valves/radius: 0.05
+visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
