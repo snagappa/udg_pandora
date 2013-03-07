@@ -8,7 +8,11 @@ learning/reproductor/simulation : 0
 learning/reproductor/nbDataRepro : 500 
 learning/reproductor/exportFile : trajectoryPlayed.cvs
 learning/reproductor/demonstration_file : trajectory_demonstration_arm
-learning/reproductor/demonstrations : [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
-learning/reproductor/frame_id_goal : '/valve_1'
+learning/reproductor/demonstrations : [ 0, 1, 2, 3, 4, 5, 7 ]
+learning/reproductor/frame_id_goal : 'valve2'
+#en el mon Valve2 x:0.11 y:0.0 z:-0.2 
+learning/reproductor/poseGoal_x : 0.0
+learning/reproductor/poseGoal_y : 0.2
+learning/reproductor/poseGoal_z : 0.11
 learning/reproductor/name_pub_demonstrate : '/learning/trajectory_demonstrated'
 learning/reproductor/name_pub_done : '/learning/trajectory'
