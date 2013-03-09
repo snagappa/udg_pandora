@@ -41,7 +41,7 @@ class LearningRecord:
         self.goalQuaternion = Quaternion()
         self.goalPoseOld = Point()
         self.robotPose = Odometry()
-	self.initTF = False
+        self.initTF = False
         self.lock = threading.Lock()
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
@@ -49,13 +49,11 @@ class LearningRecord:
 
 
     def getConfig(self):
-        param_dict = {'filename': 'learning/record/avu_traj/filename',
+        param_dict = {'filename': 'learning/record/auv_traj/filename',
                       'numberSample': 'learning/record/auv_traj/number_sample',
                       'landmark_id': 'learning/record/auv_traj/landmark_id',
-                      'frame_goal_id': 'learning/record/auv_traj/frame_goal_id',
-                      'poseGoal_x': 'learning/record/auv_traj/poseGoal_x',
-                      'poseGoal_y': 'learning/record/auv_traj/poseGoal_y',
-                      'poseGoal_z': 'learning/record/auv_traj/poseGoal_z'}
+                      'frame_goal_id': 'learning/record/auv_traj/frame_goal_id'
+                      }
         cola2_ros_lib.getRosParams(self, param_dict)
         self.file = open( self.filename + "_" + str(self.numberSample) +".csv", 'w')
 
@@ -65,7 +63,7 @@ class LearningRecord:
         try:
             try:
                         #Try to read the original pose detected with the visual detector
-                trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world","self.frame_goal_id"))
+                trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world",self.frame_goal_id))
                 self.goalPose.x = trans[0]
                 self.goalPose.y = trans[1]
                 self.goalPose.z = trans[2]
@@ -80,7 +78,8 @@ class LearningRecord:
                 for mark in landMarkMap.landmark :
                     if self.landmark_id == mark.landmark_id :
                         self.goalPose = mark.position
-                        self.goalQuaternion = mark.orientation
+                        rospy.loginfo('Orientation not record')
+                        #self.goalQuaternion = mark.orientation
                         rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
 
         finally:
@@ -91,9 +90,9 @@ class LearningRecord:
         self.lock.acquire()
         try:
             #self.robotPose = odometry
-            goalYaw = euler_from_quaternion(self.goalQuaternion)[2]
-            robotYaw = odometry.twist.twist.angular[2]
-            s = repr(odometry.pose.pose.Point.x - self.goalPose.x )+" "+ repr( odometry.pose.pose.Point.y - self.goalPose.y ) + " " + repr( odometry.pose.pose.Point.z - self.goalPose.z ) +" "+ repr(robotYaw-goalYaw)  +"\n"
+            goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
+            robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
+            s = repr(odometry.pose.pose.position.x - self.goalPose.x )+" "+ repr( odometry.pose.pose.position.y - self.goalPose.y ) + " " + repr( odometry.pose.pose.position.z - self.goalPose.z ) +" "+ repr(robotYaw-goalYaw)  +"\n"
 
         finally:
             self.lock.release()

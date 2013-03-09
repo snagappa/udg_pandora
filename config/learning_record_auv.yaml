@@ -1,0 +1,4 @@
+learning/record/auv_traj/filename : 'trajectory_demonstration_arm'
+learning/record/auv_traj/number_sample : 6
+learning/record/auv_traj/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
+learning/record/auv_traj/frame_goal_id : 'panel_centre'
