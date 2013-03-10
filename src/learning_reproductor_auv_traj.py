@@ -326,10 +326,10 @@ class learningReproductor :
         vel_com.header.stamp = rospy.get_rostime()
         vel_com.goal.priority = 10 #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_tf[0]
-        vel_com.twist.linear.y = vel_tf[1]
-        vel_com.twist.linear.z = vel_tf[2]
-#        vel_com.twist.angular.z = self.desVel[3]
+        vel_com.twist.linear.x = vel_tf[0] / 5.0
+        vel_com.twist.linear.y = vel_tf[1] / 5.0
+        vel_com.twist.linear.z = vel_tf[2] / 5.0
+#        vel_com.twist.angular.z = self.desVel[3] /5.0
         vel_com.twist.angular.z = 0.0
 
 #disabled_axis boby_velocity_req
