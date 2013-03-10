@@ -1,0 +1,12 @@
+work_area/yaw: 0.1
+work_area/pitch: 0.1
+work_area/pose_x: 0.5
+work_area/pose_y: 0.5
+work_area/pose_z: 0.5
+work_arealearning/record/frame_goal_id : 'valve2'
+work_area/landmark_id: /pose_ekf_slam/landmark_update/panel_centre
+work_area/period: 0.2
+#en el mon Valve2 x:0.11 y:0.0 z:-0.2 
+work_area/poseGoal_x : 0.0
+work_area/poseGoal_y : 0.2
+work_area/poseGoal_z : 0.11
