@@ -113,9 +113,9 @@ class learningReproductor :
                       'demonstration_file': 'learning/reproductor/demonstration_file',
                       'demonstrations': 'learning/reproductor/demonstrations',
                       'frame_id_goal': 'learning/reproductor/frame_id_goal',
-                      'poseGoal_x': 'learning/record/poseGoal_x',
-                      'poseGoal_y': 'learning/record/poseGoal_y',
-                      'poseGoal_z': 'learning/record/poseGoal_z',
+                      'poseGoal_x': 'learning/reproductor/poseGoal_x',
+                      'poseGoal_y': 'learning/reproductor/poseGoal_y',
+                      'poseGoal_z': 'learning/reproductor/poseGoal_z',
                       'name_pub_demonstrate': 'learning/reproductor/name_pub_demonstrate',
                       'name_pub_done': 'learning/reproductor/name_pub_done'}
         cola2_ros_lib.getRosParams(self, param_dict)
@@ -128,12 +128,27 @@ class learningReproductor :
                 if self.landmark_id == mark.landmark_id :
                     #rospy.loginfo('Ha arribat alguna cosa')
                     try:
-                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime( "world", "panel_centre" ))
+                        #Try to read the original pose detected with the visual detector
+                        trans, rot = self.tflistener.lookupTransform("world", self.frame_id_goal, self.tflistener.getLatestCommonTime("world",self.frame_id_goal))
+                        self.goalPose.x = trans[0]
+                        self.goalPose.y = trans[1]
+                        self.goalPose.z = trans[2]
+                        rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+
+                        if not self.dataGoalReceived :
+                            rospy.loginfo('Goal Pose Received')
+                            self.dataGoalReceived = True
+
+
+                    except tf.Exception:
+                        #add the theoretical distance of the valve to the center
+                        #the rotation is needed if the panel centre is not seen dont work
+                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime("world", "panel_centre" ))
                         rotation_matrix = tf.transformations.quaternion_matrix(rot)
                         goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
                         goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
 
-                        self.goalPose = mark.position
+                        #rospy.loginfo('Rotatet (0,0,1): '+ str(numpy.dot(rotation_matrix, numpy.array([0,0,1,1]))[:3]) )
                         self.goalPose.x = mark.position.x + goalPose_rot[0]
                         self.goalPose.y = mark.position.y + goalPose_rot[1]
                         self.goalPose.z = mark.position.z + goalPose_rot[2]
@@ -141,9 +156,25 @@ class learningReproductor :
                         if not self.dataGoalReceived :
                             rospy.loginfo('Goal Pose Received')
                             self.dataGoalReceived = True
+                        #rospy.loginfo('Goal Pose App: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
 
-                    except tf.Expetion:
-                        pass
+                    # try:
+                    #     trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime( "world", "panel_centre" ))
+                    #     rotation_matrix = tf.transformations.quaternion_matrix(rot)
+                    #     goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                    #     goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
+
+                    #     self.goalPose = mark.position
+                    #     self.goalPose.x = mark.position.x + goalPose_rot[0]
+                    #     self.goalPose.y = mark.position.y + goalPose_rot[1]
+                    #     self.goalPose.z = mark.position.z + goalPose_rot[2]
+
+                    #     if not self.dataGoalReceived :
+                    #         rospy.loginfo('Goal Pose Received')
+                    #         self.dataGoalReceived = True
+
+                    # except tf.Expetion:
+                    #     pass
         finally:
             self.lock.release()
 
@@ -461,7 +492,7 @@ class learningReproductor :
 
 #        self.Mu_t = numpy.zeros( 3 )
 
-        for i in xrange(len(logile)) :
+        for i in xrange(len(logfile)) :
             if logfile[i] == 'kV':
                 i+=1
                 self.kV = float(logfile[i])
