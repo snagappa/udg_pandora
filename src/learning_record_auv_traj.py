@@ -52,7 +52,11 @@ class LearningRecord:
         param_dict = {'filename': 'learning/record/auv_traj/filename',
                       'numberSample': 'learning/record/auv_traj/number_sample',
                       'landmark_id': 'learning/record/auv_traj/landmark_id',
-                      'frame_goal_id': 'learning/record/auv_traj/frame_goal_id'
+                      'frame_goal_id': 'learning/record/auv_traj/frame_goal_id',
+                      'quaternion_x': 'learning/record/auv_traj/quaternion_x',
+                      'quaternion_y': 'learning/record/auv_traj/quaternion_y',
+                      'quaternion_z': 'learning/record/auv_traj/quaternion_z',
+                      'quaternion_w': 'learning/record/auv_traj/quaternion_w'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         self.file = open( self.filename + "_" + str(self.numberSample) +".csv", 'w')
@@ -78,7 +82,11 @@ class LearningRecord:
                 for mark in landMarkMap.landmark :
                     if self.landmark_id == mark.landmark_id :
                         self.goalPose = mark.position
-                        rospy.loginfo('Orientation not record')
+                        rospy.loginfo('Orientation loaded from the configuration file')
+                        self.goalQuaternion.x = self.quaternion_x
+                        self.goalQuaternion.y = self.quaternion_y
+                        self.goalQuaternion.z = self.quaternion_z
+                        self.goalQuaternion.w = self.quaternion_w
                         #self.goalQuaternion = mark.orientation
                         rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
 

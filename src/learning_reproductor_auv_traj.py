@@ -72,7 +72,7 @@ class learningReproductor :
         self.currPosSim[0] = 0.5
         self.currPosSim[1] = 0.05
         self.currPosSim[2] = 0.8
-        self.currPosSim[3] = 0.0
+        self.currPosSim[3] = 2.1
         self.currNbDataRepro = 0
 
         if self.simulation : self.file = open( self.exportFile, 'w')
@@ -121,7 +121,12 @@ class learningReproductor :
                       'demonstrations': 'learning/reproductor/demonstrations',
                       'frame_id_goal': 'learning/reproductor/frame_id_goal',
                       'name_pub_demonstrate': 'learning/reproductor/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/name_pub_done'}
+                      'name_pub_done': 'learning/reproductor/name_pub_done',
+                      'quaternion_x': 'learning/reproductor/quaternion_x',
+                      'quaternion_y': 'learning/reproductor/quaternion_y',
+                      'quaternion_z': 'learning/reproductor/quaternion_z',
+                      'quaternion_w': 'learning/reproductor/quaternion_w'
+}
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time) )
 
@@ -149,7 +154,11 @@ class learningReproductor :
                     if self.landmark_id == mark.landmark_id :
                         self.goalPose = mark.position
                         self.dataGoalReceived = True
-                        rospy.loginfo('Orientation not record')
+#                        rospy.loginfo('Orientation readed by a file')
+                        self.goalQuaternion.x = self.quaternion_x
+                        self.goalQuaternion.y = self.quaternion_y
+                        self.goalQuaternion.z = self.quaternion_z
+                        self.goalQuaternion.w = self.quaternion_w
                         #self.goalQuaternion = mark.orientation
                         #rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
         finally:
@@ -261,17 +270,14 @@ class learningReproductor :
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
 
-        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1]) +  " " + repr(self.desPos[2]) + "\n"
+        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1]) +  " " + repr(self.desPos[2]) + " " + repr(self.desPos[3]) + "\n"
         self.file.write(s)
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
-
         self.currNbDataRepro = self.currNbDataRepro+1
         self.currPosSim = self.desPos
-
-
 
     def generateNewPose(self) :
         t = -math.log(self.s)/self.alpha
@@ -329,8 +335,7 @@ class learningReproductor :
         vel_com.twist.linear.x = vel_tf[0] / 5.0
         vel_com.twist.linear.y = vel_tf[1] / 5.0
         vel_com.twist.linear.z = vel_tf[2] / 5.0
-#        vel_com.twist.angular.z = self.desVel[3] /5.0
-        vel_com.twist.angular.z = 0.0
+        vel_com.twist.angular.z = self.desVel[3]
 
 #disabled_axis boby_velocity_req
         vel_com.disable_axis.x = False
@@ -338,8 +343,8 @@ class learningReproductor :
         vel_com.disable_axis.z = False
         vel_com.disable_axis.roll = True
         vel_com.disable_axis.pitch = True
-#        vel_com.disable_axis.yaw = False
-        vel_com.disable_axis.yaw = True
+        vel_com.disable_axis.yaw = False
+#        vel_com.disable_axis.yaw = True
 
         s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + " " + repr(self.currPos[3]) + "\n"
         self.fileTraj.write(s)

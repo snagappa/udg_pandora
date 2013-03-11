@@ -1,4 +1,4 @@
-learning/reproductor/parameters : learned_data.txt
+learning/reproductor/parameters : learned_data_auv.txt
 learning/reproductor/alpha : 2
 learning/reproductor/s : 1
 learning/reproductor/nbVar : 4
@@ -12,3 +12,9 @@ learning/reproductor/demonstrations : [ 0, 1, 2, 3, 4, 5, 6 ]
 learning/reproductor/frame_id_goal : 'panel_centre'
 learning/reproductor/name_pub_demonstrate : '/learning/trajectory_demonstrated'
 learning/reproductor/name_pub_done : '/learning/trajectory'
+#Work Around
+learning/reproductor/quaternion_x : -0.4860164345566604
+learning/reproductor/quaternion_y : 0.5165734730384907
+learning/reproductor/quaternion_z : -0.4793320976915157
+learning/reproductor/quaternion_w : 0.5168951657893834
+
