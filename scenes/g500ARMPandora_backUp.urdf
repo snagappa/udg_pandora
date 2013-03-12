@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<robot name="girona500">
+  <!-- base link is the body of the robot -->
+  <link name="base_link">
+      <visual>
+         <origin rpy="0.0 0 0.0" xyz="0.0 0 0.0"/>
+         <geometry>
+	   <!-- <mesh filename="file://robot2/GIRONA500v2/g500.osg"/> -->
+	   <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500.osg"/>
+         </geometry>
+       </visual>
+   </link>
+
+   <link name="base">
+      <visual>
+	<origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
+	 <geometry>
+	   <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part1.osg"/> 
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="baselink_to_base" type="fixed">
+      <parent link="base_link"/>
+      <child link="base"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.5 0.0 0.4"/>
+   </joint>
+
+
+  <link name="shoulder">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part2.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="base_to_shoulder" type="continuous"> 
+      <parent link="base"/>
+      <child link="shoulder"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.25 -0.02 0.0"/>
+   </joint>
+
+
+   <link name="biceps">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part3.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="shoulder_to_biceps" type="continuous">
+      <parent link="shoulder"/>
+      <child link="biceps"/>
+      <axis xyz="0 1 0"/>
+      <origin rpy="0 0 0" xyz="0.10 0.0 0.0"/>
+   </joint>
+
+  <link name="forearm">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part4.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="elbow" type="continuous">
+
+      <parent link="biceps"/>
+      <child link="forearm"/>
+      <axis xyz="0 1 0"/>
+      <origin rpy="0 -1.57 0" xyz="0.22 0.0 0.05"/>
+   </joint>
+
+  <link name="palm">
+      <visual>
+	 <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
+	 <geometry>
+	    <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part5.osg" />
+	 </geometry>
+      </visual>
+   </link>
+
+   <joint name="wrist" type="continuous">
+      <parent link="forearm"/>
+      <child link="palm"/>
+      <axis xyz="1 0 0"/>
+      <origin rpy="0 0 0" xyz="0.2 0.01 -0.1"/>
+   </joint>
+
+
+
+  <link name="jawS">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/jawS.osg"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <joint name="palm_to_jawS" type="continuous">
+    <parent link="palm"/>
+    <child link="jawS"/>
+    <axis xyz="0 0 1"/>
+    <origin rpy="0 0 0.5" xyz="0.08 0.03 0.0"/>
+  </joint>
+
+
+  <link name="jawI">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/jawI.osg"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <joint name="support_to_jaw2" type="continuous">
+    <parent link="palm"/>
+    <child link="jawI"/>
+    <axis xyz="0 0 -1"/>
+    <origin rpy="0 0 -0.5" xyz="0.08 -0.03 0.0"/>
+    <mimic joint="palm_to_jawS" multiplier="1" offset="0"/>
+  </joint>
+
+
+</robot>
