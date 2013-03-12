@@ -7,6 +7,10 @@ import rospy
 
 #use to load the configuration function
 import cola2_ros_lib
+
+#use to normalize the angle
+import cola2_lib
+
 # import the service to call the service
 # Warnning I don't know if is needed may be can be seen directly
 from cola2_control.srv import MoveArmTo
@@ -135,31 +139,21 @@ class learningReproductor :
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
         try:
-            try:
-                        #Try to read the original pose detected with the visual detector
-                trans, rot = self.tflistener.lookupTransform("world", self.frame_id_goal, self.tflistener.getLatestCommonTime("world",self.frame_id_goal))
-                self.goalPose.x = trans[0]
-                self.goalPose.y = trans[1]
-                self.goalPose.z = trans[2]
-                self.goalQuaternion.x = rot[0]
-                self.goalQuaternion.y = rot[1]
-                self.goalQuaternion.z = rot[2]
-                self.goalQuaternion.w = rot[3]
-                #rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
-                self.dataGoalReceived = True
-
-            except tf.Exception:
-
                 for mark in landMarkMap.landmark :
                     if self.landmark_id == mark.landmark_id :
                         self.goalPose = mark.position
-                        self.dataGoalReceived = True
-#                        rospy.loginfo('Orientation readed by a file')
-                        self.goalQuaternion.x = self.quaternion_x
-                        self.goalQuaternion.y = self.quaternion_y
-                        self.goalQuaternion.z = self.quaternion_z
-                        self.goalQuaternion.w = self.quaternion_w
-                        #self.goalQuaternion = mark.orientation
+			try:
+				trans, rot = self.tflistener.lookupTransform("world", self.frame_id_goal, self.tflistener.getLatestCommonTime("world",self.frame_id_goal))
+		                self.goalQuaternion.x = rot[0]
+                		self.goalQuaternion.y = rot[1]
+		                self.goalQuaternion.z = rot[2]
+                		self.goalQuaternion.w = rot[3]
+        		except tf.Exception:
+	                	self.goalQuaternion.x = self.quaternion_x
+                        	self.goalQuaternion.y = self.quaternion_y
+                        	self.goalQuaternion.z = self.quaternion_z
+                        	self.goalQuaternion.w = self.quaternion_w
+	                self.dataGoalReceived = True
                         #rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
         finally:
             self.lock.release()
@@ -180,7 +174,7 @@ class learningReproductor :
                     #Yaw
                     goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
                     robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = robotYaw - goalYaw
+                    self.currPos[3] = cola2_lib.normalizeAngle(robotYaw - goalYaw)
 
                     self.currTime = odometry.header.stamp.secs + (odometry.header.stamp.nsecs*1E-9)
                     self.dataReceived += 1
@@ -196,7 +190,7 @@ class learningReproductor :
                     #Yaw
                     goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
                     robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = robotYaw - goalYaw
+                    self.currPos[3] = cola2_lib.normalizeAngle(robotYaw - goalYaw)
 
                     self.currTime = odometry.header.stamp.secs + (odometry.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
@@ -214,7 +208,7 @@ class learningReproductor :
                     #Yaw
                     goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
                     robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = robotYaw - goalYaw
+                    self.currPos[3] = cola2_lib.normalizeAngle(robotYaw - goalYaw)
 
                     self.currTime = odometry.header.stamp.secs + (odometry.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
@@ -332,10 +326,10 @@ class learningReproductor :
         vel_com.header.stamp = rospy.get_rostime()
         vel_com.goal.priority = 10 #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_tf[0] / 5.0
-        vel_com.twist.linear.y = vel_tf[1] / 5.0
-        vel_com.twist.linear.z = vel_tf[2] / 5.0
-        vel_com.twist.angular.z = self.desVel[3]
+        vel_com.twist.linear.x = vel_tf[0] / 25.0
+        vel_com.twist.linear.y = vel_tf[1] / 25.0
+        vel_com.twist.linear.z = vel_tf[2] / 35.0
+        vel_com.twist.angular.z = self.desVel[3] /25.0
 
 #disabled_axis boby_velocity_req
         vel_com.disable_axis.x = False

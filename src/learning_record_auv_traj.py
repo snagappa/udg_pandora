@@ -68,30 +68,24 @@ class LearningRecord:
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
         try:
-            try:
-                        #Try to read the original pose detected with the visual detector
-                trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world",self.frame_goal_id))
-                self.goalPose.x = trans[0]
-                self.goalPose.y = trans[1]
-                self.goalPose.z = trans[2]
-                self.goalQuaternion.x = rot[0]
-                self.goalQuaternion.y = rot[1]
-                self.goalQuaternion.z = rot[2]
-                self.goalQuaternion.w = rot[3]
-                rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
-
-            except tf.Exception:
-
-                for mark in landMarkMap.landmark :
+		for mark in landMarkMap.landmark :
                     if self.landmark_id == mark.landmark_id :
-                        self.goalPose = mark.position
-                        rospy.loginfo('Orientation loaded from the configuration file')
-                        self.goalQuaternion.x = self.quaternion_x
-                        self.goalQuaternion.y = self.quaternion_y
-                        self.goalQuaternion.z = self.quaternion_z
-                        self.goalQuaternion.w = self.quaternion_w
-                        #self.goalQuaternion = mark.orientation
-                        rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+			self.goalPose = mark.position			
+			try:
+                        #Try to read the original pose detected with the visual detector
+				trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world",self.frame_goal_id))
+		                self.goalQuaternion.x = rot[0]
+                		self.goalQuaternion.y = rot[1]
+		                self.goalQuaternion.z = rot[2]
+                		self.goalQuaternion.w = rot[3]
+		                rospy.loginfo('Orientation of the panel' + str(rot))
+			except tf.Exception:
+#                        rospy.loginfo('Orientation loaded from the configuration file')
+	                        self.goalQuaternion.x = self.quaternion_x
+        	                self.goalQuaternion.y = self.quaternion_y
+                	        self.goalQuaternion.z = self.quaternion_z
+                        	self.goalQuaternion.w = self.quaternion_w
+	#                       rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
 
         finally:
             self.lock.release()
