@@ -1,12 +1,29 @@
-work_area/yaw: 0.1
-work_area/pitch: 0.1
-work_area/pose_x: 0.5
-work_area/pose_y: 0.5
-work_area/pose_z: 0.5
-work_arealearning/record/frame_goal_id : 'valve2'
-work_area/landmark_id: /pose_ekf_slam/landmark_update/panel_centre
+#values defining the work area.
+#The valve position define the center of the workspace
+#and the values in this parameters is the displacement.
+#Distance from the valve to the auv base
+work_area/distance_goal : [1.22, 1.35]
+#Angle in the horizontal plane, yaw.
+work_area/gamma: 0.2
+#Angle in the horizontal plane valve(z,x) or robot(x,y) seen by the valve
+work_area/alpha: 0.3
+#Angel in the vertical plane valve(z,y) or robot(x,z) seen by the valve
+work_area/beta: 0.2
+#identification parameters
+work_area/frame_goal_id : 'valve2'
+work_area/landmark_id: '/pose_ekf_slam/landmark_update/panel_centre'
 work_area/period: 0.2
 #en el mon Valve2 x:0.11 y:0.0 z:-0.2 
 work_area/poseGoal_x : 0.0
 work_area/poseGoal_y : 0.2
 work_area/poseGoal_z : 0.11
+#WORK AROUND
+#For the moment the map only have pose information and not orientation
+# We define the orientation manually
+# Simulator (-0.4860164345566604, 0.5165734730384907, -0.4793320976915157, 0.5168951657893834)
+#(-0.49938786613669484, 0.4920550548471624, -0.5011927227374895, 0.507246918994859)
+
+work_area/quaternion_x : -0.4860164345566604
+work_area/quaternion_y : 0.5165734730384907
+work_area/quaternion_z : -0.4793320976915157
+work_area/quaternion_w : 0.5168951657893834

@@ -39,31 +39,39 @@ class WorkAreaController:
         self.goalPose = Point()
         self.goalQuaternion = Quaternion()
         self.robotPose = Odometry()
-        self.armPose = PoseStamped()
+#        self.armPose = PoseStamped()
         self.initTF = False
         self.lock = threading.Lock()
-        rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
+#        rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
         self.pub_decision = rospy.Publisher('/work_area/evaluation', Float64)
         self.tflistener = tf.TransformListener()
 
-        self.arm_pose_init = False
+#        self.arm_pose_init = False
         self.robot_pose_init = False
         self.goal_pose_init = False
 
+        self.distance_goal = 0.0
+        self.gamma = 0.0
+        self.alpha = 0.0
+        self.beta = 0.0
+
     def getConfig(self):
-        param_dict = {'yaw': 'work_area/yaw',
-                      'pitch': 'work_area/pitch',
-                      'pose_x': 'work_area/pose_x',
-                      'pose_y': 'work_area/pose_y',
-                      'pose_z': 'work_area/pose_z',
-                      'landmark_id': 'work_area/landmark_id'
+        param_dict = {'distance_goal': 'work_area/distance_goal',
+                      'gamma': 'work_area/gamma',
+                      'alpha': 'work_area/alpha',
+                      'beta': 'work_area/beta',
+                      'landmark_id': 'work_area/landmark_id',
                       'frame_goal_id': 'work_area/frame_goal_id',
                       'period': 'work_area/period',
-                      'goalPose_x': 'work_area/goalPose_x',
-                      'goalPose_y': 'work_area/goalPose_y',
-                      'goalPose_z': 'work_area/goalPose_z'
+                      'poseGoal_x': 'work_area/poseGoal_x',
+                      'poseGoal_y': 'work_area/poseGoal_y',
+                      'poseGoal_z': 'work_area/poseGoal_z',
+                      'quaternion_x': 'work_area/quaternion_x',
+                      'quaternion_y': 'work_area/quaternion_y',
+                      'quaternion_z': 'work_area/quaternion_z',
+                      'quaternion_w': 'work_area/quaternion_w'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -71,26 +79,15 @@ class WorkAreaController:
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
         try:
-            try:
-#Try to read the original pose detected with the visual detector
-                trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world",self.frame_goal_id))
-                self.goalPose.x = trans[0]
-                self.goalPose.y = trans[1]
-                self.goalPose.z = trans[2]
-                self.goalQuaternion.x = rot[0]
-                self.goalQuaternion.y = rot[1]
-                self.goalQuaternion.z = rot[2]
-                self.goalQuaternion.w = rot[3]
 
-                self.goal_pose_init = True
-
-            except tf.Exception:
-                for mark in landMarkMap.landmark :
-                    if self.landmark_id == mark.landmark_id :
+            for mark in landMarkMap.landmark :
+                if self.landmark_id == mark.landmark_id :
+                    try:
                         trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime("world", "panel_centre" ))
                         rotation_matrix = tf.transformations.quaternion_matrix(rot)
-                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
-                        goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
+
+                        goalPose = np.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = np.dot(rotation_matrix, goalPose )
 
                         self.goalPose.x = mark.position.x + goalPose_rot[0]
                         self.goalPose.y = mark.position.y + goalPose_rot[1]
@@ -101,8 +98,21 @@ class WorkAreaController:
                         self.goalQuaternion.z = rot[2]
                         self.goalQuaternion.w = rot[3]
 
-                        self.goal_pose_init = True
+                    except tf.Exception :
+                        rotation_matrix = tf.transformations.quaternion_matrix([self.quaternion_x, self.quaternion_y, self.quaternion_z, self.quaternion_w])
+                        goalPose = np.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = np.dot(rotation_matrix, goalPose )
 
+                        self.goalPose.x = mark.position.x + goalPose_rot[0]
+                        self.goalPose.y = mark.position.y + goalPose_rot[1]
+                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+
+                        self.goalQuaternion.x = self.quaternion_x
+                        self.goalQuaternion.y = self.quaternion_y
+                        self.goalQuaternion.z = self.quaternion_z
+                        self.goalQuaternion.w = self.quaternion_w
+
+                    self.goal_pose_init = True
         finally:
             self.lock.release()
 
@@ -113,20 +123,85 @@ class WorkAreaController:
             self.robot_pose_init = True
         finally:
             self.lock.release()
-        self.file.write(s)
 
-    def updateArmPose(self, armPose):
-        self.lock.acquire()
-        try:
-            self.armPose = armPose
-            self.arm_pose_init = True
-        finally:
-            self.lock.release()
+#Not need for the moment. Only use the valve an
+
+    # def updateArmPose(self, armPose):
+    #     self.lock.acquire()
+    #     try:
+    #         self.armPose = armPose
+    #         self.arm_pose_init = True
+    #     finally:
+    #         self.lock.release()
 
     #using the analytical function generate the
     #pitch yaw and pose of the robot
     def computePosition(self):
-        pass
+        #distance compute euclidean distance
+        self.distance_goal = np.sqrt(
+            np.power(self.robotPose.pose.pose.position.x - self.goalPose.x, 2) +
+            np.power(self.robotPose.pose.pose.position.y - self.goalPose.y, 2) +
+            np.power(self.robotPose.pose.pose.position.z - self.goalPose.z, 2)
+            )
+        rospy.loginfo('Distance :' + str(self.distance_goal) )
+
+        try:
+            #compute the angle gamma
+            goal_pose_world = np.array([self.goalPose.x,
+                                        self.goalPose.y,
+                                        self.goalPose.z,
+                                        1])
+
+            trans_g500 , rot_g500 = self.tflistener.lookupTransform("girona500", "world", self.tflistener.getLatestCommonTime("girona500","world" ))
+            rotation_matrix = tf.transformations.quaternion_matrix(rot_g500)
+            translation_matrix = tf.transformations.translation_matrix(trans_g500)
+
+            goal_pose_rot = np.dot(rotation_matrix, goal_pose_world )
+            goal_pose_rot = np.dot(translation_matrix, goal_pose_rot )
+            #has not sense, doesppn't work correctly
+            self.gamma = np.arctan2( goal_pose_rot[1], goal_pose_rot[0] )
+        except tf.Exception:
+            rospy.logerr('Gamma not computed')
+            self.gamma = 0.0
+
+        rospy.loginfo('Gamma ' + str(self.gamma) )
+
+        try:
+            #compute the angles alpha and beta
+            robot_pose_world = np.array([self.robotPose.pose.pose.position.x,
+                                         self.robotPose.pose.pose.position.y,
+                                         self.robotPose.pose.pose.position.z,
+                                         1])
+
+            trans_goal, rot_goal = self.tflistener.lookupTransform('panel_centre', 'world',  self.tflistener.getLatestCommonTime('panel_centre','world'))
+
+            rotation_matrix = tf.transformations.quaternion_matrix(rot_goal)
+            translation_matrix = tf.transformations.translation_matrix(trans_goal)
+            robot_pose_rot = np.dot(rotation_matrix, robot_pose_world)
+            robot_pose = np.dot(translation_matrix, robot_pose_rot)
+
+            self.alpha = np.arctan2( robot_pose[0], robot_pose[2] )
+            self.beta = np.arctan2( robot_pose[1], robot_pose[2] )
+        except tf.Exception:
+            rospy.loginfo('Aplha and Beta Estimated')
+            dist_g500_goal = [self.robotPose.pose.pose.position.x - self.goalPose.x,
+                              self.robotPose.pose.pose.position.y - self.goalPose.y ,
+                              self.robotPose.pose.pose.position.z - self.goalPose.z ,
+                              1]
+            rotation_matrix = tf.transformations.quaternion_matrix(
+                [ self.quaternion_x,
+                  self.quaternion_y,
+                  self.quaternion_z,
+                  self.quaternion_w ] )
+            rotation_matrix = np.linalg.inv(rotation_matrix)
+            #trans = tf.transformations.translation_matrix(trans_g500)
+            robot_pose_rot = np.dot(rotation_matrix, dist_g500_goal)[:3]
+            rospy.loginfo('Robot Pose from Valve ' + str(robot_pose_rot) )
+            self.alpha = np.arctan2( robot_pose_rot[0], robot_pose_rot[2] )
+            self.beta = np.arctan2( robot_pose_rot[1], robot_pose_rot[2] )
+
+        rospy.loginfo('Alpha ' + str(self.alpha) )
+        rospy.loginfo('Beta ' + str(self.beta) )
 
     #check if the position computed is in the limits
     def evaluatePosition(self):
@@ -142,20 +217,21 @@ class WorkAreaController:
 
     def run(self):
         while not rospy.is_shutdown():
-            if self.robot_pose_init and self.arm_pose_init and self.goal_pose_init :
+#            if self.robot_pose_init and self.arm_pose_init and self.goal_pose_init :
+            if self.robot_pose_init and self.goal_pose_init :
                 self.computePosition()
                 safe_rate = self.evaluatePosition()
                 #publish the rate to modify the behaviour of the learning program
-                self.pub_decision(safe_rate)
+                self.pub_decision.publish(safe_rate)
             else:
-                rospy.info('Waitting to initialize all the positions')
+                rospy.loginfo('Waitting to initialize all the positions')
 
             rospy.sleep(self.period)
 
 
 if __name__ == '__main__':
     try:
-        rospy.init_node('learning_record_auv_traj')
-        learning_record = LearningRecord( rospy.get_name() )
-        learning_record.run()
+        rospy.init_node('work_area_controller')
+        work_area_controller = WorkAreaController( rospy.get_name() )
+        work_area_controller.run()
     except rospy.ROSInterruptException: pass
