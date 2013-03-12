@@ -12,6 +12,9 @@ import numpy
 #use to load the configuration function
 import cola2_ros_lib
 
+#use to normalize the angle
+import cola2_lib
+
 #include "geometry_msgs/PoseStamped.h"
 from geometry_msgs.msg import PoseStamped
 #include message of the ekf giving the valve position
@@ -100,7 +103,7 @@ class LearningRecord:
             #self.robotPose = odometry
             goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
             robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-            s = repr(odometry.pose.pose.position.x - self.goalPose.x )+" "+ repr( odometry.pose.pose.position.y - self.goalPose.y ) + " " + repr( odometry.pose.pose.position.z - self.goalPose.z ) +" "+ repr(robotYaw-goalYaw)  +"\n"
+            s = repr(odometry.pose.pose.position.x - self.goalPose.x )+" "+ repr( odometry.pose.pose.position.y - self.goalPose.y ) + " " + repr( odometry.pose.pose.position.z - self.goalPose.z ) +" "+ repr(cola2_lib.normalizeAngle(robotYaw-goalYaw))  +"\n"
 
         finally:
             self.lock.release()
