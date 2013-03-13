@@ -26,6 +26,9 @@ from std_msgs.msg import Float64
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
 
+#include the message to send velocities to the robot
+from auv_msgs.msg import BodyVelocityReq
+
 #import to use mutex
 import threading
 import tf
@@ -47,6 +50,7 @@ class WorkAreaController:
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
         self.pub_decision = rospy.Publisher('/work_area/evaluation', Float64)
         self.tflistener = tf.TransformListener()
+        self.pub_auv_vel = rospy.Publisher("/cola2_control/body_velocity_req", BodyVelocityReq)
 
 #        self.arm_pose_init = False
         self.robot_pose_init = False
@@ -58,10 +62,10 @@ class WorkAreaController:
         self.beta = 0.0
 
     def getConfig(self):
-        param_dict = {'distance_goal': 'work_area/distance_goal',
-                      'gamma': 'work_area/gamma',
-                      'alpha': 'work_area/alpha',
-                      'beta': 'work_area/beta',
+        param_dict = {'limit_distance_goal': 'work_area/distance_goal',
+                      'limit_gamma': 'work_area/gamma',
+                      'limit_alpha': 'work_area/alpha',
+                      'limit_beta': 'work_area/beta',
                       'landmark_id': 'work_area/landmark_id',
                       'frame_goal_id': 'work_area/frame_goal_id',
                       'period': 'work_area/period',
@@ -71,7 +75,11 @@ class WorkAreaController:
                       'quaternion_x': 'work_area/quaternion_x',
                       'quaternion_y': 'work_area/quaternion_y',
                       'quaternion_z': 'work_area/quaternion_z',
-                      'quaternion_w': 'work_area/quaternion_w'
+                      'quaternion_w': 'work_area/quaternion_w',
+                      'k_x' : 'work_area/k_x',
+                      'k_y' : 'work_area/k_y',
+                      'k_z' : 'work_area/k_z',
+                      'k_yaw' : 'work_area/k_yaw'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -143,7 +151,7 @@ class WorkAreaController:
             np.power(self.robotPose.pose.pose.position.y - self.goalPose.y, 2) +
             np.power(self.robotPose.pose.pose.position.z - self.goalPose.z, 2)
             )
-        rospy.loginfo('Distance :' + str(self.distance_goal) )
+#        rospy.loginfo('Distance :' + str(self.distance_goal) )
 
         try:
             #compute the angle gamma
@@ -164,7 +172,7 @@ class WorkAreaController:
             rospy.logerr('Gamma not computed')
             self.gamma = 0.0
 
-        rospy.loginfo('Gamma ' + str(self.gamma) )
+#        rospy.loginfo('Gamma ' + str(self.gamma) )
 
         try:
             #compute the angles alpha and beta
@@ -196,12 +204,12 @@ class WorkAreaController:
             rotation_matrix = np.linalg.inv(rotation_matrix)
             #trans = tf.transformations.translation_matrix(trans_g500)
             robot_pose_rot = np.dot(rotation_matrix, dist_g500_goal)[:3]
-            rospy.loginfo('Robot Pose from Valve ' + str(robot_pose_rot) )
+            #rospy.loginfo('Robot Pose from Valve ' + str(robot_pose_rot) )
             self.alpha = np.arctan2( robot_pose_rot[0], robot_pose_rot[2] )
             self.beta = np.arctan2( robot_pose_rot[1], robot_pose_rot[2] )
 
-        rospy.loginfo('Alpha ' + str(self.alpha) )
-        rospy.loginfo('Beta ' + str(self.beta) )
+#        rospy.loginfo('Alpha ' + str(self.alpha) )
+#        rospy.loginfo('Beta ' + str(self.beta) )
 
     #check if the position computed is in the limits
     def evaluatePosition(self):
@@ -211,8 +219,38 @@ class WorkAreaController:
 
         #p(x) =  1/(sigma * np.sqrt(2 * np.pi)) * np.exp( - (x - mu)**2 / (2 * sigma**2)
 
+        if ( (self.distance_goal < self.limit_distance_goal[0] or
+              self.distance_goal > self.limit_distance_goal[1] )
+             or np.abs(self.gamma) > self.limit_gamma
+             or np.abs(self.alpha) > self.limit_alpha
+             or np.abs(self.beta) > self.limit_beta ) :
 
-        return 1.0
+            rospy.loginfo('The robot is outsite of the working area')
+
+            vel_com = BodyVelocityReq()
+            vel_com.header.stamp = rospy.get_rostime()
+            vel_com.goal.priority = 10 #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
+            vel_com.goal.requester = 'work_area_controller'
+            #maybe with a PID it will be better
+            vel_com.twist.linear.x = self.k_x*(1.28 - self.distance_goal)
+            vel_com.twist.linear.y = self.k_y*(0.0 - self.alpha)
+            vel_com.twist.linear.z = self.k_z*(0.0 - self.beta)
+            vel_com.twist.angular.z = self.k_yaw*(0.0 - self.gamma)
+
+            #disabled_axis boby_velocity_req
+            vel_com.disable_axis.x = False
+            vel_com.disable_axis.y = False
+            vel_com.disable_axis.z = False
+            vel_com.disable_axis.roll = True
+            vel_com.disable_axis.pitch = True
+            vel_com.disable_axis.yaw = False
+
+            self.pub_auv_vel.publish(vel_com)
+
+            return -1.0
+        else :
+#            rospy.loginfo('The robot is insite the working area')
+            return 1.0
 
 
     def run(self):

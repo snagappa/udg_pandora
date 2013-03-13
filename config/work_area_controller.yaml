@@ -8,7 +8,7 @@ work_area/gamma: 0.2
 #Angle in the horizontal plane valve(z,x) or robot(x,y) seen by the valve
 work_area/alpha: 0.3
 #Angel in the vertical plane valve(z,y) or robot(x,z) seen by the valve
-work_area/beta: 0.2
+work_area/beta: 0.3
 #identification parameters
 work_area/frame_goal_id : 'valve2'
 work_area/landmark_id: '/pose_ekf_slam/landmark_update/panel_centre'
@@ -27,3 +27,9 @@ work_area/quaternion_x : -0.4860164345566604
 work_area/quaternion_y : 0.5165734730384907
 work_area/quaternion_z : -0.4793320976915157
 work_area/quaternion_w : 0.5168951657893834
+
+#Propotional part to move the robot
+work_area/k_x : -0.1
+work_area/k_y : 0.5
+work_area/k_z : -0.5
+work_area/k_yaw : -0.5
