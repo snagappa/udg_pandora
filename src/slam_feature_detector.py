@@ -120,6 +120,7 @@ class SlamFeatureDetector(object):
         x_std_base = rospy.get_param("slam_feature_detector/sigma_scale_factor/x")
         y_std_base = rospy.get_param("slam_feature_detector/sigma_scale_factor/y")
         z_std_base = rospy.get_param("slam_feature_detector/sigma_scale_factor/z")
+        pixel_std = rospy.get_param("slam_feature_detector/pixel_std")
         
         # Set update rate
         update_rate = update_rate if update_rate > 0 else None
@@ -132,6 +133,7 @@ class SlamFeatureDetector(object):
         # Noise variance scaling
         slam_features.cov_scaling = np.asarray(
             [x_std_base**2, y_std_base**2, z_std_base**2])
+        slam_features.pixel_std = pixel_std
         
         # Initialise the detector and reset the number of features
         feature_extractor = getattr(image_feature_extractor, extractor_name)
@@ -166,6 +168,7 @@ class SlamFeatureDetector(object):
                                             PointCloud2)
         slam_features.pub2 = rospy.Publisher(
             "/slam_feature_detector/features_xyz", PointCloud2)
+        slam_features.pub3 = rospy.Publisher("/slam_feature_detector/disparity", PointCloud2)
         slam_features.pcl_helper = pcl_xyz_cov()
         slam_features.pcl_helper2 = pcl_xyz()
         
@@ -181,9 +184,10 @@ class SlamFeatureDetector(object):
     
     def detect_slam_features(self, *args):
         #time_now = args[0].header.stamp
-        time_now = rospy.Time.now()
+        time_now = args[0].header.stamp #rospy.Time.now()
         slam_features = self.slam_features
         cvimage = [np.asarray(self.ros2cvimg.cvimagegray(_img_)).copy() for _img_ in args]
+        #cvimage = [_img_ for _img_ in args]
         points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r) = (
             self.slam_features.camera.points3d_from_img(*cvimage,
                 ratio_threshold=slam_features.flann_ratio,
@@ -193,20 +197,32 @@ class SlamFeatureDetector(object):
         else:
             #print "no features found"
             points_range = np.empty(0, dtype=np.int32)
+            pts_l = np.empty(0)
+            pts_r = np.empty(0)
         #print "Found %s features at stage 1" % points3d.shape[0]
         #code.interact(local=locals())
         #print "Average distance = %s" % np.mean(points3d, axis=0)
-        points3d = points3d[points_range <= slam_features.fov_far]
-        points_range = points_range[points_range <= slam_features.fov_far]
+        valid_pts_index = points_range <= slam_features.fov_far
+        points3d = points3d[valid_pts_index]
+        points_range = points_range[valid_pts_index]
+        
+        pts_l = pts_l[valid_pts_index]
+        pts_r = pts_r[valid_pts_index]
+        if pts_l.shape[0]:
+            disparity_pts = np.hstack((pts_l, (pts_l[:, 0] - pts_r[:, 0])[:, np.newaxis]))
+            disparity_covs = slam_features.pixel_std**2*np.ones((disparity_pts.shape[0], 3))
+            disparity_pts_cov = np.hstack((disparity_pts, disparity_covs))
+        else:
+            disparity_pts_cov = np.empty(0)
         #print "Ignoring features beyond %s m; remaining = %s" % (FOV_FAR, points3d.shape[0])
         # Merge points which are close together
         weights = np.ones(points3d.shape[0])
-        avg_range = np.ones(weights.shape[0]) #*points_range.mean()
+        avg_range = np.ones(weights.shape[0])*points_range.mean()
         points3d_scale = np.hstack((avg_range[:, np.newaxis], 
                                     avg_range[:, np.newaxis], 
                                     avg_range[:, np.newaxis]))
         covs = slam_features.cov_scaling*points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
-        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=0.1)
+        _wts_, points3d_states, points3d_covs = merge_points(weights, points3d, covs, merge_threshold=0.05)
         print "Detected %s (%s) features" % (points3d_states.shape[0], points3d.shape[0])
         # Convert the points to a pcl message
         if points3d_covs.shape[0]:
@@ -223,6 +239,12 @@ class SlamFeatureDetector(object):
         pcl_msg2.header.stamp = time_now
         pcl_msg2.header.frame_id = "/world"
         self.slam_features.pub2.publish(pcl_msg2)
+        
+        pcl_msg3 = self.slam_features.pcl_helper.to_pcl(disparity_pts_cov)
+        pcl_msg3.header.stamp = time_now
+        pcl_msg3.header.frame_id = self.slam_features.camera.tfFrame
+        self.slam_features.pub3.publish(pcl_msg3)
+        print "Published ", str(disparity_pts_cov.shape[0]), " disparity points"
         
         pts_l = pts_l.astype(np.int32)
         pts_r = pts_r.astype(np.int32)
@@ -242,22 +264,35 @@ class SlamFeatureDetector(object):
         for idx in range(len(img_msg)):
             img_msg[idx].header.stamp = time_now
             self.slam_features.img_pub[idx].publish(img_msg[idx])
+        
+        #if rospy.Time.now().to_sec() > 1336386861.7:
+        #    import matplotlib as mpl
+        #    from mpl_toolkits.mplot3d import Axes3D
+        #    import matplotlib.pyplot as plt
+        #    import pylab
+        #    pylab.ion()
+        #    fig = plt.figure()
+        #    ax = fig.gca(projection="3d")
+        #    ax.scatter3D(points3d_states[:, 0], points3d_states[:, 1], points3d_states[:, 2])
+        #    plt.draw()
+        #    code.interact(local=locals())
 
 
 if __name__ == '__main__':
     try:
         import subprocess
         # Load ROS parameters
-        config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "slam_feature_detector.yaml")
-        if len(config_file_list):
-            config_file = config_file_list[0]
+        udg_pandora_base_dir = roslib.packages.get_pkg_dir("udg_pandora")
+        config_file = udg_pandora_base_dir+"/config/slam_feature_detector.yaml"
+        try:
             subprocess.call(["rosparam", "load", config_file])
-        else:
+        except IOError:
             print "Could not locate slam_feature_detector.yaml, using default parameters"
             set_default_parameters()
-        
+        im_l = np.asarray(cv2.imread("image2_rect_left.jpg"))
+        im_r = np.asarray(cv2.imread("image2_rect_right.jpg"))
         rospy.init_node('slam_feature_detector')
         slam_feature_detector = SlamFeatureDetector(rospy.get_name())
+        #slam_feature_detector.detect_slam_features(im_l, im_r)
         rospy.spin()
     except rospy.ROSInterruptException: pass

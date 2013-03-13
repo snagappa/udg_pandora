@@ -18,7 +18,7 @@ from kalmanfilter import np_kf_predict_cov, kf_predict_cov, np_kf_update_cov, kf
 from collections import namedtuple
 import copy
 import code
-from misctools import STRUCT, rotation_matrix
+from misctools import STRUCT, rotation_matrix, circmean, normalize_angle
 import sys
 import traceback
 from joblib import Parallel, delayed
@@ -35,6 +35,27 @@ blas.SET_DEBUG(False)
 SAMPLE = namedtuple("SAMPLE", "weight state covariance")
 MIXTURE = namedtuple("MIXTURE", "weights states covs parent_ned parent_rpy")
 
+
+_vars_ = None
+
+def _init_vars_():
+    global _vars_
+    # Prune components less than this weight
+    _config_root_ = "phdslam/vars/"
+    _vars_ = STRUCT()
+    _vars_.prune_threshold = rospy.get_param(_config_root_+"prune_threshold")
+    # Merge components  closer than this threshold
+    _vars_.merge_threshold = rospy.get_param(_config_root_+"merge_threshold")
+    # Maximum number of components to track
+    _vars_.max_num_components = rospy.get_param(_config_root_+"max_num_components")
+    # Intensity of new targets
+    _vars_.birth_intensity = rospy.get_param(_config_root_+"birth_intensity")
+    # Intensity of clutter in the scene
+    _vars_.clutter_intensity = rospy.get_param(_config_root_+"clutter_intensity")
+    # Probability of detection of targets in the FoV
+    _vars_.pd = rospy.get_param(_config_root_+"pd")
+        
+        
 class GMPHD(object):
     #cdef np.ndarray weights, parent_ned, parent_rpy
     #cdef np.ndarray[double, ndim=2] states
@@ -60,27 +81,11 @@ class GMPHD(object):
         self._estimate_ = SAMPLE(np.zeros(0), 
                                  np.zeros((0, 3)), np.zeros((0, 3, 3)))
         
-        self.vars = STRUCT()
+        global _vars_
+        if _vars_ is None:
+            _init_vars_()
         # Prune components less than this weight
-        config_root = "phdslam/vars/"
-        self.vars.prune_threshold = (
-            rospy.get_param(config_root+"prune_threshold"))
-        # Merge components  closer than this threshold
-        self.vars.merge_threshold = (
-            rospy.get_param(config_root+"merge_threshold"))
-        # Maximum number of components to track
-        self.vars.max_num_components = (
-            rospy.get_param(config_root+"max_num_components"))
-        # Intensity of new targets
-        self.vars.birth_intensity = (
-            rospy.get_param(config_root+"birth_intensity"))
-        # Intensity of clutter in the scene
-        self.vars.clutter_intensity = (
-            rospy.get_param(config_root+"clutter_intensity"))
-        # Probability of detection of targets in the FoV
-        self.vars.pd = rospy.get_param(config_root+"pd")
-        #self.vars.far_fov = 5.0
-        #self.vars.ps = 1.0
+        self.vars = copy.copy(_vars_)
         
         # Temporary variables to speed up some processing across different functions
         self.tmp = STRUCT()
@@ -166,7 +171,9 @@ class GMPHD(object):
         cdef np.ndarray[double, ndim=1] b_wt
         cdef np.ndarray[double, ndim=2] b_st
         cdef np.ndarray[double, ndim=3] b_cv
-        b_wt, b_st, b_cv = self.camera_birth(self.parent_ned, self.parent_rpy, 
+        #b_wt, b_st, b_cv = self.camera_birth(self.parent_ned, self.parent_rpy, 
+        #                                     features_rel, features_cv)
+        b_wt, b_st, b_cv = self.camera_birth_disparity(self.parent_ned, self.parent_rpy, 
                                              features_rel, features_cv)
         if APPEND and b_wt.shape[0]:
             self.flags.ESTIMATE_IS_VALID = False
@@ -201,6 +208,7 @@ class GMPHD(object):
         observations - numpy array of size Nx3
         observation_noise - numpy array of size Nx3x3
         """
+        
         cdef int num_observations, z_dim, obs_count
         cdef np.ndarray[double, ndim=1] detection_probability
         cdef np.ndarray[double, ndim=1] clutter_pdf, clutter_intensity
@@ -211,6 +219,7 @@ class GMPHD(object):
         cdef np.ndarray[double, ndim=2] this_observation_noise
         cdef np.ndarray[double, ndim=3] this_detected_covs
         cdef np.ndarray[double, ndim=2] upd_states, residuals
+        #cdef np.ndarray[double, ndim=2] proj_mat, jacobian
         cdef double normalisation_factor
         
         self.flags.ESTIMATE_IS_VALID = False
@@ -225,7 +234,7 @@ class GMPHD(object):
             return self.slam_info
         camera = self.sensors.camera
         detection_probability = camera.pdf_detection(self.states, margin=0)
-        clutter_pdf = camera.pdf_clutter(observations)
+        clutter_pdf = 1./(1024*768)*np.ones(observations.shape[0])#camera.pdf_clutter(observations)
         clutter_intensity = self.vars.clutter_intensity*clutter_pdf
         
         try:
@@ -258,10 +267,17 @@ class GMPHD(object):
                 if observations.shape[0]:
                     # Observations will appear at position given by opposite
                     # rotation of the parent
-                    h_mat = np.asarray(
-                        self.sensors.camera.observation_jacobian()[np.newaxis], 
-                        order='C')
-                    pred_z = self.sensors.camera.observations(detected_states)[0]
+                    #proj_mat = np.array(self.sensors.camera.projection_matrix()[0])[:3, :3]
+                    #jacobian = np.array(self.sensors.camera.observation_jacobian())
+                    #h_mat = np.asarray(np.dot(proj_mat, jacobian)[np.newaxis], order='C')
+                    h_mat = np.asarray(np.array(self.sensors.camera.observation_jacobian())[np.newaxis], order='C')
+                    
+                    #h_mat = np.asarray(
+                    #    self.sensors.camera.observation_jacobian()[np.newaxis], 
+                    #    order='C')
+                    #pred_z = self.sensors.camera.observations(detected_states)[0]
+                    
+                    pred_z = self.sensors.camera.observations_px(detected_states)
                     # Do a single covariance update if equal observation noise
                     if np.all(observation_noise == observation_noise[0]):
                         EQUAL_OBS_NOISE = True
@@ -300,7 +316,7 @@ class GMPHD(object):
                     #code.interact(local=locals())
                     # Normalise the weights
                     normalisation_factor = ( clutter_intensity[obs_count] + 
-                                             self.vars.birth_intensity +
+                                             #self.vars.birth_intensity +
                                              upd_weights.sum() )
                     upd_weights /= normalisation_factor
                     #print "Obs Index: ", str(obs_count+1)
@@ -603,7 +619,7 @@ class GMPHD(object):
         self.estimate()
         # Perform normal prune
         #self.prune()
-        return slam_info
+        return self, slam_info
     
     def intensity(self):
         """phd.intensity() -> intensity
@@ -655,7 +671,60 @@ class GMPHD(object):
                         features_cv = features_cv.copy()
                     birth_cv = features_cv
         return (birth_wt, birth_st, birth_cv)
+    
+    def camera_birth_disparity(self, np.ndarray[double, ndim=1] parent_ned not None,
+                     np.ndarray[double, ndim=1] parent_rpy not None,
+                     np.ndarray[double, ndim=2] features_rel not None, 
+                     np.ndarray[double, ndim=3] features_cv=None):
+        """phd.camera_birth(parent_ned, parent_rpy, features_rel, 
+            features_cv=None) -> birth_weights, birth_states, birth_covariances
+        Create birth components using features visible from the camera.
+        parent_ned - numpy array of parent position (north, east, down)
+        parent_rpy - numpy array of parent orientation (roll, pitch, yaw)
+        features_rel - Nx3 numpy array of feature positions relative to parent
+        features_cv - Nx3x3 numpy array of covariance of the features
+        """
+        cdef np.ndarray[double, ndim=1] birth_wt
+        cdef np.ndarray[double, ndim=2] birth_st
+        cdef np.ndarray[double, ndim=3] birth_cv
+        cdef np.ndarray[double, ndim=2] birth_features
+        cdef np.ndarray[double, ndim=2] img_pts_l, img_pts_r
         
+        camera = self.sensors.camera
+        birth_wt = np.empty(0)
+        birth_st = np.empty((0, 3))
+        birth_cv = np.empty((0, 3, 3))
+        if features_rel.shape[0]:
+            # Select features which are not on the edge of the FoV
+            #visible_idx = camera.is_visible_relative2sensor(features_rel, 
+            #    None, margin=0)
+            img_pts_l = features_rel[:, :2].copy()
+            img_pts_r = features_rel[:, :2].copy()
+            img_pts_r[:, 0] -= features_rel[:, 2]
+            points3d = camera.triangulate(img_pts_l, img_pts_r)
+            points_range = np.sqrt((points3d**2).sum(axis=1))
+            points3d_scale = np.asarray([[0.001, 0.001, 0.01]])**2*points_range[:, np.newaxis]
+            covs = points3d_scale[:, np.newaxis, :]*np.eye(3)[np.newaxis]
+            
+            birth_features = points3d #[visible_idx]
+            features_cv = covs #[visible_idx]
+            if birth_features.shape[0]:
+                birth_wt = self.vars.birth_intensity*np.ones(birth_features.shape[0])
+                try:
+                    birth_st = camera.to_world_coords(birth_features)
+                except:
+                    print "tf conversion to world coords failed!"
+                    exc_info = sys.exc_info()
+                    print "GMPHD:CAMERA_BIRTH():\n", traceback.print_tb(exc_info[2])
+                    raise
+                else:
+                    if features_cv is None:
+                        features_cv = np.repeat([np.eye(3)], birth_features.shape[0], 0)
+                    else:
+                        features_cv = features_cv.copy()
+                    birth_cv = features_cv
+        return (birth_wt, birth_st, birth_cv)
+    
     def camera_pd(self, np.ndarray[double, ndim=1] parent_ned,
                   np.ndarray[double, ndim=1] parent_rpy,
                   np.ndarray[double, ndim=2] features_abs):
@@ -754,7 +823,7 @@ class RBPHDSLAM2(object):
         self.vehicle.kf_state = None #np.zeros(3)
         self.vehicle.kf_state_cov = None #np.zeros((3, 3))
         # Vehicle orientation (RPY)
-        self.vehicle.orientation = np.zeros(3)
+        self.vehicle.orientation = np.zeros((nparticles, 3))
         # Particle representation for the vehicle position
         # Weights for the particles
         self.vehicle.weights = None
@@ -804,6 +873,7 @@ class RBPHDSLAM2(object):
         new_states = self.vehicle.states if states is None else states
         self.vehicle.weights[:] = new_weights
         self.vehicle.position[:, range(new_states.shape[1])] = new_states
+        self._copy_state_to_map_(self.vehicle.position)
     
     def get_position(self):
         return self.vehicle.position
@@ -822,6 +892,7 @@ class RBPHDSLAM2(object):
             1.0/self.vars.nparticles *np.ones(self.vars.nparticles))
         # Particles representing the x,y,z position
         self.vehicle.position = np.zeros((self.vars.nparticles, 3))
+        self._copy_state_to_map_(self.vehicle.position)
     
     def trans_matrices(self, ctrl_input, delta_t):
         """trans_matrices(self, ctrl_input, delta_t)
@@ -845,8 +916,9 @@ class RBPHDSLAM2(object):
         
         # Extract noise covariances for KF and PF from the joint matrix
         # Correlations between velocity and position are ignored
-        pf_process_noise = np.asarray(
-            sc_process_noise[np.ix_(range(3), range(3))], order='C')
+        sc_process_noise2 = np.dot(scale_matrix, 
+            np.dot(self.vars.Q*[4, 1, 1], scale_matrix.T)).squeeze()
+        pf_process_noise = np.asarray(sc_process_noise2[:3, :3], order='C')
         #kf_process_noise = np.asarray(
         #    sc_process_noise[np.ix_(range(3, 6), range(3, 6))], order='C')
         
@@ -856,14 +928,22 @@ class RBPHDSLAM2(object):
         return ((comb_trans_mat, sc_process_noise), 
                 (pf_trans_mat, pf_process_noise))
     
-    def _copy_state_to_map_(self, parent_ned=None, ctrl_input=None, rot_matrix=None):
-        for i in range(self.vars.nparticles):
+    def _copy_state_to_map_(self, parent_ned=None, ctrl_input=None, rot_matrix=None, index=None):
+        if not index is None:
             if not parent_ned is None:
-                self.vehicle.maps[i].parent_ned = parent_ned[i]
+                self.vehicle.maps[index].parent_ned = np.squeeze(parent_ned)
             if not ctrl_input is None:
-                self.vehicle.maps[i].parent_rpy = ctrl_input
+                self.vehicle.maps[index].parent_rpy = ctrl_input
             if not rot_matrix is None:
-                self.vehicle.maps[i].vars.H = rot_matrix
+                self.vehicle.maps[index].vars.H = rot_matrix
+        else:
+            for i in range(self.vars.nparticles):
+                if not parent_ned is None:
+                    self.vehicle.maps[i].parent_ned = parent_ned[i]
+                if not ctrl_input is None:
+                    self.vehicle.maps[i].parent_rpy = ctrl_input
+                if not rot_matrix is None:
+                    self.vehicle.maps[i].vars.H = rot_matrix
     
     def predict(self, ctrl_input, predict_to_time):
         """predict(self, ctrl_input, predict_to_time)
@@ -874,31 +954,68 @@ class RBPHDSLAM2(object):
             self.last_time.predict = predict_to_time
             return
         delta_t = predict_to_time - self.last_time.predict
-        self.last_time.predict = predict_to_time
+        
         if delta_t < 0:
             return
         
+        vehicle = self.vehicle
+        # Predict yaw
+        yaw_noise = 0.2*delta_t*np.random.randn(self.vars.nparticles)
+        self.vehicle.orientation[:, 2] = normalize_angle(self.vehicle.orientation[:, 2]+yaw_noise)
+        #yaw_diff = normalize_angle(ctrl_input[2] - self.vehicle.orientation[:, 2])
+        #yaw_diff_lt = yaw_diff < -0.2
+        #yaw_diff_gt = yaw_diff >  0.2
+        #yaw_diff_idx = np.bitwise_or(yaw_diff_lt, yaw_diff_gt)
+        #self.vehicle.orientation[yaw_diff_idx, 2] = 0.01*np.random.randn(yaw_diff_idx.sum())+ctrl_input[2]
+        
+        # Use average yaw for prediction
+        avg_yaw = circmean(vehicle.orientation[:, 2], weights=vehicle.weights)
+        ctrl_input = (ctrl_input[0], ctrl_input[1], avg_yaw)
+        
+        self.last_time.predict = predict_to_time
         # Predict states - get transition matrices and process noise
         ((kf_trans_mat, kf_process_noise),
          (pf_trans_mat, pf_process_noise))= (
              self.trans_matrices(ctrl_input, delta_t))
         
-        vehicle = self.vehicle
         # Kalman filter prediction
         # Predict the velocity - constant velocity model
         pred_kf_state = np.dot(kf_trans_mat, vehicle.kf_state)
         pred_kf_state_cov = np_kf_predict_cov(
             vehicle.kf_state_cov, kf_trans_mat, kf_process_noise)
         
+        # Save prediction
+        vehicle.kf_state = pred_kf_state
+        vehicle.kf_state_cov = pred_kf_state_cov
+    
+    def predict_particles_orig(self, ctrl_input, predict_to_time):
+        """predict(self, ctrl_input, predict_to_time)
+        Predict the state to the specified time given the control input
+        (roll, pitch, yaw)
+        """
+        if self.last_time.predict_particles == 0:
+            self.last_time.predict_particles = predict_to_time
+            return
+        delta_t = predict_to_time - self.last_time.predict_particles
+        
+        if delta_t <= 0:
+            return
+        
+        self.last_time.predict_particles = predict_to_time
+        vehicle = self.vehicle
+        # Kalman filter prediction
+        # Predict the velocity - constant velocity model
+        pred_kf_state = vehicle.kf_state
+        pred_kf_state_cov = vehicle.kf_state_cov
         # Assume constant position model for first half of particles and
         # constant velocity model for the other half
         # Particle filter prediction
         # Draw noise samples from the Kalman filter distribution (covariance)
-        kf_noise_samples = np.random.multivariate_normal(
-            np.zeros(vehicle.kf_state.shape[0]), pred_kf_state_cov*self.vars.prediction_noise_scaling, self.vars.nparticles)
+        #kf_noise_samples = np.random.multivariate_normal(
+        #    np.zeros(vehicle.kf_state.shape[0]), pred_kf_state_cov*self.vars.prediction_noise_scaling, self.vars.nparticles)
         #position_noise = kf_noise_samples[:, :3]
         # Generate samples for the velocity
-        velocity_samples = kf_noise_samples[:, 3:]
+        velocity_samples = np.zeros((self.vars.nparticles, 3)) #kf_noise_samples[:, 3:]
         velocity_samples += pred_kf_state[3:]
         
         # Jump Markov model
@@ -914,24 +1031,115 @@ class RBPHDSLAM2(object):
         
         # Set velocity_samples to zero for mode=0
         velocity_samples[cp_nparticles] = 0
+        pred_position = np.zeros((self.vars.nparticles, 3))
+        
+        # Predict states - get transition matrices and process noise
+        ((kf_trans_mat, kf_process_noise),
+         (pf_trans_mat, pf_process_noise))= (
+             self.trans_matrices(ctrl_input, delta_t))
+             
         # Get the rotation matrix
         rot_mat = pf_trans_mat[:, 3:]
         # Predict according to motion model
         pred_position = np.asarray(
             vehicle.position + np.dot(rot_mat, velocity_samples.T).T, order='C')
-        # Generate noise
-        position_noise = np.random.multivariate_normal(
-            np.zeros(3), pf_process_noise, self.vars.nparticles)
-        pred_position += position_noise
-        
-        # Save prediction
-        vehicle.kf_state = pred_kf_state
-        vehicle.kf_state_cov = pred_kf_state_cov
-        vehicle.position = pred_position
+    
+        # Generate noise only on x and y
+        if self.vars.nparticles > 1:
+            if self.vars.imm_ratio < 1:
+                position_noise = np.squeeze(np.random.multivariate_normal(np.zeros(2),
+                    pf_process_noise[:2, :2]*self.vars.prediction_noise_scaling,
+                    self.vars.nparticles))
+                    #(0.01**2)*np.eye(2), self.vars.nparticles)
+            else:
+                position_noise = np.random.multivariate_normal(np.zeros(2),
+                    (0.03**2)*np.eye(2), 1)
+            pred_position[:, :2] += position_noise
         
         # Copy the predicted states to the "parent state" attribute and 
         # perform a prediction for the map
         self._copy_state_to_map_(pred_position, ctrl_input, rot_mat)
+        #code.interact(local=locals())
+        # Save prediction
+        vehicle.position = pred_position
+    
+    def predict_particles(self, ctrl_input, predict_to_time):
+        """predict(self, ctrl_input, predict_to_time)
+        Predict the state to the specified time given the control input
+        (roll, pitch, yaw)
+        """
+        if self.last_time.predict_particles == 0:
+            self.last_time.predict_particles = predict_to_time
+            return
+        delta_t = predict_to_time - self.last_time.predict_particles
+        
+        if delta_t <= 0:
+            return
+        
+        self.last_time.predict_particles = predict_to_time
+        
+        vehicle = self.vehicle
+        # Kalman filter prediction
+        # Predict the velocity - constant velocity model
+        pred_kf_state = vehicle.kf_state
+        pred_kf_state_cov = vehicle.kf_state_cov
+        # Assume constant position model for first half of particles and
+        # constant velocity model for the other half
+        # Particle filter prediction
+        # Draw noise samples from the Kalman filter distribution (covariance)
+        #kf_noise_samples = np.random.multivariate_normal(
+        #    np.zeros(vehicle.kf_state.shape[0]), pred_kf_state_cov*self.vars.prediction_noise_scaling, self.vars.nparticles)
+        #position_noise = kf_noise_samples[:, :3]
+        # Generate samples for the velocity
+        velocity_samples = np.zeros((self.vars.nparticles, 3)) #kf_noise_samples[:, 3:]
+        velocity_samples += pred_kf_state[3:]
+        
+        # Jump Markov model
+        # Sample the mode (constant position/velocity)
+        if self.vars.use_jms:
+            mode = np.random.random(self.vars.nparticles)
+            mode[mode > self.vars.imm_ratio] = 1
+            mode[mode < 1] = 0
+            mode += vehicle.mode
+            mode = mode % 2
+            vehicle.mode = mode
+        cp_nparticles = np.where(vehicle.mode == 0)[0]
+        
+        # Set velocity_samples to zero for mode=0
+        velocity_samples[cp_nparticles] = 0
+        pred_position = np.zeros((self.vars.nparticles, 3))
+        
+        for pindex in range(self.vars.nparticles):
+            # Predict states - get transition matrices and process noise
+            ((kf_trans_mat, kf_process_noise),
+             (pf_trans_mat, pf_process_noise))= (
+                 self.trans_matrices(vehicle.orientation[pindex], delta_t))
+                 
+            # Get the rotation matrix
+            rot_mat = pf_trans_mat[:, 3:]
+            # Predict according to motion model
+            pred_position[pindex] = (vehicle.position[pindex] + 
+                np.dot(rot_mat, velocity_samples[pindex]))
+        
+            # Generate noise only on x and y
+            if self.vars.nparticles > 1:
+                if self.vars.imm_ratio < 1:
+                    position_noise = np.squeeze(np.random.multivariate_normal(np.zeros(2),
+                        pf_process_noise[:2, :2]*self.vars.prediction_noise_scaling,
+                        1))
+                        #(0.01**2)*np.eye(2), self.vars.nparticles)
+                else:
+                    position_noise = np.random.multivariate_normal(np.zeros(2),
+                        (0.03**2)*np.eye(2), 1)
+                pred_position[pindex, :2] += position_noise
+            
+            # Copy the predicted states to the "parent state" attribute and 
+            # perform a prediction for the map
+            self._copy_state_to_map_(pred_position[pindex, np.newaxis], vehicle.orientation[pindex], rot_mat, pindex)
+        #code.interact(local=locals())
+        # Save prediction
+        vehicle.position = pred_position
+        
     
     def _filter_update_(self, h_mat, r_mat, z, INPLACE=True):
         # Kalman filter update for the velocity
@@ -960,14 +1168,23 @@ class RBPHDSLAM2(object):
             if not PERFORM_UPDATE:
                 upd_kf_state = vehicle.kf_state.copy()
                 upd_kf_state_cov = vehicle.kf_state_cov.copy()
-            return vehicle.weights, upd_kf_state, upd_kf_state_cov
+            return vehicle.weights, upd_kf_state, upd_kf_state_cov, PERFORM_UPDATE
         else:
-            if PERFORM_UPDATE:
-                delta_kf_state = upd_kf_state - pred_kf_state
-                # Correct the position of particles with CV model
-                cv_nparticles = np.where(self.vehicle.mode == 1)[0]
-                vehicle.position[cv_nparticles] += delta_kf_state[:3]
-            return None
+            #if PERFORM_UPDATE:
+            #    delta_kf_state = upd_kf_state - pred_kf_state
+            #    # Correct the position of particles with CV model
+            #    cv_nparticles = np.where(self.vehicle.mode == 1)[0]
+            #    vehicle.position[cv_nparticles] += delta_kf_state[:3]
+            return PERFORM_UPDATE
+    
+    def update_imu(self, pose_angle_rpy):
+        vehicle = self.vehicle
+        vehicle.orientation[:, :2] = pose_angle_rpy[:2]
+        x_pdf = misctools.approximate_mvnpdf(np.asarray([pose_angle_rpy[2]]),
+                                             vehicle.orientation[:, 2, np.newaxis],
+                                             0.08**2*np.ones((1, 1, 1)))
+        vehicle.weights *= x_pdf
+        vehicle.weights /= vehicle.weights.sum()
     
     def update_gps(self, gps):
         pass
@@ -984,9 +1201,10 @@ class RBPHDSLAM2(object):
         else:
             r_mat = self.vars.dvl_w_R #np.array([self.vars.dvl_w_R])
         h_mat = self.vars.dvlH #np.array([self.vars.dvlH])
-        self._filter_update_(h_mat, r_mat, dvl, INPLACE=True)
+        updated = self._filter_update_(h_mat, r_mat, dvl, INPLACE=True)
         # Copy the particle state to the PHD parent state
         self._copy_state_to_map_(self.vehicle.position)
+        return updated
     
     def update_svs(self, svs):
         """update_svs(self, svs)
@@ -1012,14 +1230,23 @@ class RBPHDSLAM2(object):
         else:
             features_pos = np.empty((0, 3))
             features_noise = np.empty((0, 3, 3))
+        # Explicit for-loop
+        cdef list slam_info
         slam_info = [None]*self.vars.nparticles
         cdef Py_ssize_t i, nparticles = self.vars.nparticles
         with nogil, parallel():
             for i in prange(nparticles, schedule='guided'):
                 with gil:
                     slam_info[i] = self.vehicle.maps[i].iterate(features_pos, features_noise)
+        
+        # List comprehension
         #slam_info = [self.vehicle.maps[i].iterate(features_pos, features_noise) 
         #    for i in range(self.vars.nparticles)]
+        
+        # Parallel
+        #map_slam_info = Parallel(n_jobs=2)(delayed(_update_features_parallel_)(self, idx, features_pos, features_noise) for idx in range(self.vars.nparticles))
+        #self.vehicle.maps, slam_info = zip(*map_slam_info)
+        
         print "map size: ", self.vehicle.maps[0].weights.shape[0]
         # Overflow errors
         #slam_weight_update = np.array([slam_info[i].likelihood
@@ -1053,14 +1280,25 @@ class RBPHDSLAM2(object):
             cam_positions = [self.vehicle.maps[_idx_].sensors.camera.to_world_coords(np.zeros((1, 3)))
                             for _idx_ in range(self.vars.nparticles)]
             cam_positions = np.squeeze(cam_positions)
+            if cam_positions.ndim == 1:
+                cam_positions = cam_positions[np.newaxis]
             
             vehicle = self.vehicle
             position, cov = misctools.sample_mn_cv(vehicle.position, 
                                                    vehicle.weights)
-            cam_position, _cov_ = misctools.sample_mn_cv(cam_positions, 
-                                                   vehicle.weights)
+            velocity = self.vehicle.kf_state[3:]
+            velocity_cov = self.vehicle.kf_state_cov[3:, 3:]
+            if np.prod(cam_positions.shape):
+                cam_position, _cov_ = misctools.sample_mn_cv(cam_positions, 
+                                                       vehicle.weights)
+                #code.interact(local=locals())
+            else:
+                print "Could not compute camera position"
+                cam_position = np.zeros(3)
+            
             self._estimate_.vehicle.ned = SAMPLE(1, position, cov)
             self._estimate_.vehicle.cam_ned = SAMPLE(1, cam_position, cov)
+            self._estimate_.vehicle.vel_xyz = SAMPLE(1, velocity, velocity_cov)
             max_weight_idx = vehicle.weights.argmax()
             self._estimate_.map = vehicle.maps[max_weight_idx].estimate()
             self._estimate_.mixture = vehicle.maps[max_weight_idx].copy()
@@ -1091,8 +1329,14 @@ class RBPHDSLAM2(object):
         if not self.vars.use_jms:
             cp_nparticles = int(np.floor(self.vars.imm_ratio*nparticles))
             cv_nparticles = nparticles - cp_nparticles
-            cp_resample_index = misctools.get_resample_index(vehicle.weights, cp_nparticles)
-            cv_resample_index = misctools.get_resample_index(vehicle.weights, cv_nparticles)
+            if cp_nparticles:
+                cp_resample_index = misctools.get_resample_index(vehicle.weights, cp_nparticles)
+            else:
+                cp_resample_index = np.empty(0, dtype=int)
+            if cv_nparticles:
+                cv_resample_index = misctools.get_resample_index(vehicle.weights, cv_nparticles)
+            else:
+                cv_resample_index = np.empty(0, dtype=int)
             resample_index = np.hstack((cp_resample_index, cv_resample_index))
         else:
             resample_index = misctools.get_resample_index(vehicle.weights, nparticles)
@@ -1100,6 +1344,7 @@ class RBPHDSLAM2(object):
         # self.states is a numpy array so the indexing operation forces a copy
         vehicle.weights = np.ones(nparticles, dtype=float)/nparticles
         vehicle.position = np.asarray(vehicle.position[resample_index], order='C')
+        vehicle.orientation = np.asarray(vehicle.orientation[resample_index], order='C')
         
         # Only resample the maps if they are populated
         num_map_components = np.asarray(

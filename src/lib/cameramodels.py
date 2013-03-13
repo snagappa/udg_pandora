@@ -612,7 +612,17 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def observations(self, states):
         rel_states = self.from_world_coords(states)
         return rel_states
-
+    
+    def observations_px(self, states):
+        rel_states_l, rel_states_r = self.from_world_coords(states)
+        img_pts_l = self.left.project3dToPixel(rel_states_l)
+        img_pts_r = self.right.project3dToPixel(rel_states_l)
+        if img_pts_l.shape[0]:
+            disparity_obs = np.hstack((img_pts_l, (img_pts_l[:, 0]-img_pts_r[:, 0])[:, np.newaxis]))
+        else:
+            disparity_obs = np.empty((0, 3))
+        return disparity_obs
+    
 class _CameraFeatureDetector_(object):
     def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
         self._flann_matcher_ = None

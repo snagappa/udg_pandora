@@ -30,6 +30,8 @@ import math
 from subprocess import call
 import yaml
 from collections import namedtuple
+from lib import offline_slam_worker2
+import lib.local_tf as tf
 
 #for plotting
 import matplotlib as mpl
@@ -152,6 +154,24 @@ class message_loopback(object):
         self.pub.publish(self._msg_out_)
     
 
+def read_trident_gt():
+    gtfilename = "/opt/ros/bags/trident/cirs-timefixed-run3.txt"
+    reader = csv.DictReader(open(gtfilename))
+    trident_gt_timestamps = []
+    trident_gt_positions = []
+    trident_gt_orientations = []
+    for msg in reader:
+        trident_gt_timestamps.append(msg["timestamp"]);
+        trident_gt_positions.append([msg["x"], msg["y"], msg["z"]])
+        trident_gt_orientations.append(
+            tf.transformations.euler_from_quaternion(
+                (msg["qx"], msg["qy"], msg["qz"], msg["qw"])))
+    trident_gt_timestamps = np.asarray(trident_gt_timestamps, dtype=np.double)
+    trident_gt_positions = np.asarray(trident_gt_positions, dtype=np.double)
+    trident_gt_orientations = np.asarray(trident_gt_orientations, dtype=np.double)
+    return trident_gt_timestamps, trident_gt_positions, trident_gt_orientations
+
+
 def process_bag_file(bag_filename, g500slam, callback_dictionary):
     global bag_clock
     bag = rosbag.Bag(bag_filename)
@@ -217,6 +237,7 @@ def plotEllipse(pos, P, edge='black', face='0.3'):
     ax.add_patch(ellipsePlot);
     return ellipsePlot;
 
+trident_gt_timestamps, trident_gt_positions, trident_gt_orientations = read_trident_gt()
 def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT_DIR=None):
     image_proc_process = None
     try:
@@ -243,11 +264,12 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
             nparticles = 1
         else:
             # OR particle filter
-            nparticles = 50
+            nparticles = 500
             #g500slam.slam_worker._filter_update_ = g500slam.slam_worker._pf_update_
             #g500slam.slam_worker._filter_update_ = g500slam.slam_worker._opt_pf_update_
         g500slam = G500_SLAM("phdslam", nparticles=nparticles)
         config["phdslam/nparticles"] = nparticles
+        gmphd = offline_slam_worker2.GMPHD()
         
         print "Creating callback dictionary..."
         # Create dictionary for callbacks
@@ -262,6 +284,8 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
             
             features_topic = "/slam_feature_detector/features"
             features = message_loopback(in_topic=features_topic, in_type=PointCloud2)
+            disparity_topic = "/slam_feature_detector/disparity"
+            disparity = message_loopback(in_topic=disparity_topic, in_type=PointCloud2)
             img_features = message_loopback(in_topic="/slam_feature_detector/features_img_l", in_type=Image)
             img_landmarks_pub = message_loopback("/phdslam/img_landmarks", Image)
             imc = image_converter()
@@ -275,18 +299,16 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
         # Read bumblebee pickle file
         camera_pickle_file = "bumblebee.p"
         print "Loading information from "+camera_pickle_file
-        camera_info_pickle = roslib.packages.find_resource("udg_pandora",
-            camera_pickle_file)
-        if len(camera_info_pickle):
-            camera_info_pickle = camera_info_pickle[0]
-            try:
-                cinfo_l, cinfo_r = tuple(
-                    pickle.load(open(camera_info_pickle, "rb")))
-            except IOError:
-                print "Failed to load camera information!"
-                rospy.logfatal("Could not read camera parameters")
-                raise rospy.exceptions.ROSException(
-                    "Could not read camera parameters")
+        camera_info_pickle = (roslib.packages.get_pkg_dir("udg_pandora")+
+            "/src/lib/" + camera_pickle_file)
+        try:
+            cinfo_l, cinfo_r = tuple(
+                pickle.load(open(camera_info_pickle, "rb")))
+        except IOError:
+            print "Failed to load camera information!"
+            rospy.logfatal("Could not read camera parameters")
+            raise rospy.exceptions.ROSException(
+                "Could not read camera parameters")
         def pub_cinfo_l(msg):
             print "pub_cinfo_l"
             #code.interact(local=locals())
@@ -300,19 +322,46 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
         pub_cinfo_l.cinfo_l = cinfo_l
         pub_cinfo_r.cinfo_r = cinfo_r
         
+        ori_offset = 40*np.pi/180+np.pi
+        def update_imu(imu):
+            # fix imu msg
+            timestamp = imu.header.stamp.to_sec()
+            ts_idx = np.where(trident_gt_timestamps <= timestamp)[0][-1]
+            old_ori = tf.transformations.euler_from_quaternion(
+                (imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w))
+            new_ori = tf.transformations.quaternion_from_euler(
+                old_ori[0], old_ori[1], trident_gt_orientations[ts_idx, 2]+ori_offset)
+            imu.orientation.x = new_ori[0]
+            imu.orientation.y = new_ori[1]
+            imu.orientation.z = new_ori[2]
+            imu.orientation.w = new_ori[3]
+            # perform update
+            g500slam.update_imu(imu)
+        
+        gmphd.sensors.camera.fromCameraInfo(cinfo_l, cinfo_r)
+        gmphd.sensors.camera.set_tf_frame("world_sensor", "world_sensor_right")
+        
+        USE_DVL_Z = True
         callback_dictionary = {
             SENSOR_ROOT+"imu"                       : g500slam.update_imu, 
-            SENSOR_ROOT+"teledyne_explorer_dvl"     : g500slam.update_dvl,
-            SENSOR_ROOT+"linkquest_navquest600_dvl" : g500slam.updateLinkquestDvl,
             SENSOR_ROOT+"tritech_igc_gyro"          : None,
             SENSOR_ROOT+"valeport_sound_velocity"   : g500slam.update_svs}
+        if USE_DVL_Z:
+            callback_dictionary.update({
+            SENSOR_ROOT+"teledyne_explorer_dvl"     : g500slam.update_dvl,
+            SENSOR_ROOT+"linkquest_navquest600_dvl" : g500slam.updateLinkquestDvl,})
+        else:
+            g500slam.config.init.dvl = True
+        config["phdslam/use_dvl"] = USE_DVL_Z
+        
         #if PERFORM_SLAM:
         callback_dictionary.update({
                 BAG_CAMERA_ROOT+"left/image_raw"    : cam_img_l.publish,
                 BAG_CAMERA_ROOT+"left/camera_info"  : cam_info_l.publish,
                 BAG_CAMERA_ROOT+"right/image_raw"   : cam_img_r.publish,
                 BAG_CAMERA_ROOT+"right/camera_info" : cam_info_r.publish,
-                "/slam_feature_detector/features"   : g500slam.update_features})
+                #features_topic                      : g500slam.update_features,
+                disparity_topic                     : g500slam.update_features})
         
         # File name for output bag
         if OUT_DIR is None:
@@ -336,9 +385,9 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
             image_proc_process = subprocess.Popen(image_proc_cmd)
             # image viewers:
             # image rect
-            subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/stereo_camera/left/image_rect_color"])
+            #subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/stereo_camera/left/image_rect_color"])
             # features
-            subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/slam_feature_detector/features_img_l"])
+            #subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/slam_feature_detector/features_img_l"])
             # image landmarks
             subprocess.Popen(["rosrun", "image_view", "image_view", "image:=/phdslam/img_landmarks"])
         
@@ -348,7 +397,7 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
         weights = []
         plot_last_time = bag_clock.get_elapsed_time()
         pcl_helper = pcl_xyz_cov()
-        
+        counter = 0
         # Open output bag file
         if OUT_DIR is None:
             out_directory = tempfile.mkdtemp(prefix=dir_prefix, dir='./')
@@ -361,11 +410,14 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
         img_savefile_num = 0
         update_figures = False
         sync_cam_msgs = False
-        
+        from simulator import groundtruth_simulator
         for bagfile in bagfiles_list:
             print "Processing ", bagfile
             out_bagfile = out_directory+"/"+bagfile[bagfile.rfind('/')+1:]
             slamout_bag = rosbag.Bag(out_bagfile, "w", compression="bz2")
+            
+            first_landmarks = None
+            
             
             bag = rosbag.Bag(bagfile)
             itr = bag.read_messages()
@@ -402,7 +454,8 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                     
                     if (cam_msg_stamps[0] == cam_msg_stamps[1] == cam_msg_stamps[2] == cam_msg_stamps[3]):
                         sync_cam_msgs = True
-                        update_figures = True
+                        if  (counter % 5) == 0:
+                            update_figures = True
                         cam_msg_stamps = range(4)
                     else:
                         sync_cam_msgs = False
@@ -415,11 +468,54 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                             slam_cam_init = True
                         g500slam.publish_transforms()
                         print "waiting for features"
-                        msg = features.get_new_msg()
+                        #msg = features.get_new_msg()
+                        
+                        if nparticles == 1:
+                            msg = None
+                        else:
+                            msg = disparity.get_new_msg()
                         if not msg is None:
+                            counter += 1
+                            msg_stamp = msg.header.stamp.to_sec()
                             msg.header.stamp = rospy.Time(0)
+                        
+                            #if first_landmarks is None:
+                            #    first_landmarks = pcl_helper.from_pcl(msg)
+                            #obs = np.asarray(first_landmarks[:, :3], order='C')
+                            #obs_noise = np.array([np.diag(_landmarks_[3:6]) 
+                            #    for _landmarks_ in first_landmarks], order='C')
+                            #try:
+                            #    gmphd.iterate(obs, obs_noise)
+                            #    code.interact(local=locals())
+                            #except:
+                            #    first_landmarks = None
+                            #    pass
+                            
+                            #landmarks = pcl_helper.from_pcl(msg)
+                            #if landmarks.shape[0]:
+                            #    print "Average feature z: ", np.mean(landmarks[:, 2]), " +-", np.std(landmarks[:, 2])
+                            #    print "Vehicle altitude : ", 5-(np.mean(g500slam.slam_worker.vehicle.position[:2])+0.4), " +-", np.std(g500slam.slam_worker.vehicle.position[:,2])
+                            #    if g500slam.config.init.svs and g500slam.config.init.dvl and g500slam.config.init.imu:
+                            #        code.interact(local=locals())
                             #print "updating with features "
-                            callback_dictionary[features_topic](msg)
+                            
+                            # Get quasi-synthetic features
+                            #vehicle_rpy = tf.transformations.euler_from_quaternion(g500slam.vehicle.pose_orientation)
+                            #vehicle_rpy = (vehicle_rpy[0], vehicle_rpy[1], -(vehicle_rpy[2]-40./180.*np.pi))
+                            #visible_features, img_pts = groundtruth_simulator.get_features(
+                            #    msg_stamp)#, tf.transformations.quaternion_from_euler(*vehicle_rpy))
+                            #pcl_msg = pcl_helper.to_pcl(visible_features)
+                            #pcl_msg.header.stamp = rospy.Time(msg_stamp)
+                            #callback_dictionary[features_topic](pcl_msg)
+                            
+                            #callback_dictionary[features_topic](msg)
+                            callback_dictionary[disparity_topic](msg)
+                        
+                        if nparticles == 1:
+                            msg = None
+                        else:
+                            msg = features.get_new_msg()
+                        if not msg is None:
                             
                             # Get the features_img
                             features_img_l = img_features.get_new_msg()
@@ -451,10 +547,7 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                     if not nav_msg is None:
                         slamout_bag.write("/phdslam/nav_sts", nav_msg, bag_entry[2])
                         slamout_bag.write("/phdslam/features", pcl_map_msg, bag_entry[2])
-                        try:
-                            slamout_bag.write("/phdslam/cam_nav_sts", cam_nav_msg, bag_entry[2])
-                        except:
-                            code.interact(local=locals())
+                        slamout_bag.write("/phdslam/cam_nav_sts", cam_nav_msg, bag_entry[2])
                         if (nav_msg.header.stamp.to_sec()-timestamp[-1]) > 0.25:
                             timestamp.append(nav_msg.header.stamp.to_sec())
                             nav_ned.append((nav_msg.position.north,
@@ -471,7 +564,7 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                                            mixture.covs, mixture.parent_ned, mixture.parent_rpy)
                         pickle_file = open(mixture_pickle_filename, "w")
                         try:
-                            pickle.dump(p_obj, pickle_file)
+                            #pickle.dump(p_obj, pickle_file)
                             pickle_file.close()
                         except:
                             print "Pickling error"
@@ -485,7 +578,7 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                     ned = np.asarray(nav_ned)
                     ax.plot(ned[:, 0], ned[:, 1], label="Estimated trajectory")
                     #plot_limits = [-1, 4, -7, 3]
-                    plot_limits = [-3.5, 3.5, -3.5, 3.5]
+                    plot_limits = [-5, 5, -5, 5]
                     ax.axis(plot_limits)
                     ax.grid(True)
                     ax.legend()
@@ -506,7 +599,8 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                     pylab.figure(2)
                     ax = mpl.pyplot.gca()
                     ax.cla()
-                    pylab.barh(np.arange(len(weights))+0.5, weights, align="center")
+                    #pylab.barh(np.arange(len(weights))+0.5, weights, align="center")
+                    ax.hist(g500slam.slam_worker.vehicle.orientation[:, 2])
                     
                     # scattered particles/covariance
                     fig = plt.figure(3)
@@ -543,6 +637,7 @@ def process_bags(bagfiles_list, roscore_process, config, PERFORM_SLAM=False, OUT
                     #if img_savefile_num >= 10:
                     #    return
                     plot_last_time = bag_clock.get_elapsed_time()
+                
                 # We can't quit on Ctrl-C, so watch for roscore instead
                 if not roscore_process.poll() is None:
                     bag.close()
@@ -584,17 +679,59 @@ def plot_bag_map(bagfilename):
 def plot_bag_result(bagfilename, PLOT3D=False, PLOT=True):
     # Open the bag file
     bagfile = rosbag.Bag(bagfilename)
-    itr = bagfile.read_messages(["/phdslam/nav_sts"])
+    itr = bagfile.read_messages(["/phdslam/cam_nav_sts"])
     timestamps = []
     position = []
+    orientation = []
     for bag_entry in itr:
         msg = bag_entry[1]
-        timestamps.append(msg.header.stamp.to_sec())
+        timestamps.append(bag_entry[2].to_sec())
         position.append((msg.position.north,
                          msg.position.east,
                          msg.position.depth))
+        orientation.append((msg.orientation.roll,
+                            msg.orientation.pitch,
+                            msg.orientation.yaw))
     timestamps = np.asarray(map(np.float, timestamps))
     position = np.asarray(position)
+    orientation = np.asarray(orientation)
+    if PLOT:
+        fig = plt.figure()
+        if PLOT3D:
+            ax = fig.gca(projection='3d')
+            ax.plot(position[:, 0], position[:, 1], position[:, 2], label='Trajectory')
+        else:
+            ax = fig.gca()
+            ax.plot(position[:, 0], position[:, 1], label='Trajectory')
+        ax.legend()
+        plt.show()
+    return timestamps, position, orientation
+
+def extract_bag_results(bagfilelist, root_dir=""):
+    if type(bagfilelist) is str:
+        bagfilelist = [bagfilelist]
+    timestamps = np.zeros(0)
+    positions = np.zeros((0, 3))
+    orientations = np.zeros((0, 3))
+    for bagfilename in bagfilelist:
+        _timestamps_, _positions_, _orientations_ = plot_bag_result(root_dir+bagfilename, PLOT=False)
+        timestamps = np.hstack((timestamps, _timestamps_))
+        positions = np.vstack((positions, _positions_))
+        orientations = np.vstack((orientations, _orientations_))
+    return timestamps, positions, orientations
+
+def plot_csv_result(csv_filename, PLOT3D=False, PLOT=True):
+    csvfile = open(csv_filename)
+    reader = csv.DictReader(csvfile)
+    timestamps = []
+    position = []
+    for msg in reader:
+        timestamps.append(msg["field.header.stamp"])
+        position.append((msg["field.pose.pose.position.x"],
+                         msg["field.pose.pose.position.y"],
+                         msg["field.pose.pose.position.z"]))
+    timestamps = np.asarray(map(np.float, timestamps))
+    position = np.asarray(position, dtype=np.float64)
     if PLOT:
         fig = plt.figure()
         if PLOT3D:
@@ -607,39 +744,16 @@ def plot_bag_result(bagfilename, PLOT3D=False, PLOT=True):
         plt.show()
     return timestamps, position
 
-def extract_bag_results(bagfilelist, root_dir=""):
-    if type(bagfilelist) is str:
-        bagfilelist = [bagfilelist]
+def extract_csv_results(csvfilelist, root_dir=""):
+    if type(csvfilelist) is str:
+        csvfilelist = [csvfilelist]
     timestamps = np.zeros(0)
     positions = np.zeros((0, 3))
-    for bagfilename in bagfilelist:
-        _timestamps_, _positions_ = plot_bag_result(root_dir+bagfilename, PLOT=False)
+    for csvfilename in csvfilelist:
+        _timestamps_, _positions_ = plot_csv_result(root_dir+csvfilename, PLOT=False)
         timestamps = np.hstack((timestamps, _timestamps_))
         positions = np.vstack((positions, _positions_))
     return timestamps, positions
-
-def plot_csv_result(csv_filename, PLOT3D=False):
-    csvfile = open(csv_filename)
-    reader = csv.DictReader(csvfile)
-    timestamps = []
-    position = []
-    for msg in reader:
-        timestamps.append(msg["field.header.stamp"])
-        position.append((msg["field.pose.pose.position.x"],
-                         msg["field.pose.pose.position.y"],
-                         msg["field.pose.pose.position.z"]))
-    timestamps = np.asarray(map(np.float, timestamps))
-    position = np.asarray(position, dtype=np.float64)
-    fig = plt.figure()
-    if PLOT3D:
-        ax = fig.gca(projection='3d')
-        ax.plot(position[:, 0], position[:, 1], position[:, 2], label='Trajectory')
-    else:
-        ax = fig.gca()
-        ax.plot(position[:, 0], position[:, 1], label='Trajectory')
-    ax.legend()
-    plt.show()
-    return timestamps, position
 
 def plot_trajectory_diff(timestamps0, timestamps1, trajectory0, trajectory1):
     timestamps = []
@@ -682,5 +796,7 @@ if __name__ == "__main__":
     try:
         process_bags(bagfiles_list, roscore_process, config, args.withslam, OUT_DIR=args.outdir)
     except rospy.ROSException:
+        pass
+    finally:
         roscore_process.send_signal(signal.SIGINT)
         roscore_process.wait()
