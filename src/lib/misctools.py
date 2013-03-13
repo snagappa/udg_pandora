@@ -44,6 +44,11 @@ import pickle
 #from operator import mul, add
 #import code
 
+
+_2_pi_ = 2*np.pi
+_log_2_pi_ = np.log(_2_pi_)
+
+
 class STRUCT(object):
     def __init__(self):
         self.__objvars__ = dir(self)
@@ -538,10 +543,11 @@ def mvnpdf(x, mu, sigma, LOG=False):
         inv_sqrt_sigma = blas.dtrtri(chol_sigma, 'l')
         exp_term = np.power(blas.dgemv(inv_sqrt_sigma,residual), 2).sum(axis=1)
     
+    P = residual.shape[1]
     if LOG:
-        pdf = -0.5*exp_term - 0.5*(np.log(det_sigma)+residual.shape[1]*np.log(2*np.pi))
+        pdf = -0.5*exp_term - 0.5*(np.log(det_sigma)+P*_log_2_pi_)
     else:
-        pdf = np.exp(-0.5*exp_term)/np.sqrt(det_sigma*(2*np.pi)**residual.shape[1])
+        pdf = np.exp(-0.5*exp_term)/np.sqrt(det_sigma*(_2_pi_)**P)
     return pdf
     
     
@@ -550,10 +556,11 @@ def approximate_mvnpdf(x, mu, sigma, LOG=False):
     # Extract diagonals from sigma into a 2D array
     sigma_diag = sigma[:, range(sigma.shape[1]), range(sigma.shape[2])]
     exp_term = ((residual**2)*(1.0/sigma_diag)).sum(axis=1)
+    P = residual.shape[1]
     if LOG:
-        pdf = -0.5*exp_term - 0.5*(np.log(sigma_diag).sum()+residual.shape[1]*np.log(2*np.pi))
+        pdf = -0.5*exp_term - 0.5*(np.log(sigma_diag).sum(axis=1)+P*_log_2_pi_)
     else:
-        pdf = np.exp(-0.5*exp_term)/np.sqrt(sigma_diag.prod(axis=1)*(2*np.pi)**residual.shape[1])
+        pdf = np.exp(-0.5*exp_term)/((sigma_diag.prod(axis=1)*(_2_pi_)**P)**0.5)
     return pdf
 
 
@@ -582,6 +589,43 @@ def sample_mn_cv(x, wt=None, SYMMETRISE=False):
     if SYMMETRISE:
         blas.symmetrise(cov_x, 'l')
     return mean_x, cov_x[0]
+
+
+def circmean(samples, high=np.pi, low=-np.pi, axis=None, weights=None):
+    """
+Compute the weighted circular mean for samples in a range
+(modified from scipy.stats.circmean).
+
+Parameters
+----------
+samples : array_like
+Input array.
+high : float or int, optional
+High boundary for circular mean range. Default is ``2*pi``.
+low : float or int, optional
+Low boundary for circular mean range. Default is 0.
+axis : int, optional
+Axis along which means are computed. The default is to compute
+the mean of the flattened array.
+
+Returns
+-------
+circmean : float
+Circular mean.
+
+"""
+    ang = (samples - low)*2*np.pi / (high-low)
+    res = np.angle(np.average(np.exp(1j*ang), axis=axis, weights=weights))
+    mask = res < 0
+    if (mask.ndim > 0):
+        res[mask] += 2*np.pi
+    elif mask:
+        res = res + 2*np.pi
+    return res*(high-low)/2.0/np.pi + low
+
+
+def normalize_angle(np_array):
+    return (np_array + (2.0*np.pi*np.floor((np.pi - np_array)/(2.0*np.pi))))
 
 
 def estimate_rigid_transform_3d(pts1, pts2):
