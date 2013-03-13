@@ -11,6 +11,10 @@ from scipy import interpolate
 #value to show all the numbers in a matrix
 # numpy.set_printoptions(threshold=100000)
 
+#use to load the configuration function
+import cola2_ros_lib
+
+
 class learningDmp :
 
     def __init__(self, name):
@@ -18,94 +22,36 @@ class learningDmp :
         self.getConfig()
         rospy.loginfo('Configuration Loaded')
         self.nbSamples = len(self.demonstrations)
-        self.d = numpy.zeros(shape=(self.nbSamples,9,self.nbData))
-        self.Sigma_x = numpy.zeros(shape=(self.nbStates,3,3))
-        self.Wp = numpy.zeros(shape=(self.nbStates,3,3))
+        self.d = numpy.zeros(shape=(self.nbSamples,self.nbVar*3,self.nbData))
+        self.Sigma_x = numpy.zeros(shape=(self.nbStates,self.nbVar,self.nbVar))
+        self.Wp = numpy.zeros(shape=(self.nbStates,self.nbVar,self.nbVar))
         self.Mu_t = numpy.linspace(0,self.nbData*self.dt,self.nbStates)
         self.Sigma_t = numpy.tile((self.nbData*self.dt/self.nbStates)*0.8,[self.nbStates,1,1])
-        self.Data = numpy.zeros(shape=(9,self.nbSamples*self.nbData))
+        self.Data = numpy.zeros(shape=(self.nbVar*3,self.nbSamples*self.nbData))
         self.loadDemonstration()
         rospy.loginfo('Loaded demonstrations')
         #                        dimensions, trajectory DoF, samples of One Demo
 
 
     def getConfig(self):
-        if rospy.has_param('learning/dmp/nbData') :
-            self.nbData = rospy.get_param('learning/dmp/nbData')
-        else :
-            rospy.logerr('Prameter nbData not found')
 
-        if rospy.has_param('learning/dmp/nbDataRepro') :
-            self.nbDataRepro = rospy.get_param('learning/dmp/nbDataRepro')
-        else :
-            rospy.logerr('Prameter nbDataRepro not found')
-
-        if rospy.has_param('learning/dmp/nbDataExport') :
-            self.nbDataExport = rospy.get_param('learning/dmp/nbDataExport')
-        else :
-            rospy.logerr('Prameter nbDataExport not found')
-
-        if rospy.has_param('learning/dmp/nbVar') :
-            self.nbVar = rospy.get_param('learning/dmp/nbVar')
-        else :
-            rospy.logerr('Prameter nbVar not found')
-
-        if rospy.has_param('learning/dmp/nbStates') :
-            self.nbStates = rospy.get_param('learning/dmp/nbStates')
-        else :
-            rospy.logerr('Prameter nbStates not found')
-
-        if rospy.has_param('learning/dmp/nbDataExport') :
-            self.nbDataExport = rospy.get_param('learning/dmp/nbDataExport')
-        else :
-            rospy.logerr('Prameter nbDataExport not found')
-
-        if rospy.has_param('learning/dmp/kV') :
-            self.kV = rospy.get_param('learning/dmp/kV')
-        else :
-            rospy.logerr('Prameter kV not found')
-
-        if rospy.has_param('learning/dmp/kP') :
-            self.kP = rospy.get_param('learning/dmp/kP')
-        else :
-            rospy.logerr('Prameter kP not found')
-
-        if rospy.has_param('learning/dmp/dt') :
-            self.dt = rospy.get_param('learning/dmp/dt')
-        else :
-            rospy.logerr('Prameter dt not found')
-
-        if rospy.has_param('learning/dmp/kPmin') :
-            self.kPmin = rospy.get_param('learning/dmp/kPmin')
-        else :
-            rospy.logerr('Prameter kPmin not found')
-
-        if rospy.has_param('learning/dmp/kPmax') :
-            self.kPmax = rospy.get_param('learning/dmp/kPmax')
-        else :
-            rospy.logerr('Prameter kPmax not found')
-
-        if rospy.has_param('learning/dmp/alpha') :
-            self.alpha = rospy.get_param('learning/dmp/alpha')
-        else :
-            rospy.logerr('Prameter alpha not found')
-
-        if rospy.has_param('learning/dmp/demonstration_file') :
-            self.demonstration_file = rospy.get_param('learning/dmp/demonstration_file')
-        else :
-            rospy.logerr('Prameter demonstration_file not found')
-
-        if rospy.has_param('learning/dmp/demonstrations') :
-            self.demonstrations = rospy.get_param('learning/dmp/demonstrations')
-        else :
-            rospy.logerr('Prameter demonstration_file not found')
-
-        if rospy.has_param('learning/dmp/export_filename') :
-            self.exportFilename = rospy.get_param('learning/dmp/export_filename')
-        else :
-            rospy.logerr('Prameter export_filename not found')
-
-
+        param_dict = {'nbData': 'learning/dmp/nbData',
+                      'nbDataRepro': 'learning/dmp/nbDataRepro',
+                      'nbDataExport': 'learning/dmp/nbDataExport',
+                      'nbVar': 'learning/dmp/nbVar',
+                      'nbStates': 'learning/dmp/nbStates',
+                      'nbDataExport': 'learning/dmp/nbDataExport',
+                      'kV': 'learning/dmp/kV',
+                      'kP': 'learning/dmp/kP',
+                      'dt': 'learning/dmp/dt',
+                      'kPmin': 'learning/dmp/kPmin',
+                      'kPmax': 'learning/dmp/kPmax',
+                      'alpha': 'learning/dmp/alpha',
+                      'demonstration_file': 'learning/dmp/demonstration_file',
+                      'demonstrations': 'learning/dmp/demonstrations',
+                      'export_filename': 'learning/dmp/export_filename',
+                      }
+        cola2_ros_lib.getRosParams(self, param_dict)
 
 
 
@@ -113,45 +59,36 @@ class learningDmp :
         for n in range(self.nbSamples):
             ni=self.demonstrations[n]
             logfile = open(self.demonstration_file+"_"+str(ni)+".csv", "r").readlines()
-            pose = numpy.array([[0,0,0]])
-            ori = numpy.array([[0,0,0,0]])
-            counter = 0
+            vars = numpy.zeros((1,self.nbVar))
             for line in logfile :
-                pose_aux = numpy.array([])
-                ori_aux = numpy.array([])
+                vars_aux = numpy.array([])
                 for word in line.split() :
-                    if counter < 3 :
-                        pose_aux = numpy.append(pose_aux,word)
-                    else :
-                        ori_aux = numpy.append(ori_aux,word)
-                    counter+=1
-                pose = numpy.vstack((pose,pose_aux))
-                ori = numpy.vstack((ori,ori_aux))
-                counter = 0
-            pose = numpy.vsplit(pose,[1])[1]
-            ori = numpy.vsplit(ori,[1])[1]
-            nbDataTmp = pose.shape[0]-1 #shape(pose,1);
-#            rospy.loginfo(nbDataTmp)
+                    vars_aux = numpy.append(vars_aux,word)
+                vars = numpy.vstack((vars,vars_aux))
+
+            vars = numpy.vsplit(vars,[1])[1]
+            nbDataTmp = vars.shape[0]-1 #shape(pose,1);
         #xx = linspace(1,nbDataTmp,nbData);
         #d(n).Data(posEndEffectorId,:) = spline(1:nbDataTmp, posEndEffector, xx);
             xx = numpy.linspace(0, nbDataTmp, self.nbData)
 #            rospy.loginfo(str(pose.T[1,:]))
 #            rospy.loginfo("range "+ str(range(nbDataTmp)))
-            f = interpolate.interp1d(range(nbDataTmp+1), pose.T, kind='cubic')
+            f = interpolate.interp1d(range(nbDataTmp+1), vars.T, kind='cubic')
             yy = f(xx)
-            self.d[n,0:3,:] = yy
+            self.d[n,0:self.nbVar,:] = yy
             #Velocities generated from the interpolation
             #d(n).Data(velId,:) = ([d(n).Data(posId,2:end) d(n).Data(posId,end)] - d(n).Data(posId,:)) ./ m.dt;
-            aux = numpy.zeros(shape=(3,self.nbData))
+            aux = numpy.zeros(shape=(self.nbVar,self.nbData))
             aux[:,0:-1] = yy[:,1:]
             aux[:,-1]= yy[:,-1]
-            self.d[n,3:6,:] = ( ( aux - yy ) / self.dt )
+
+            self.d[n,self.nbVar:self.nbVar*2,:] = ( ( aux - yy ) / self.dt )
 
             #Accelerations generated from the interpolation
             #d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)] - d(n).Data(velId,:)) ./ m.dt;
-            aux[:,0:-1] = self.d[n,3:6,1:]
-            aux[:,-1]= self.d[n,3:6,-1]
-            self.d[n,6:9,:] = ( ( aux - self.d[n,3:6,:] ) / self.dt )
+            aux[:,0:-1] = self.d[n,self.nbVar:self.nbVar*2,1:]
+            aux[:,-1]= self.d[n,self.nbVar:self.nbVar*2,-1]
+            self.d[n,self.nbVar*2:self.nbVar*3,:] = ( ( aux - self.d[n,self.nbVar:self.nbVar*2,:] ) / self.dt )
             self.Data[:,((n)*self.nbData):(self.nbData*(n+1)) ] = self.d[n,:,:]
 #           numpy.set_printoptions(threshold=100000)
 #            rospy.loginfo('\n Values in the d data number ' + str(n) + '\n' + str(self.d[n,:,:]) + '\n' )
@@ -178,7 +115,7 @@ class learningDmp :
 
         #Batch least norm solution to find the centers of the states (or primitives) Mu_X (Y=Mu_x*H')
         #         acc                          pos             vel
-        Y = self.Data[6:9,:]*(1/self.kP) + self.Data[0:3,:] + self.Data[3:6,:]*(self.kV/self.kP)
+        Y = self.Data[self.nbVar*2:self.nbVar*3,:]*(1/self.kP) + self.Data[0:self.nbVar,:] + self.Data[self.nbVar:self.nbVar*2,:]*(self.kV/self.kP)
 
 #        rospy.loginfo(' Pseudo inversa H.t \n ' + str( numpy.linalg.pinv(self.H.T) ) + '\n' )
 
@@ -210,8 +147,8 @@ class learningDmp :
 #        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n')
 
         #Rescale Wp to stay within the [kPmin,kPmax] range
-        V=numpy.zeros(shape=(self.nbStates,3,3))
-        lambda_var = numpy.zeros(shape=(3,self.nbStates))
+        V=numpy.zeros(shape=(self.nbStates,self.nbVar,self.nbVar))
+        lambda_var = numpy.zeros(shape=(self.nbVar,self.nbStates))
 #        rospy.loginfo( 'Values of Wp \n' + str(self.Wp) + '\n' )
         for i in range(self.nbStates) :
             [Dtmp,V[i,:,:]] = numpy.linalg.eig(self.Wp[i,:,:]) #Eigencomponents decomposition
@@ -280,7 +217,7 @@ class learningDmp :
     #EXPORTPLAYDATA
     # This function export the data to be used with the prepare ekf_Track
     # source code.
-       file = open( self.exportFilename, 'w')
+       file = open( self.export_filename, 'w')
 
        file.write('kV\n' + repr(self.kV) +'\n\n')
 
@@ -325,7 +262,7 @@ class learningDmp :
 
        file.close()
 
-       rospy.loginfo('The parameters learned has been exported to ' + self.exportFilename )
+       rospy.loginfo('The parameters learned has been exported to ' + self.export_filename )
 
 
 if __name__ == '__main__':

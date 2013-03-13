@@ -39,7 +39,7 @@ class LearningRecord:
         self.goalPose = Point()
         self.goalPoseOld = Point()
         self.robotPose = Odometry()
-	self.initTF = False
+        self.initTF = False
         self.lock = threading.Lock()
         rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
         #rospy.Subscriber("/pose_ekf_slam/landmark_update/valve_1", PoseWithCovarianceStamped, self.updateGoalPose)
@@ -62,7 +62,7 @@ class LearningRecord:
 
     def updateArmPose(self, armPose):
 #        euler = euler_from_quaternion( armPose.pose.orientation, 'sxyz' )  #,  axes='sxyz' );
-        quaternion = [armPose.pose.orientation.x, armPose.pose.orientation.y, armPose.pose.orientation.z, armPose.pose.orientation.w ]
+        quaternion = [ armPose.pose.orientation.w, armPose.pose.orientation.x, armPose.pose.orientation.y, armPose.pose.orientation.z ]
         euler = euler_from_quaternion( quaternion, 'sxyz' )
         #s = repr(armPose.pose.position.x)+" "+ repr(armPose.pose.position.y) + " " + repr(armPose.pose.position.x) +" "+ repr(euler[0])  +" "+ repr(euler[1])  +" "+ repr(euler[2]) +"\n"
 
@@ -77,7 +77,7 @@ class LearningRecord:
             # arm_pose = np.asarray([armPose.pose.position.x, armPose.pose.position.y, armPose.pose.position.z, 1])
             # arm_pose_tf = np.dot(rotation_matrix, arm_pose)[:3]
 
-            s = repr(arm_pose[0] - self.goalPose.x )+" "+ repr( arm_pose[1] - self.goalPose.y ) + " " + repr( arm_pose[2] - self.goalPose.z ) +" "+ repr(rot[0])  +" "+ repr(rot[1])  +" "+ repr(rot[2]) + " " + repr(rot[3])+"\n"
+            s = repr(arm_pose[0] - self.goalPose.x )+" "+ repr( arm_pose[1] - self.goalPose.y ) + " " + repr( arm_pose[2] - self.goalPose.z ) +" "+ repr(euler[0])  +" "+ repr(euler[1])  +" "+ repr(euler[2]) + "\n"
 
             # rospy.loginfo( 'Arm robot Pose: ' + str(arm_pose_tf[0]) )
             # rospy.loginfo( 'Arm robot pose : ' + str(armPose.pose.position.x) )

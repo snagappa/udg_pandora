@@ -1,3 +1,8 @@
 learning/record/filename : trajectory_demonstration_arm
-learning/record/number_sample : 1
+learning/record/number_sample : 0
 learning/record/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
+learning/record/frame_goal_id : 'valve2'
+#en el mon Valve2 x:0.11 y:0.0 z:-0.2 
+learning/record/poseGoal_x : 0.0
+learning/record/poseGoal_y : 0.2
+learning/record/poseGoal_z : 0.11
