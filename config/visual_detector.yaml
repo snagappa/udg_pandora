@@ -27,7 +27,7 @@ visual_detector/camera_baseline_orientation: [0., 0., 0.]
 visual_detector/panel/simulator: true
 visual_detector/panel/simulator_template: ["simulator_panel2.png"]
 visual_detector/panel/simulator_template_mask: []
-visual_detector/panel/real_template: ["new_panel_template.png"]
+visual_detector/panel/real_template: ["new_panel_template2.png"]
 visual_detector/panel/real_template_mask: []
 
 # Detection parameters

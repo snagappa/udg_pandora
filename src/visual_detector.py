@@ -399,7 +399,7 @@ class VisualDetector(object):
             panel.pose_msg_pub.publish(panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
-                time_now, "panel_centre", "stereo_front")
+                time_now, "panel_centre", self._camera_.frame_id)
 
             # Detect valves if panel was detected at less than 2 metres
             self.detect_valves(panel.pose_msg)

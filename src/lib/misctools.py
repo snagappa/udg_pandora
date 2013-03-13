@@ -182,19 +182,12 @@ class camera_buffer(message_buffer):
             rospy.logerr("Could not read camera parameters")
             camera_pickle_file = "bumblebee.p"
             print "Loading information from "+camera_pickle_file
-            camera_info_pickle = roslib.packages.find_resource("udg_pandora",
-                camera_pickle_file)
-            if len(camera_info_pickle):
-                camera_info_pickle = camera_info_pickle[0]
-                try:
-                    self._camera_info_ = tuple(
-                        pickle.load(open(camera_info_pickle, "rb")))
-                except IOError:
-                    print "Failed to load camera information!"
-                    rospy.logerror("Could not read camera parameters")
-                    raise rospy.exceptions.ROSException(
-                        "Could not read camera parameters")
-            else:
+            camera_info_pickle = (roslib.packages.get_pkg_dir("udg_pandora")+
+            "/src/lib/" + camera_pickle_file)
+            try:
+                self._camera_info_ = tuple(
+                    pickle.load(open(camera_info_pickle, "rb")))
+            except IOError:
                 print "Failed to load camera information!"
                 rospy.logerror("Could not read camera parameters")
                 raise rospy.exceptions.ROSException(
