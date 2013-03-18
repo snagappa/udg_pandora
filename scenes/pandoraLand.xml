@@ -244,9 +244,9 @@
       <range>10</range>
       <visible>0</visible>
       <position>
-        <x>-0.3</x>
+        <x>-1.2</x>
         <y>0</y>
-        <z>0</z>
+        <z>0.2</z>
       </position>  
       <orientation>
         <r>0</r>
