@@ -164,7 +164,7 @@
       <y>0</y>
     </orientation>
 
-    <virtualCamera>
+       <virtualCamera>
       <name>left_down</name>
       <relativeTo>base_link</relativeTo>
       <resw> 640 </resw>
@@ -180,8 +180,9 @@
         <y>1.57</y>
       </orientation>
       <baseline> 0.0 </baseline>
-      <frameId> stereo_down </frameId>
+      <frameId> /g500/stereo_down </frameId>
     </virtualCamera>
+
     <virtualCamera>
       <name>right_down</name>
       <relativeTo>base_link</relativeTo>
@@ -198,8 +199,9 @@
         <y>1.57</y>
       </orientation>
     <baseline>0.12</baseline>
-    <frameId> stereo_down </frameId>
+    <frameId> /g500/stereo_down </frameId>
     </virtualCamera>
+
 
     <virtualCamera>
       <name>left_front</name>
@@ -217,8 +219,9 @@
         <y>1.57</y>
       </orientation>
       <baseline> 0.0 </baseline>
-      <frameId> stereo_front </frameId>
+      <frameId> /g500/stereo_front </frameId>
     </virtualCamera>
+
     <virtualCamera>
       <name>right_front</name>
       <relativeTo>base_link</relativeTo>
@@ -235,7 +238,7 @@
         <y>1.57</y>
       </orientation>
     <baseline>0.12</baseline>
-    <frameId> stereo_front </frameId>
+    <frameId> /g500/stereo_front </frameId>
     </virtualCamera>  
 
 <rangeSensor>
@@ -375,11 +378,11 @@
   </object>
   <rosInterfaces>
     <ROSOdomToPAT>
-      <topic> /dataNavigator </topic>
+      <topic> /g500/ros_odom_to_pat </topic>
       <vehicleName> girona500 </vehicleName>
     </ROSOdomToPAT>
     <PATToROSOdom>
-      <topic> /uwsim/girona500_odom </topic>
+      <topic> /g500/pat_to_ros_odom</topic>
       <vehicleName> girona500 </vehicleName>
     </PATToROSOdom>
     <ArmToROSJointState> 
@@ -426,30 +429,30 @@
 
     <VirtualCameraToROSImage>
       <cameraName>right_down</cameraName>
-      <imageTopic> /stereo_down/right/image_raw </imageTopic>
-      <infoTopic> /stereo_down/right/camera_info </infoTopic>
+      <imageTopic> /g500/stereo_down/right/image_raw </imageTopic>
+      <infoTopic> /g500/stereo_down/right/camera_info </infoTopic>
     </VirtualCameraToROSImage>
     <VirtualCameraToROSImage>
       <cameraName>left_down</cameraName>
-      <imageTopic>/stereo_down/left/image_raw  </imageTopic>
-      <infoTopic>/stereo_down/left/camera_info </infoTopic>
+      <imageTopic>/g500/stereo_down/left/image_raw  </imageTopic>
+      <infoTopic>/g500/stereo_down/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
     
 
     <VirtualCameraToROSImage>
       <cameraName>right_front</cameraName>
-      <imageTopic> /stereo_front/right/image_raw </imageTopic>
-      <infoTopic> /stereo_front/right/camera_info </infoTopic>
+      <imageTopic> /g500/stereo_front/right/image_raw </imageTopic>
+      <infoTopic> /g500/stereo_front/right/camera_info </infoTopic>
     </VirtualCameraToROSImage>
     <VirtualCameraToROSImage>
       <cameraName>left_front</cameraName>
-      <imageTopic>/stereo_front/left/image_raw  </imageTopic>
-      <infoTopic>/stereo_front/left/camera_info </infoTopic>
+      <imageTopic>/g500/stereo_front/left/image_raw  </imageTopic>
+      <infoTopic>/g500/stereo_front/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
     
     <RangeSensorToROSRange>
       <name>sonar</name>
-      <topic> /uwsim/g500/range </topic>
+      <topic> /g500/range </topic>
       <rate>5</rate>
     </RangeSensorToROSRange>
   </rosInterfaces>
