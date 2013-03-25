@@ -30,7 +30,7 @@ Rp13
 (lp14
 I0
 aI0
-abaS'bumblebee'
+abaS'/bumblebee2'
 p15
 abaI768
 aI1024
@@ -114,7 +114,7 @@ Rp32
 (lp33
 I0
 aI0
-abaS'bumblebee_right'
+abaS'/bumblebee2_right'
 p34
 abaI768
 aI1024

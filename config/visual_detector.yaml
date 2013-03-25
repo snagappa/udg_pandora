@@ -27,7 +27,7 @@ visual_detector/camera_baseline_orientation: [0., 0., 0.]
 visual_detector/panel/simulator: true
 visual_detector/panel/simulator_template: ["simulator_panel2.png"]
 visual_detector/panel/simulator_template_mask: []
-visual_detector/panel/real_template: ["new_panel_template.png"]
+visual_detector/panel/real_template: ["new_panel_template2.png"]
 visual_detector/panel/real_template_mask: []
 
 # Detection parameters
@@ -42,8 +42,13 @@ visual_detector/panel/is_stereo: false
 #   use camera_root/{left,right}/image_topic
 # otherwise,
 #   use camera_root/image_topic
-visual_detector/panel/camera_root: "/stereo_front/left"
-visual_detector/panel/image_topic: "image_raw"
+# Simulator camera topics
+visual_detector/panel/sim_camera_root: "/stereo_front/left"
+visual_detector/panel/sim_image_topic: "image_raw"
+# Real camera topics
+visual_detector/panel/real_camera_root: "/stereo_camera/left"
+visual_detector/panel/real_image_topic: "image_rect_color"
+
 # Detection rate
 visual_detector/panel/rate: -1
 # Geometry

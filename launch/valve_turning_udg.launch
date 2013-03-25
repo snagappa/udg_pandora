@@ -1,19 +1,52 @@
 <launch>
 	<arg name="enableShadders" value="true" />
 	<arg name="enableLog" value="false" />
-  	<arg name="enableLandmarks" value="false" />
+  	<arg name="enableLandmarks" value="false"/>
+	<arg name="enableRViz" value="false" />
+	<arg name="enableTeleopArm" value="false" />
+	<arg name="enableJoystick" value="false" />
+	<arg name="joystickDevice" value="/dev/input/by-id/usb-Logitech_Wireless_Gamepad_F710_9FE89273-joystick"/>
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
 	<!-- Load G500 components -->
  	<include file="$(find cola2_launch)/launch/g500-sim.launch" />
 	
+	<group if="$(arg enableTeleopArm)">
+	       	<rosparam command="load" file="$(find cola2_control)/config/joyArm.yaml"/>
+		<node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
+		<node respawn="true" pkg="joy" type="joy_node" name="joystick" > 
+	  		<param name="deadzone" value="0.05"/>
+			<param name="dev" value="/dev/input/js0"/>
+                </node>
+                <node name="logitech_f510_joystick" pkg="cola2_control_dev" type="logitech_f510_joystick.py" />
+ 	</group>
+
+	<group unless="$(arg enableTeleopArm)">
+		<!-- Run Joystick or Keyboard -->
+		<group if="$(arg enableJoystick)">
+			<node respawn="true" pkg="joy" type="joy_node" name="joystick"> 
+		  		<param name="deadzone" value="0.05"/>
+				<param name="dev" value="$(arg joystickDevice)"/>
+			</node>
+			<node respawn="true" name="logitech_fx10_joystick" pkg="cola2_control_dev" type="logitech_fx10_joystick.py" output="screen"/>
+	    	</group>
+
+		<group unless="$(arg enableJoystick)">
+			<node name="keyboard" pkg="cola2_control" type="keyboard" />
+	 	</group>
+	</group>
+
 	<!-- Run UWSim -->
 	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find
     udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/ " respawn="false" output="screen"/>
 
 	<node unless="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile
     $(find udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/" respawn="false"/>
+
+
+	<!-- Run RViz -->
+	<node if="$(arg enableRViz)" pkg="rviz" type="rviz" name="rviz" args="-d $(find cola2_launch)/config/rviz_sim.vcg"/>
 
 	<!-- Load meta-data -->
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/visual_detector_meta_data.yaml" />
@@ -25,14 +58,14 @@
 	<!-- Load nodes -->
 <!--	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/> -->
 <!--	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/> -->
- <!--       <node name="phdslam" pkg="udg_pandora" type="g500slam.py" />  -->
+<!--    <node name="phdslam" pkg="udg_pandora" type="g500slam.py" />  -->
 
 	<!-- stereo image proc down & front-->	
         <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
-    		<env name="ROS_NAMESPACE" value="/stereo_down"/>
+    		<env name="ROS_NAMESPACE" value="/g500/stereo_down"/>
   	</node>
 	<node name="image_proc_front" pkg="stereo_image_proc" type="stereo_image_proc">
-    		<env name="ROS_NAMESPACE" value="/stereo_front"/>
+    		<env name="ROS_NAMESPACE" value="/g500/stereo_front"/>
   	</node>
 
 	<!-- Load G500 components -->
