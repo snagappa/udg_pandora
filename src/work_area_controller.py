@@ -87,7 +87,6 @@ class WorkAreaController:
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
         try:
-
             for mark in landMarkMap.landmark :
                 if self.landmark_id == mark.landmark_id :
                     try:
@@ -181,7 +180,7 @@ class WorkAreaController:
                                          self.robotPose.pose.pose.position.z,
                                          1])
 
-            trans_goal, rot_goal = self.tflistener.lookupTransform('panel_centre', 'world',  self.tflistener.getLatestCommonTime('panel_centre','world'))
+            trans_goal, rot_goal = self.tflistener.lookupTransform(self.frame_goal_id, 'world',  self.tflistener.getLatestCommonTime(self.frame_goal_id,'world'))
 
             rotation_matrix = tf.transformations.quaternion_matrix(rot_goal)
             translation_matrix = tf.transformations.translation_matrix(trans_goal)
@@ -211,6 +210,8 @@ class WorkAreaController:
 #        rospy.loginfo('Alpha ' + str(self.alpha) )
 #        rospy.loginfo('Beta ' + str(self.beta) )
 
+#        rospy.loginfo('Robot Position' + str([self.robotPose.pose.pose.position.x, self.robotPose.pose.pose.position.y, self.robotPose.pose.pose.position.z ]) )
+
     #check if the position computed is in the limits
     def evaluatePosition(self):
         #magic stuff with the limtis
@@ -223,7 +224,9 @@ class WorkAreaController:
               self.distance_goal > self.limit_distance_goal[1] )
              or np.abs(self.gamma) > self.limit_gamma
              or np.abs(self.alpha) > self.limit_alpha
-             or np.abs(self.beta) > self.limit_beta ) :
+             or (self.beta < self.limit_beta[0] or
+              self.beta > self.limit_beta[1] ) ):
+
 
             rospy.loginfo('The robot is outsite of the working area')
 
@@ -232,9 +235,9 @@ class WorkAreaController:
             vel_com.goal.priority = 10 #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
             vel_com.goal.requester = 'work_area_controller'
             #maybe with a PID it will be better
-            vel_com.twist.linear.x = self.k_x*(1.28 - self.distance_goal)
+            vel_com.twist.linear.x = self.k_x*(1.26 - self.distance_goal)
             vel_com.twist.linear.y = self.k_y*(0.0 - self.alpha)
-            vel_com.twist.linear.z = self.k_z*(0.0 - self.beta)
+            vel_com.twist.linear.z = self.k_z*(0.1 - self.beta)
             vel_com.twist.angular.z = self.k_yaw*(0.0 - self.gamma)
 
             #disabled_axis boby_velocity_req
@@ -262,7 +265,7 @@ class WorkAreaController:
                 #publish the rate to modify the behaviour of the learning program
                 self.pub_decision.publish(safe_rate)
             else:
-                rospy.loginfo('Waitting to initialize all the positions')
+                rospy.loginfo('Waiting to initialize all the positions')
 
             rospy.sleep(self.period)
 

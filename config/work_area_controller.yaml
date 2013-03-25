@@ -2,13 +2,13 @@
 #The valve position define the center of the workspace
 #and the values in this parameters is the displacement.
 #Distance from the valve to the auv base
-work_area/distance_goal : [1.22, 1.35]
+work_area/distance_goal : [1.22, 1.32]
 #Angle in the horizontal plane, yaw.
 work_area/gamma: 0.2
 #Angle in the horizontal plane valve(z,x) or robot(x,y) seen by the valve
 work_area/alpha: 0.3
 #Angel in the vertical plane valve(z,y) or robot(x,z) seen by the valve
-work_area/beta: 0.3
+work_area/beta: [0.05, 0.15]
 #identification parameters
 work_area/frame_goal_id : 'valve2'
 work_area/landmark_id: '/pose_ekf_slam/landmark_update/panel_centre'
@@ -30,6 +30,6 @@ work_area/quaternion_w : 0.5168951657893834
 
 #Propotional part to move the robot
 work_area/k_x : -0.1
-work_area/k_y : 0.5
-work_area/k_z : -0.5
+work_area/k_y : 0.25
+work_area/k_z : -0.25
 work_area/k_yaw : -0.5

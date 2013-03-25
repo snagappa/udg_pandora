@@ -137,7 +137,9 @@ class learningDmp :
             xx = numpy.linspace(0, nbDataTmp, self.nbData)
 #            rospy.loginfo(str(pose.T[1,:]))
 #            rospy.loginfo("range "+ str(range(nbDataTmp)))
+
             f = interpolate.interp1d(range(nbDataTmp+1), pose.T, kind='cubic')
+#            f = interpolate.UnivariateSpline(range(nbDataTmp+1),pose.T,k=2)
             yy = f(xx)
             self.d[n,0:3,:] = yy
             #Velocities generated from the interpolation

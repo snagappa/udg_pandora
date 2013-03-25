@@ -23,6 +23,7 @@ from nav_msgs.msg import Odometry
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
 from geometry_msgs.msg import Point
+from geometry_msgs.msg import Quaternion
 
 from tf.transformations import euler_from_quaternion
 import numpy as np
@@ -38,6 +39,8 @@ class LearningRecord:
         self.getConfig()
         self.goalPose = Point()
         self.goalPoseOld = Point()
+        self.goalQuaternion = Quaternion()
+
         self.robotPose = Odometry()
 	self.initTF = False
         self.lock = threading.Lock()
@@ -47,7 +50,7 @@ class LearningRecord:
         #rospy.Subscriber("/visual_detector2/valve")
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
         self.tflistener = tf.TransformListener()
-
+       # self.record = 0
 
     def getConfig(self):
         param_dict = {'filename': 'learning/record/filename',
@@ -56,7 +59,12 @@ class LearningRecord:
                       'frame_goal_id': 'learning/record/frame_goal_id',
                       'poseGoal_x': 'learning/record/poseGoal_x',
                       'poseGoal_y': 'learning/record/poseGoal_y',
-                      'poseGoal_z': 'learning/record/poseGoal_z'}
+                      'poseGoal_z': 'learning/record/poseGoal_z',
+                      'quaternion_x': 'learning/record/quaternion_x',
+                      'quaternion_y': 'learning/record/quaternion_y',
+                      'quaternion_z': 'learning/record/quaternion_z',
+                      'quaternion_w': 'learning/record/quaternion_w'
+}
         cola2_ros_lib.getRosParams(self, param_dict)
         self.file = open( self.filename + "_" + str(self.numberSample) +".csv", 'w')
 
@@ -93,6 +101,11 @@ class LearningRecord:
             self.lock.release()
 
         self.file.write(s)
+        # if ( self.record == 10 ) :
+        #     self.file.write(s)
+        #     self.record = 0
+        # else :
+        #     self.record += 1
 
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
@@ -101,33 +114,35 @@ class LearningRecord:
             for mark in landMarkMap.landmark :
                 if self.landmark_id == mark.landmark_id :
                     self.goalPose = mark.position
-
                     try:
-                        #Try to read the original pose detected with the visual detector
-                        trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world","self.frame_goal_id"))
-                        self.goalPose.x = trans[0]
-                        self.goalPose.y = trans[1]
-                        self.goalPose.z = trans[2]
-                        rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
-
-                        #test the valve position
-                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime( "world", "panel_centre" ))
-                        rotation_matrix = tf.transformations.quaternion_matrix(rot)
-                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
-                        goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
-                        rospy.loginfo('Abs Pose: ' + str(mark.position.x + self.goalPose_rot[0]) +', '+ str(mark.position.y + self.goalPose_rot[1]) +', '+ str(mark.position.z + self.goalPose_rot[2]))
-                    except tf.Exception:
-                        #add the theoretical distance of the valve to the center
                         trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime("world", "panel_centre" ))
                         rotation_matrix = tf.transformations.quaternion_matrix(rot)
-                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
-                        goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
 
-                        #rospy.loginfo('Rotatet (0,0,1): '+ str(numpy.dot(rotation_matrix, numpy.array([0,0,1,1]))[:3]) )
+                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = numpy.dot(rotation_matrix, goalPose )
+
                         self.goalPose.x = mark.position.x + goalPose_rot[0]
                         self.goalPose.y = mark.position.y + goalPose_rot[1]
                         self.goalPose.z = mark.position.z + goalPose_rot[2]
-                        #rospy.loginfo('Goal Pose App: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+
+                        self.goalQuaternion.x = rot[0]
+                        self.goalQuaternion.y = rot[1]
+                        self.goalQuaternion.z = rot[2]
+                        self.goalQuaternion.w = rot[3]
+
+                    except tf.Exception :
+                        rotation_matrix = tf.transformations.quaternion_matrix([self.quaternion_x, self.quaternion_y, self.quaternion_z, self.quaternion_w])
+                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+                        goalPose_rot = numpy.dot(rotation_matrix, goalPose )
+
+                        self.goalPose.x = mark.position.x + goalPose_rot[0]
+                        self.goalPose.y = mark.position.y + goalPose_rot[1]
+                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+
+                        self.goalQuaternion.x = self.quaternion_x
+                        self.goalQuaternion.y = self.quaternion_y
+                        self.goalQuaternion.z = self.quaternion_z
+                        self.goalQuaternion.w = self.quaternion_w
         finally:
             self.lock.release()
     def updateRobotPose (self, odometry):
