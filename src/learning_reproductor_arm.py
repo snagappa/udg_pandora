@@ -357,7 +357,17 @@ class learningReproductor :
 
 if __name__ == '__main__':
     try:
-        rospy.init_node('learning_reproductor')
+        #Load the configuration file
+        import subprocess
+        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_reproductor_arm.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            rospy.logerr( "Could not locate learning_reproductor_arm.yaml")
+
+
+        rospy.init_node('learning_reproductor_arm')
         learning_reproductor = learningReproductor( rospy.get_name() )
         learning_reproductor.play()
 #        rospy.spin()

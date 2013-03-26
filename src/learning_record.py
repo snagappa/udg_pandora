@@ -37,6 +37,7 @@ class LearningRecord:
     def __init__(self, name):
         self.name = name
         self.getConfig()
+        rospy.loginfo('Configuration Loaded')
         self.goalPose = Point()
         self.goalPoseOld = Point()
         self.goalQuaternion = Quaternion()
@@ -155,6 +156,15 @@ class LearningRecord:
 
 if __name__ == '__main__':
     try:
+        #Load the configuration file
+        import subprocess
+        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_record.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            rospy.logerr( "Could not locate learning_record.yaml")
+
         rospy.init_node('learning_record')
 #        acoustic_detectorvisual_detector = AcousticDetector(rospy.get_name())
         learning_record = LearningRecord( rospy.get_name() )
