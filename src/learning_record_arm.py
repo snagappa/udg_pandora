@@ -4,8 +4,6 @@
 import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
-import std_msgs.msg
-import std_srvs.srv
 
 #use to load the configuration function
 import cola2_ros_lib
@@ -13,10 +11,9 @@ import cola2_ros_lib
 #include "geometry_msgs/PoseStamped.h"
 from geometry_msgs.msg import PoseStamped
 
-import numpy as np
-
 #import to use mutex
 import threading
+
 
 class LearningRecordArm:
 
@@ -36,25 +33,28 @@ class LearningRecordArm:
                       'numberSample': 'learning/record/number_sample'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
-        self.file = open( self.filename + "_" + str(self.numberSample) +".csv", 'w')
+        self.file = open(self.filename + "_" + str(self.numberSample) + ".csv",
+                         'w')
 
     def updateArmPose(self, armPose):
-        if self.goalInit :
+        if self.goalInit:
             self.lock.acquire()
             try:
                 self.armPose = armPose
                 #Compute the distance
-                #rospy.loginfo('X Diference ' + str(self.armPose.pose.position.x - self.goalPose.pose.position.x ) )
-                s = (repr(self.goalPose.pose.position.x - self.armPose.pose.position.x )
-                +" "+ repr(self.goalPose.pose.position.y - self.armPose.pose.position.y )
-                +" "+ repr(self.goalPose.pose.position.z - self.armPose.pose.position.z )
-                +"\n")
+#rospy.loginfo('X Diference ' + str(self.armPose.pose.position.x
+                #- self.goalPose.pose.position.x))
+                s = (repr(self.goalPose.pose.position.x -
+                          self.armPose.pose.position.x) + " " +
+                     repr(self.goalPose.pose.position.y -
+                          self.armPose.pose.position.y) + " " +
+                     repr(self.goalPose.pose.position.z -
+                          self.armPose.pose.position.z) + "\n")
                 self.file.write(s)
             finally:
                 self.lock.release()
-        else :
+        else:
             rospy.loginfo('Waiting to initialize the valve position')
-
 
     def updateGoalPose(self, goalPose):
         self.lock.acquire()
@@ -67,18 +67,19 @@ class LearningRecordArm:
 
 if __name__ == '__main__':
     try:
-
         #Load the configuration file
         import subprocess
-        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_record_arm.yaml")
+        config_file_list = roslib.packages.find_resource(
+            "udg_pandora", "learning_record_arm.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            rospy.logerr( "Could not locate learning_record_arm.yaml")
+            rospy.logerr("Could not locate learning_record_arm.yaml")
 
         rospy.init_node('learning_record_arm')
 #        acoustic_detectorvisual_detector = AcousticDetector(rospy.get_name())
-        learning_record_arm = LearningRecordArm( rospy.get_name() )
+        learning_record_arm = LearningRecordArm(rospy.get_name())
         rospy.spin()
-    except rospy.ROSInterruptException: pass
+    except rospy.ROSInterruptException:
+        pass
