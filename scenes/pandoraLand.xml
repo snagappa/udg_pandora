@@ -50,7 +50,7 @@
   </simParams>
   <camera>
     <freeMotion> 1 </freeMotion>
-    <objectToTrack>girona500/base_link</objectToTrack> 
+    <objectToTrack>girona500/base_link</objectToTrack>
 <!--    <objectToTrack>brac</objectToTrack> -->
     <fov> 60 </fov>
     <aspectRatio> 1.33 </aspectRatio>
@@ -60,7 +60,7 @@
       <x>-5</x>
       <y>-5</y>
       <z>8</z>
-    </position> 
+    </position>
     <lookAt>
       <x>0</x>
       <y>0 </y>
@@ -73,7 +73,7 @@
       <file>scenes/valvePanel.urdf</file>
       <jointValues>
           <joint> 0.0 </joint>
-      </jointValues> 
+      </jointValues>
       <position>
           <x> -1.8 </x>
           <y> -0.09 </y>
@@ -91,7 +91,7 @@
       <file>scenes/valvePanel.urdf</file>
       <jointValues>
           <joint> 0.0 </joint>
-      </jointValues> 
+      </jointValues>
       <position>
           <x> -1.8 </x>
           <y> -0.34 </y>
@@ -109,7 +109,7 @@
       <file>scenes/valvePanel.urdf</file>
       <jointValues>
           <joint> 0.0 </joint>
-      </jointValues> 
+      </jointValues>
       <position>
           <x> -1.8 </x>
           <y> -0.34 </y>
@@ -127,7 +127,7 @@
       <file>scenes/valvePanel.urdf</file>
       <jointValues>
           <joint> 0.0 </joint>
-      </jointValues> 
+      </jointValues>
       <position>
           <x> -1.8 </x>
           <y> -0.59 </y>
@@ -147,16 +147,16 @@
     <name>girona500</name>
     <file>scenes/g500ARMPandora.urdf</file>
     <jointValues>
-      <joint> 0.0 </joint>
-      <joint> 0.0 </joint>  <!-- 0.75 1.5 -->
-      <joint> 0.0</joint> <!-- -0.75 -2.5--> 
-      <joint> 0.0 </joint> 
-      <joint> 0.0</joint> 
+      <joint> 1.46 </joint>
+      <joint> 1.07 </joint>  <!-- 0.75 1.5 -->
+      <joint> -1.175 </joint> <!-- -0.75 -2.5-->
+      <joint> 1.57 </joint>
+      <joint> 0.0</joint>
     </jointValues>
     <position>
       <x> 0.0 </x>
       <y> 0.0 </y>
-      <z> -2.0 </z>
+      <z> 0.0 </z>
     </position>
     <orientation>
       <r>0</r>
@@ -239,7 +239,7 @@
       </orientation>
     <baseline>0.12</baseline>
     <frameId> /g500/stereo_front </frameId>
-    </virtualCamera>  
+    </virtualCamera>
 
 <rangeSensor>
       <name>sonar</name>
@@ -250,7 +250,7 @@
         <x>-1.2</x>
         <y>0</y>
         <z>0.2</z>
-      </position>  
+      </position>
       <orientation>
         <r>0</r>
         <p>-1.6</p>
@@ -385,44 +385,44 @@
       <topic> /g500/pat_to_ros_odom</topic>
       <vehicleName> girona500 </vehicleName>
     </PATToROSOdom>
-    <ArmToROSJointState> 
+    <ArmToROSJointState>
 	<topic>/uwsim/joint_state</topic>
 	<vehicleName> girona500 </vehicleName>
     </ArmToROSJointState>
-    <ArmToROSJointState> 
+    <ArmToROSJointState>
 	<topic>/uwsim/valve00</topic>
 	<vehicleName> valve00 </vehicleName>
     </ArmToROSJointState>
-    <ArmToROSJointState> 
+    <ArmToROSJointState>
 	<topic>/uwsim/valve01</topic>
 	<vehicleName> valve01 </vehicleName>
     </ArmToROSJointState>
-    <ArmToROSJointState> 
+    <ArmToROSJointState>
 	<topic>/uwsim/valve02</topic>
 	<vehicleName> valve02 </vehicleName>
     </ArmToROSJointState>
-    <ArmToROSJointState> 
+    <ArmToROSJointState>
 	<topic>/uwsim/valve03</topic>
 	<vehicleName> valve03 </vehicleName>
     </ArmToROSJointState>
 
-    <ROSJointStateToArm> 
+    <ROSJointStateToArm>
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
-    <ROSJointStateToArm> 
+    <ROSJointStateToArm>
 	<topic>/uwsim/valve00_command</topic>
 	<vehicleName> valve00 </vehicleName>
     </ROSJointStateToArm>
-    <ROSJointStateToArm> 
+    <ROSJointStateToArm>
 	<topic>/uwsim/valve01_command</topic>
 	<vehicleName> valve01 </vehicleName>
     </ROSJointStateToArm>
-    <ROSJointStateToArm> 
+    <ROSJointStateToArm>
 	<topic>/uwsim/valve02_command</topic>
 	<vehicleName> valve02 </vehicleName>
     </ROSJointStateToArm>
-    <ROSJointStateToArm> 
+    <ROSJointStateToArm>
 	<topic>/uwsim/valve03_command</topic>
 	<vehicleName> valve03 </vehicleName>
     </ROSJointStateToArm>
@@ -437,7 +437,7 @@
       <imageTopic>/g500/stereo_down/left/image_raw  </imageTopic>
       <infoTopic>/g500/stereo_down/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
-    
+
 
     <VirtualCameraToROSImage>
       <cameraName>right_front</cameraName>
@@ -449,7 +449,7 @@
       <imageTopic>/g500/stereo_front/left/image_raw  </imageTopic>
       <infoTopic>/g500/stereo_front/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
-    
+
     <RangeSensorToROSRange>
       <name>sonar</name>
       <topic> /g500/range </topic>
@@ -457,4 +457,3 @@
     </RangeSensorToROSRange>
   </rosInterfaces>
 </UWSimScene>
-

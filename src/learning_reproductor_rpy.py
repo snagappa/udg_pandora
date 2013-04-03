@@ -20,16 +20,12 @@ from nav_msgs.msg import Odometry
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
 from geometry_msgs.msg import Point
-from geometry_msgs.msg import Quaternion
 
 #include message of the point
 from sensor_msgs.msg import Joy
 
 #include message to show the trajectories demonstrated
 from nav_msgs.msg import Path
-
-#include message to move forward or backward the arm
-from std_msgs.msg import Float64
 
 import math
 import numpy
@@ -49,14 +45,13 @@ class learningReproductor :
         self.name = name
         self.getConfig()
         self.getLearnedParameters()
-        self.goalPose = Point()
-        self.goalQuaternion = Quaternion()
-        self.robotPose = Odometry()
+#        self.goalPose = Point()
+#        self.robotPose = Odometry()
         self.armPose = PoseStamped()
-        self.prevPos = numpy.zeros(self.nbVar)
+        self.prevOri = numpy.zeros(self.nbVar)
         self.prevTime = 0.0
         self.currTime = 0.0
-        self.currPos = numpy.zeros(self.nbVar)
+        self.currOri = numpy.zeros(self.nbVar)
         self.currVel = numpy.zeros(self.nbVar)
         self.currAcc = numpy.zeros(self.nbVar)
         self.desAcc = numpy.zeros(self.nbVar)
@@ -65,17 +60,14 @@ class learningReproductor :
         self.dataRobotReceived = False
         self.dataComputed = 0
         #Simulation parameter
-        self.currPosSim = numpy.zeros(3)
-        self.currPosSim[0] = 0.5
-        self.currPosSim[1] = 0.05
-        self.currPosSim[2] = 0.8
+        self.currOriSim = numpy.zeros(3)
+        self.currOriSim[0] = 0.0
+        self.currOriSim[1] = 0.0
+        self.currOriSim[2] = 0.0
         self.currNbDataRepro = 0
-        self.action = 1
 
         if self.simulation : self.file = open( self.exportFile, 'w')
-        else :
-            self.fileTraj = open( 'real_traj.csv', 'w')
-            self.desTraj = open( 'des_traj.csv', 'w')
+        else : self.fileTraj = open( 'real_traj.csv', 'w')
 
         #Debugging
         # self.filePub = open( 'pub_arm_pose.csv', 'w' )
@@ -89,17 +81,17 @@ class learningReproductor :
         self.pub_arm_command = rospy.Publisher("/cola2_control/joystick_arm_data", Joy )
         self.list_demos = []
         for i in  range(len(self.demonstrations)) :
-            self.list_demos.append( rospy.Publisher( self.name_pub_demonstrate + "_" + str(self.demonstrations[i]), Path)  )
+            self.nlist_demos.append( rospy.Publisher( self.name_pub_demonstrate + "_" + str(self.demonstrations[i]), Path)  )
 
         self.pub_path_trajectory = rospy.Publisher( self.name_pub_done, Path)
 
         self.traj = Path()
         self.traj.header.frame_id = self.frame_id_goal
 
+
         rospy.Subscriber('/arm/pose_stamped', PoseStamped , self.updateArmPosition )
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
+#        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
-        rospy.Subscriber('/work_area/evaluation', Float64, self.updateAction )
 
         rospy.loginfo('Configuration ' + str(name) +  ' Loaded ')
 
@@ -108,88 +100,63 @@ class learningReproductor :
 #        self.loadDemonstration()
 
     def getConfig(self) :
-        param_dict = {'reproductor_parameters': 'learning/reproductor/parameters',
-                      'alpha': 'learning/reproductor/alpha',
-                      's': 'learning/reproductor/s',
-                      'nbVar': 'learning/reproductor/nbVar',
-                      'interval_time': 'learning/reproductor/interval_time',
-                      'landmark_id': 'learning/reproductor/landmark_id',
-                      'interval_time': 'learning/reproductor/interval_time',
-                      'simulation': 'learning/reproductor/simulation',
-                      'nbDataRepro': 'learning/reproductor/nbDataRepro',
-                      'exportFile': 'learning/reproductor/exportFile',
-                      'demonstration_file': 'learning/reproductor/demonstration_file',
-                      'demonstrations': 'learning/reproductor/demonstrations',
-                      'frame_id_goal': 'learning/reproductor/frame_id_goal',
-                      'poseGoal_x': 'learning/reproductor/poseGoal_x',
-                      'poseGoal_y': 'learning/reproductor/poseGoal_y',
-                      'poseGoal_z': 'learning/reproductor/poseGoal_z',
-                      'name_pub_demonstrate': 'learning/reproductor/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/name_pub_done',
-                      'quaternion_x': 'learning/reproductor/quaternion_x',
-                      'quaternion_y': 'learning/reproductor/quaternion_y',
-                      'quaternion_z': 'learning/reproductor/quaternion_z',
-                      'quaternion_w': 'learning/reproductor/quaternion_w'
-}
+
+        param_dict = {'reproductor_parameters': 'learning/reproductor/'+str(self.learning_name)+'/parameters',
+                      'alpha': 'learning/reproductor/'+str(self.learning_name)+'/alpha',
+                      's': 'learning/reproductor/'+str(self.learning_name)+'/s',
+                      'nbVar': 'learning/reproductor/'+str(self.learning_name)+'/nbVar',
+                      'interval_time': 'learning/reproductor/'+str(self.learning_name)+'/interval_time',
+                      'landmark_id': 'learning/reproductor/'+str(self.learning_name)+'/landmark_id',
+                      'interval_time': 'learning/reproductor/'+str(self.learning_name)+'/interval_time',
+                      'simulation': 'learning/reproductor/'+str(self.learning_name)+'/simulation',
+                      'nbDataRepro': 'learning/reproductor/'+str(self.learning_name)+'/nbDataRepro',
+                      'exportFile': 'learning/reproductor/'+str(self.learning_name)+'/exportFile',
+                      'demonstration_file': 'learning/reproductor/'+str(self.learning_name)+'/demonstration_file',
+                      'demonstrations': 'learning/reproductor/'+str(self.learning_name)+'/demonstrations',
+                      'frame_id_goal': 'learning/reproductor/'+str(self.learning_name)+'/frame_id_goal',
+                      'poseGoal_x': 'learning/record/'+str(self.learning_name)+'/poseGoal_x',
+                      'poseGoal_y': 'learning/record/'+str(self.learning_name)+'/poseGoal_y',
+                      'poseGoal_z': 'learning/record/'+str(self.learning_name)+'/poseGoal_z',
+                      'name_pub_demonstrate': 'learning/reproductor/'+str(self.learning_name)+'/name_pub_demonstrate',
+                      'name_pub_done': 'learning/reproductor/'+str(self.learning_name)+'/name_pub_done'}
         cola2_ros_lib.getRosParams(self, param_dict)
+        rospy.loginfo('Interval time value: ' + str(self.interval_time) )
 
-    def updateGoalPose(self, landMarkMap):
-        self.lock.acquire()
-        try:
-            for mark in landMarkMap.landmark :
-                if self.landmark_id == mark.landmark_id :
-                    self.goalPose = mark.position
-                    try:
-                        trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime("world", "panel_centre" ))
-                        rotation_matrix = tf.transformations.quaternion_matrix(rot)
+    # def updateGoalPose(self, landMarkMap):
+    #     self.lock.acquire()
+    #     try:
+    #         for mark in landMarkMap.landmark :
+    #             if self.landmark_id == mark.landmark_id :
+    #                 #rospy.loginfo('Ha arribat alguna cosa')
+    #                 try:
+    #                     trans, rot = self.tflistener.lookupTransform("world", "panel_centre", self.tflistener.getLatestCommonTime( "world", "panel_centre" ))
+    #                     rotation_matrix = tf.transformations.quaternion_matrix(rot)
+    #                     goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
+    #                     goalPose_rot = numpy.dot(rotation_matrix, goalPose)[:3]
 
-                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
-                        goalPose_rot = numpy.dot(rotation_matrix, goalPose )
+    #                     self.goalPose = mark.position
+    #                     self.goalPose.x = mark.position.x + goalPose_rot[0]
+    #                     self.goalPose.y = mark.position.y + goalPose_rot[1]
+    #                     self.goalPose.z = mark.position.z + goalPose_rot[2]
 
-                        self.goalPose.x = mark.position.x + goalPose_rot[0]
-                        self.goalPose.y = mark.position.y + goalPose_rot[1]
-                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+    #                     if not self.dataGoalReceived :
+    #                         rospy.loginfo('Goal Pose Received')
+    #                         self.dataGoalReceived = True
 
-                        self.goalQuaternion.x = rot[0]
-                        self.goalQuaternion.y = rot[1]
-                        self.goalQuaternion.z = rot[2]
-                        self.goalQuaternion.w = rot[3]
+    #                 except tf.Expetion:
+    #                     pass
+    #     finally:
+    #         self.lock.release()
 
-                    except tf.Exception :
-                        rotation_matrix = tf.transformations.quaternion_matrix([self.quaternion_x, self.quaternion_y, self.quaternion_z, self.quaternion_w])
-                        goalPose = numpy.asarray([self.poseGoal_x, self.poseGoal_y, self.poseGoal_z, 1])
-                        goalPose_rot = numpy.dot(rotation_matrix, goalPose )
-
-                        self.goalPose.x = mark.position.x + goalPose_rot[0]
-                        self.goalPose.y = mark.position.y + goalPose_rot[1]
-                        self.goalPose.z = mark.position.z + goalPose_rot[2]
-
-                        self.goalQuaternion.x = self.quaternion_x
-                        self.goalQuaternion.y = self.quaternion_y
-                        self.goalQuaternion.z = self.quaternion_z
-                        self.goalQuaternion.w = self.quaternion_w
-
-                    self.dataGoalReceived = True
-        finally:
-            self.lock.release()
-
-    def updateRobotPose (self, odometry):
-        self.lock.acquire()
-        try:
-            self.robotPose = odometry
-            if not self.dataRobotReceived :
-                rospy.loginfo('Odometry Initialised')
-                self.dataRobotReceived = True
-        finally:
-            self.lock.release()
-
-    def updateAction (self, action):
-        self.lock.acquire()
-        try:
-            self.action = action.data
-        finally:
-            self.lock.release()
-
+    # def updateRobotPose (self, odometry):
+    #     self.lock.acquire()
+    #     try:
+    #         self.robotPose = odometry
+    #         if not self.dataRobotReceived :
+    #             rospy.loginfo('Odometry Initialised')
+    #             self.dataRobotReceived = True
+    #     finally:
+    #         self.lock.release()
 
 
 
@@ -252,7 +219,7 @@ class learningReproductor :
 
         #Compute acceleration
         #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
-        self.currAcc = (numpy.dot(currWp, (currTar-self.currPosSim))) - (self.kV*self.currVel)
+        self.currAcc = (numpy.dot(currWp, (currTar-self.currOriSim))) - (self.kV*self.currVel)
 
         # print 'CurrAcc'
         # print self.currAcc
@@ -264,7 +231,7 @@ class learningReproductor :
         #currAcc = currAcc * math.fabs(self.action)
 
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
-        self.desPos = self.currPosSim + (self.currVel * self.interval_time)
+        self.desOri = self.currOriSim + (self.currVel * self.interval_time)
 
         # print 'Interval_time'
         # print self.interval_time
@@ -280,7 +247,7 @@ class learningReproductor :
 #        self.publishJoyMessage()
         #write in a file
 
-        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1]) +  " " + repr(self.desPos[2]) + "\n"
+        s = repr( self.desOri[0] ) + " " + repr( self.desOri[1]) +  " " + repr(self.desOri[2]) + "\n"
         self.file.write(s)
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
@@ -291,99 +258,66 @@ class learningReproductor :
         # raw_input()
 
         self.currNbDataRepro = self.currNbDataRepro+1
-        self.currPosSim = self.desPos
+        self.currOriSim = self.desOri
 
 
 
     def generateNewPose(self) :
-        rospy.loginfo('Action value ' + str(self.action) )
-        if self.action == 1 :
-            t = -math.log(self.s)/self.alpha
-            # for each atractor or state obtain the weigh
-            #rospy.loginfo('Time :' + str(t) )
-            h = numpy.zeros(self.numStates)
-            for i in xrange(self.numStates) :
-                h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
-            # normalize the value
-            if numpy.sum(h) == 0 :
-                rospy.loginfo('The time used in the demonstration is exhausted')
-                rospy.signal_shutdown('The time used in the demonstration is exhausted')
-            else :
-                h = h / numpy.sum(h)
-
-            #init to vectors
-            currTar = numpy.zeros(self.nbVar)
-            currWp = numpy.zeros(shape=(self.nbVar,self.nbVar))
-
-            #For each actuator, State, Acumulate the position using weigh
-            #CurrTar = The center of the GMM * weight of the state
-            #CurrWp = Sigma of the GMM * weight of the State
-
-            for i in xrange(self.numStates ) :
-                currTar = currTar + self.Mu_x[:,i]*h[i]
-                currWp = currWp + self.Wp[i,:,:]*h[i]
-
-            #Compute acceleration
-            #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
-            self.desAcc = (numpy.dot(currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
-            #action is a scalar value to evaluate the safety
-            #currAcc = currAcc * math.fabs(self.action)
-
-            self.desVel = self.currVel + self.desAcc * self.interval_time
-            self.desPos = self.currPos + self.desVel * self.interval_time
-
-            self.publishJoyMessage()
-
-            #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
-            self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        t = -math.log(self.s)/self.alpha
+        # for each atractor or state obtain the weigh
+        #rospy.loginfo('Time :' + str(t) )
+        h = numpy.zeros(self.numStates)
+        for i in xrange(self.numStates) :
+            h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
+        # normalize the value
+        if numpy.sum(h) == 0 :
+            rospy.loginfo('The time used in the demonstration is exhausted')
+            rospy.signal_shutdown('The time used in the demonstration is exhausted')
         else :
-            self.retractArm()
-            self.s = 1
+            h = h / numpy.sum(h)
+
+        #init to vectors
+        currTar = numpy.zeros(self.nbVar)
+        currWp = numpy.zeros(shape=(self.nbVar,self.nbVar))
+
+        #For each actuator, State, Acumulate the position using weigh
+        #CurrTar = The center of the GMM * weight of the state
+        #CurrWp = Sigma of the GMM * weight of the State
+
+        for i in xrange(self.numStates ) :
+            currTar = currTar + self.Mu_x[:,i]*h[i]
+            currWp = currWp + self.Wp[i,:,:]*h[i]
+
+        #Compute acceleration
+        #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
+        self.desAcc = (numpy.dot(currWp, (currTar-self.currOri))) - (self.kV*self.currVel)
+        # action is a scalar value to evaluate the safety
+        #currAcc = currAcc * math.fabs(self.action)
+
+        self.desVel = self.currVel + self.desAcc * self.interval_time
+        self.desOri = self.currOri + self.desVel * self.interval_time
+
+        self.publishJoyMessage()
+#        if self.dataComputed == 9 :
+#            self.publishJoyMessage()
+#            self.dataComputed = 0
+#        else :
+#            self.dataComputed += 1
+
+        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
+        self.s = self.s + (-self.alpha*self.s)*self.interval_time
+
 
     def publishJoyMessage(self) :
         joyCommand = Joy()
 
-        # trans, rot = self.tflstener.lookupTransform("girona500", "world", rospy.Time())
-        # rotation_matrix = tf.transformations.quaternion_matrix(rot)
-        # desired_pose = numpy.asarray([self.desPos[0], self.desPos[1], self.desPos[2], 1])
-        # desired_pose_tf = numpy.dot(rotation_matrix, desired_pose)[:3]
 
-#        rospy.loginfo('Desired pose ' + str(self.desPos[0]) +', '+ str(self.desPos[1]) +', '+ str(self.desPos[2]) )
+        #orientation
+        command_ori_x = self.desOri[0] - self.currOri[0]
+        command_ori_y = self.desOri[1] - self.currOri[1]
+        command_ori_z = self.desOri[2] - self.currOri[2]
 
-        newArmPose_x = self.goalPose.x + self.desPos[0] # desired_pose_tf[0]
-        newArmPose_y = self.goalPose.y + self.desPos[1] # desired_pose_tf[1]
-        newArmPose_z = self.goalPose.z + self.desPos[2] # desired_pose_tf[2]
-
-        #Debbuging the orientation
-        # trans, rot = self.tflistener.lookupTransform("world", "girona500", rospy.Time())
-        # rotation_matrix = tf.transformations.quaternion_matrix(rot)
-        # rospy.loginfo('Rotation Matrix \n'+ str(rotation_matrix))
-        # rospy.loginfo('Rotation of [1,0,0,1]: '+ str(numpy.dot(rotation_matrix,numpy.asarray([1,0,0,1])) ) )
-        # rospy.loginfo('*******************************************************')
-
-
-        #rospy.loginfo('Desired Pose Converted  ' + str(newArmPose_x) +', '+ str(newArmPose_y) +', '+ str(newArmPose_z) )
-
-        # trans, rot = self.tflistener.lookupTransform("world", "end_effector", rospy.Time())
-        # rotation_matrix = tf.transformations.quaternion_matrix(rot)
-        # arm_pose = numpy.asarray([self.armPose.pose.position.x, self.armPose.pose.position.y, self.armPose.pose.position.z, 1])
-        # arm_pose_tf = numpy.dot(rotation_matrix, arm_pose)[:3]
-
-        # currArmPose_x = arm_pose_tf[0] + self.robotPose.pose.pose.position.x
-        # currArmPose_y = arm_pose_tf[1] + self.robotPose.pose.pose.position.y
-        # currArmPose_z = arm_pose_tf[2] + self.robotPose.pose.pose.position.z
-
- #       rospy.loginfo('Valve Center pose  ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z) )
-        #rospy.loginfo('Current pose ' + str(currArmPose_x) +', '+ str(currArmPose_y) +', '+ str(currArmPose_z) )
-
-        #rospy.loginfo('Current pose ' + str(self.armPose[0]) +', '+ str(self.armPose[1]) +', '+ str(self.armPose[2]) )
-
-        #World orientation
-        command_x = newArmPose_x - self.armPose[0]
-        command_y = newArmPose_y - self.armPose[1]
-        command_z = newArmPose_z - self.armPose[2]
-
-        #rospy.loginfo('Command ' + str(command_x) +', '+ str(command_y) +', '+ str(command_z) )
+        rospy.loginfo('Command ' + str(command_ori_x) +', '+ str(command_ori_y) +', '+ str(command_ori_z) )
 
         trans, rot = self.tflistener.lookupTransform("girona500", "world", self.tflistener.getLatestCommonTime("girona500","world"))
 #        euler = tf.transformations.euler_from_quaternion(rot)
@@ -392,8 +326,11 @@ class learningReproductor :
         command = numpy.asarray([command_x, command_y, command_z, 1])
         command_tf = numpy.dot(rotation_matrix, command)[:3]
 
-        #rospy.loginfo('Command Oriented ' + str(command_tf[0]) +', '+ str(command_tf[1]) +', '+ str(command_tf[2]) )
-        #rospy.loginfo('*******************************************************')
+        test = numpy.asarray([1, 0, 0, 1])
+        rospy.loginfo('Translation ' + str(numpy.dot(rotation_matrix,test)))
+
+        rospy.loginfo('Command Oriented ' + str(command_tf[0]) +', '+ str(command_tf[1]) +', '+ str(command_tf[2]) )
+        rospy.loginfo('*******************************************************')
 
         joyCommand.axes.append( command_tf[0] )
         joyCommand.axes.append( command_tf[1] )
@@ -402,62 +339,13 @@ class learningReproductor :
         joyCommand.axes.append( 0.0 )
         joyCommand.axes.append( 0.0 )
 
-
-        # Files to debug.
-        # s = repr( command_x ) + " " + repr( command_y ) +  " " + repr( command_z ) + "\n"
-        # self.filePub.write(s)
-        # s = repr(  self.goalPose.x - (self.armPose.pose.position.x + self.robotPose.pose.pose.position.x ) ) + " " + repr( self.goalPose.y - (self.armPose.pose.position.y + self.robotPose.pose.pose.position.y  )  ) +  " " + repr( self.goalPose.z - (self.armPose.pose.position.z + self.robotPose.pose.pose.position.z  ) ) + "\n"
-        # self.fileDistance.write(s)
-        # s = repr( self.goalPose.x) + " " + repr( self.goalPose.y ) +  " " + repr( self.goalPose.z ) + "\n"
-        # self.filePoseGoal.write(s)
-        # s = repr( self.armPose.pose.position.x + self.armPose.pose.position.x  ) + " " + repr( self.armPose.pose.position.y + self.armPose.pose.position.y  ) +  " " + repr( self.armPose.pose.position.z + self.armPose.pose.position.z  ) + "\n"
-        # self.filePoseArmRobot.write(s)
-        # s = repr( self.desPos[0] ) + " " + repr( self.desPos[1] ) +  " " + repr( self.desPos[2] ) + "\n"
-        # self.fileDesiredPose.write(s)
-
-        # Publish the map to create the path
-        # pos_nav = PoseStamped()
-        # pos_nav.header.frame_id = self.frame_id_goal
-        # pos_nav.pose.position.x = float(self.desPos[0])
-        # pos_nav.pose.position.y = float(self.desPos[1])
-        # pos_nav.pose.position.z = float(self.desPos[2])
-
-        #orientation, is needed a conversion from euler to quaternion
-        # pos_nav.pose.point.position.x = pose_aux[0]
-        # pos_nav.pose.point.position.y = pose_aux[1]
-        # pos_nav.pose.point.position.z = pose_aux[2]
-
-        #add the pose, point to the path
-        # self.traj.poses.append(pos_nav)
-        # self.pub_path_trajectory.publish(self.traj)
-
         s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
         self.fileTraj.write(s)
-
-        s = repr( newArmPose_x ) + " " + repr( newArmPose_y) +  " " + repr(newArmPose_z) + "\n"
-        self.desTraj.write(s)
 
         self.pub_arm_command.publish(joyCommand)
 
 
-    #Retract the Arm sending the command -x
-    def retractArm(self):
-        joyCommand = Joy()
-        joyCommand.axes.append( -999 )
-        joyCommand.axes.append( -999 )
-        joyCommand.axes.append( -999 )
-        joyCommand.axes.append( 0.0 )
-        joyCommand.axes.append( 0.0 )
-        joyCommand.axes.append( 0.0 )
-
-        s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
-        self.fileTraj.write(s)
-
-
-        self.pub_arm_command.publish(joyCommand)
-
-
-    def updateArmPosition(self, data):
+    def updateArmPose(self, data):
         self.lock.acquire()
         try:
             # self.armPose = data
@@ -469,40 +357,34 @@ class learningReproductor :
             arm_pose_tf, rot = self.tflistener.lookupTransform("world", "end_effector", self.tflistener.getLatestCommonTime("world","end_effector") )
             self.armPose = arm_pose_tf
 
+            euler = euler_from_quaternion( rot, 'sxyz' )
+
             if self.dataRobotReceived and self.dataGoalReceived :
                 if self.dataReceived == 0 :
 
-                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
-                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
-                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
+                    self.currOri = numpy.asarray(euler)
 
                     self.currTime = data.header.stamp.secs + (data.header.stamp.nsecs*1E-9)
                     self.dataReceived += 1
                 elif self.dataReceived == 1 :
-                    self.prevPos = self.currPos
+                    self.prevOri = self.currOri
                     self.prevTime = self.currTime
 
-                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
-                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
-                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
+                    self.currOri = numpy.asarray(euler)
 
                     self.currTime = data.header.stamp.secs + (data.header.stamp.nsecs*1E-9)
-                    self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
+                    self.currVel = (self.currOri-self.prevOri) / (self.currTime-self.prevTime)
                     self.dataReceived += 1
                 else :
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
 
-                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
-                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
-                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
+                    self.currOri = numpy.asarray(euler)
 
                     self.currTime = data.header.stamp.secs + (data.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
             else:
-
-                if  not self.dataRobotReceived : rospy.loginfo('Waiting to initialise the  robot position')
-                if  not self.dataGoalReceived : rospy.loginfo('Waiting to initialise the goal position')
+                rospy.loginfo('Waiting to initialise the valve and robot position')
         finally:
             self.lock.release()
 
@@ -645,16 +527,7 @@ class learningReproductor :
 
 if __name__ == '__main__':
     try:
-        #Load the configuration file
-        import subprocess
-        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_reproductor.yaml")
-        if len(config_file_list):
-            config_file = config_file_list[0]
-            subprocess.call(["rosparam", "load", config_file])
-        else:
-            rospy.logerr( "Could not locate learning_reproductor.yaml")
-
-        rospy.init_node('learning_reproductor')
+        rospy.init_node('learning_reproductor_rpy')
         learning_reproductor = learningReproductor( rospy.get_name() )
         learning_reproductor.play()
 #        rospy.spin()

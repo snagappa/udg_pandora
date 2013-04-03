@@ -137,7 +137,9 @@ class learningDmp :
             xx = numpy.linspace(0, nbDataTmp, self.nbData)
 #            rospy.loginfo(str(pose.T[1,:]))
 #            rospy.loginfo("range "+ str(range(nbDataTmp)))
+
             f = interpolate.interp1d(range(nbDataTmp+1), pose.T, kind='cubic')
+#            f = interpolate.UnivariateSpline(range(nbDataTmp+1),pose.T,k=2)
             yy = f(xx)
             self.d[n,0:3,:] = yy
             #Velocities generated from the interpolation
@@ -330,6 +332,15 @@ class learningDmp :
 
 if __name__ == '__main__':
     try:
+        #Load the configuration file
+        import subprocess
+        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_dmp.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            rospy.logerr( "Could not locate learning_dmp.yaml")
+
         rospy.init_node('learning_dmp')
         learning_dmp = learningDmp( rospy.get_name() )
         learning_dmp.trainningDMP()

@@ -484,7 +484,6 @@ class learningDmp :
                    file.write(str(j)+' ')
                file.write('\n')
            file.write('\n')
-
        file.close()
 
        rospy.loginfo('The parameters learned has been exported to ' + exportFilename )

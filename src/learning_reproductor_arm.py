@@ -11,44 +11,17 @@ import cola2_ros_lib
 #use to normalize the angle
 import cola2_lib
 
-# import the service to call the service
-# Warnning I don't know if is needed may be can be seen directly
-from cola2_control.srv import MoveArmTo
 # import the message to know the position
 from geometry_msgs.msg import PoseStamped
-
-# include the message of the ekf giving the position of the robot
-from nav_msgs.msg import Odometry
-
-#include message of the pose_ekf_slam.
-from pose_ekf_slam.msg import Map
-#include message for the pose of the landmark
-from geometry_msgs.msg import Point
-
-from geometry_msgs.msg import Quaternion
 
 #include message of the point
 from sensor_msgs.msg import Joy
 
-#include the message to send velocities to the robot
-from auv_msgs.msg import BodyVelocityReq
-
-#include message to show the trajectories demonstrated
-from nav_msgs.msg import Path
-
 import math
 import numpy
-from scipy import interpolate
 
 import threading
 import tf
-
-from tf.transformations import euler_from_quaternion
-
-#import warnings
-
-#value to show all the numbers in a matrix
-# numpy.set_printoptions(threshold=100000)
 
 class learningReproductor :
 
@@ -56,9 +29,7 @@ class learningReproductor :
         self.name = name
         self.getConfig()
         self.getLearnedParameters()
-        self.goalPose = Point()
-        self.goalQuaternion = Quaternion()
-        self.robotPose = Odometry()
+        self.goalPose = PoseStamped()
         self.armPose = PoseStamped()
         self.prevPos = numpy.zeros(self.nbVar)
         self.prevTime = 0.0
@@ -76,7 +47,6 @@ class learningReproductor :
         self.currPosSim[0] = 0.5
         self.currPosSim[1] = 0.05
         self.currPosSim[2] = 0.8
-        self.currPosSim[3] = 2.1
         self.currNbDataRepro = 0
 
         if self.simulation : self.file = open( self.exportFile, 'w')
@@ -90,128 +60,73 @@ class learningReproductor :
         # self.fileDesiredPose = open('desired_pose.csv', 'w')
 
         self.lock = threading.Lock()
-        self.pub_desired_position = rospy.Publisher("/arm/desired_position", PoseStamped )
-        self.pub_auv_vel = rospy.Publisher("/cola2_control/body_velocity_req", BodyVelocityReq)
-        self.list_demos = []
-        for i in  range(len(self.demonstrations)) :
-            self.list_demos.append( rospy.Publisher( self.name_pub_demonstrate + "_" + str(self.demonstrations[i]), Path)  )
+        self.pub_desired_position = rospy.Publisher("cola2_control/joystick_arm_data", Joy )
 
-        self.pub_path_trajectory = rospy.Publisher( self.name_pub_done, Path)
-
-        self.traj = Path()
-        self.traj.header.frame_id = self.frame_id_goal
-
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
-        rospy.Subscriber("/pose_ekf_slam/odometry", Odometry, self.updateRobotPose )
+        rospy.Subscriber("/arm/valve_pose", PoseStamped, self.updateGoalPose)
+        rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose )
 
         rospy.loginfo('Configuration ' + str(name) +  ' Loaded ')
 
-        self.tflistener = tf.TransformListener()
-
-#        self.loadDemonstration()
 
     def getConfig(self) :
-        param_dict = {'reproductor_parameters': 'learning/reproductor/auv/parameters',
-                      'alpha': 'learning/reproductor/auv/alpha',
-                      's': 'learning/reproductor/auv/s',
-                      'nbVar': 'learning/reproductor/auv/nbVar',
-                      'interval_time': 'learning/reproductor/auv/interval_time',
-                      'landmark_id': 'learning/reproductor/auv/landmark_id',
-                      'interval_time': 'learning/reproductor/auv/interval_time',
-                      'simulation': 'learning/reproductor/auv/simulation',
-                      'nbDataRepro': 'learning/reproductor/auv/nbDataRepro',
-                      'exportFile': 'learning/reproductor/auv/exportFile',
-                      'demonstration_file': 'learning/reproductor/auv/demonstration_file',
-                      'demonstrations': 'learning/reproductor/auv/demonstrations',
-                      'frame_id_goal': 'learning/reproductor/auv/frame_id_goal',
-                      'name_pub_demonstrate': 'learning/reproductor/auv/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/auv/name_pub_done',
-                      'quaternion_x': 'learning/reproductor/auv/quaternion_x',
-                      'quaternion_y': 'learning/reproductor/auv/quaternion_y',
-                      'quaternion_z': 'learning/reproductor/auv/quaternion_z',
-                      'quaternion_w': 'learning/reproductor/auv/quaternion_w'
-}
+        param_dict = {'reproductor_parameters': 'learning/reproductor/parameters',
+                      'alpha': 'learning/reproductor/alpha',
+                      's': 'learning/reproductor/s',
+                      'nbVar': 'learning/reproductor/nbVar',
+                      'interval_time': 'learning/reproductor/interval_time',
+                      'simulation': 'learning/reproductor/simulation',
+                      'nbDataRepro': 'learning/reproductor/nbDataRepro',
+                      'exportFile': 'learning/reproductor/exportFile'
+                      }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time) )
 
 #WARNING THIS HAS NOT SENSE
 # THE UPDATE WILL HAVE TO BE UPDATED BY THE DETECTION NOT FROM THE UPDATE
-    def updateGoalPose(self, landMarkMap):
+    def updateGoalPose(self, goalPose):
         self.lock.acquire()
         try:
-                for mark in landMarkMap.landmark :
-                    if self.landmark_id == mark.landmark_id :
-                        self.goalPose = mark.position
-			try:
-				trans, rot = self.tflistener.lookupTransform("world", self.frame_id_goal, self.tflistener.getLatestCommonTime("world",self.frame_id_goal))
-		                self.goalQuaternion.x = rot[0]
-                		self.goalQuaternion.y = rot[1]
-		                self.goalQuaternion.z = rot[2]
-                		self.goalQuaternion.w = rot[3]
-        		except tf.Exception:
-	                	self.goalQuaternion.x = self.quaternion_x
-                        	self.goalQuaternion.y = self.quaternion_y
-                        	self.goalQuaternion.z = self.quaternion_z
-                        	self.goalQuaternion.w = self.quaternion_w
-	                self.dataGoalReceived = True
-                        #rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+            self.goalPose = goalPose
+            self.dataGoalReceived = True
         finally:
             self.lock.release()
 
-    def updateRobotPose (self, odometry):
+    def updateArmPose (self, armPose):
         self.lock.acquire()
         try:
-            self.robotPose = odometry
-            if not self.dataRobotReceived :
-                rospy.loginfo('Odometry Initialised')
-                self.dataRobotReceived = True
             if self.dataGoalReceived :
                 if self.dataReceived == 0 :
-                    self.currPos[0] = odometry.pose.pose.position.x - self.goalPose.x
-                    self.currPos[1] = odometry.pose.pose.position.y - self.goalPose.y
-                    self.currPos[2] = odometry.pose.pose.position.z - self.goalPose.z
+                    self.currPos[0] = self.goalPose.pose.position.x - armPose.pose.position.x
+                    self.currPos[1] = self.goalPose.pose.position.y - armPose.pose.position.y
+                    self.currPos[2] = self.goalPose.pose.position.z - armPose.pose.position.z
 
-                    #Yaw
-                    goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
-                    robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = cola2_lib.normalizeAngle(robotYaw - goalYaw)
-
-                    self.currTime = odometry.header.stamp.secs + (odometry.header.stamp.nsecs*1E-9)
+                    self.currTime = armPose.header.stamp.secs + (armPose.header.stamp.nsecs*1E-9)
                     self.dataReceived += 1
+
 
                 elif self.dataReceived == 1 :
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
 
-                    self.currPos[0] = odometry.pose.pose.position.x - self.goalPose.x
-                    self.currPos[1] = odometry.pose.pose.position.y - self.goalPose.y
-                    self.currPos[2] = odometry.pose.pose.position.z - self.goalPose.z
+                    self.currPos[0] = self.goalPose.pose.position.x - armPose.pose.position.x
+                    self.currPos[1] = self.goalPose.pose.position.y - armPose.pose.position.y
+                    self.currPos[2] = self.goalPose.pose.position.z - armPose.pose.position.z
 
-                    #Yaw
-                    goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
-                    robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = cola2_lib.normalizeAngle(robotYaw - goalYaw)
-
-                    self.currTime = odometry.header.stamp.secs + (odometry.header.stamp.nsecs*1E-9)
+                    self.currTime = armPose.header.stamp.secs + (armPose.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
 
                     self.dataReceived += 1
-
                 else :
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
 
-                    self.currPos[0] = odometry.pose.pose.position.x - self.goalPose.x
-                    self.currPos[1] = odometry.pose.pose.position.y - self.goalPose.y
-                    self.currPos[2] = odometry.pose.pose.position.z - self.goalPose.z
+                    self.currPos[0] = self.goalPose.pose.position.x - armPose.pose.position.x
+                    self.currPos[1] = self.goalPose.pose.position.y - armPose.pose.position.y
+                    self.currPos[2] = self.goalPose.pose.position.z - armPose.pose.position.z
 
-                    #Yaw
-                    goalYaw = euler_from_quaternion([self.goalQuaternion.x, self.goalQuaternion.y, self.goalQuaternion.z, self.goalQuaternion.w])[2]
-                    robotYaw = euler_from_quaternion([odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = cola2_lib.normalizeAngle(robotYaw - goalYaw)
-
-                    self.currTime = odometry.header.stamp.secs + (odometry.header.stamp.nsecs*1E-9)
+                    self.currTime = armPose.header.stamp.secs + (armPose.header.stamp.nsecs*1E-9)
                     self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
+
             else :
                 rospy.loginfo('Waiting to initialise the valve and robot position')
         finally:
@@ -224,6 +139,7 @@ class learningReproductor :
             try:
                 if not self.simulation :
                     if  self.dataReceived >1 :
+                        rospy.loginfo('Data received')
                         self.generateNewPose()
                 else :
                     self.simulatedNewPose()
@@ -264,7 +180,7 @@ class learningReproductor :
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
 
-        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1]) +  " " + repr(self.desPos[2]) + " " + repr(self.desPos[3]) + "\n"
+        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1]) +  " " + repr(self.desPos[2]) + "\n"
         self.file.write(s)
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
@@ -309,41 +225,45 @@ class learningReproductor :
         #NOT needed
         self.desPos = self.currPos + self.desVel * self.interval_time
 
-        self.publishVelocityAUV()
-
+        #s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
+        #self.fileTraj.write(s)
+        self.publishArmPose()
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
 
-    def publishVelocityAUV(self) :
-        trans, rot = self.tflistener.lookupTransform("girona500", "world", self.tflistener.getLatestCommonTime("girona500","world"))
-        rotation_matrix = tf.transformations.quaternion_matrix(rot)
-        vel = numpy.asarray([self.desVel[0], self.desVel[1], self.desVel[2], 1])
-        vel_tf = numpy.dot(rotation_matrix, vel)[:3]
+    def publishArmPose(self) :
+        joyCommand = Joy()
 
-        vel_com = BodyVelocityReq()
-        vel_com.header.stamp = rospy.get_rostime()
-        vel_com.goal.priority = 10 #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
-        vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_tf[0] / 25.0
-        vel_com.twist.linear.y = vel_tf[1] / 25.0
-        vel_com.twist.linear.z = vel_tf[2] / 35.0
-        vel_com.twist.angular.z = self.desVel[3] /25.0
+#        rospy.loginfo('Goal pose' + str(self.goalPose.pose.position.x))
+#        rospy.loginfo('Des pose' + str(self.desPos))
 
-#disabled_axis boby_velocity_req
-        vel_com.disable_axis.x = False
-        vel_com.disable_axis.y = False
-        vel_com.disable_axis.z = False
-        vel_com.disable_axis.roll = True
-        vel_com.disable_axis.pitch = True
-        vel_com.disable_axis.yaw = False
-#        vel_com.disable_axis.yaw = True
+        newArmPose_x = self.goalPose.pose.position.x + self.desPos[0] # desired_pose_tf[0]
+        newArmPose_y = self.goalPose.pose.position.y + self.desPos[1] # desired_pose_tf[1]
+        newArmPose_z = self.goalPose.pose.position.z + self.desPos[2] # desired_pose_tf[2]
 
-        s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + " " + repr(self.currPos[3]) + "\n"
+#        rospy.loginfo('Arm pose' + str(self.armPose.pose.position.x))
+
+        command_x = -(self.desPos[0] - self.currPos[0])
+        command_y = -(self.desPos[1] - self.currPos[1])
+        command_z = -(self.desPos[2] - self.currPos[2])
+
+        # command_x = newArmPose_x - self.armPose.pose.position.x
+        # command_y = newArmPose_y - self.armPose.pose.position.y
+        # command_z = newArmPose_z - self.armPose.pose.position.z
+
+        joyCommand.axes.append( command_x )
+        joyCommand.axes.append( command_y )
+        joyCommand.axes.append( command_z )
+        joyCommand.axes.append( 0.0 )
+        joyCommand.axes.append( 0.0 )
+        joyCommand.axes.append( 0.0 )
+
+        s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
         self.fileTraj.write(s)
 
-        self.pub_auv_vel.publish(vel_com)
+        self.pub_desired_position.publish(joyCommand)
 
 
     def getLearnedParameters(self) :
@@ -439,14 +359,15 @@ if __name__ == '__main__':
     try:
         #Load the configuration file
         import subprocess
-        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_reproductor_auv.yaml")
+        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_reproductor_arm.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            rospy.logerr( "Could not locate learning_record_auv.yaml")
+            rospy.logerr( "Could not locate learning_reproductor_arm.yaml")
 
-        rospy.init_node('learning_reproductor_auv_traj')
+
+        rospy.init_node('learning_reproductor_arm')
         learning_reproductor = learningReproductor( rospy.get_name() )
         learning_reproductor.play()
 #        rospy.spin()

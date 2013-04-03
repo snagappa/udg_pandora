@@ -5,7 +5,7 @@ import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
 import math
-import numpy
+import numpy as np
 
 from scipy import interpolate
 #value to show all the numbers in a matrix
@@ -15,23 +15,30 @@ from scipy import interpolate
 import cola2_ros_lib
 
 
-class learningDmp :
+class learningDmp:
 
     def __init__(self, name):
         self.name = name
         self.getConfig()
         rospy.loginfo('Configuration Loaded')
         self.nbSamples = len(self.demonstrations)
-        self.d = numpy.zeros(shape=(self.nbSamples,self.nbVar*3,self.nbData))
-        self.Sigma_x = numpy.zeros(shape=(self.nbStates,self.nbVar,self.nbVar))
-        self.Wp = numpy.zeros(shape=(self.nbStates,self.nbVar,self.nbVar))
-        self.Mu_t = numpy.linspace(0,self.nbData*self.dt,self.nbStates)
-        self.Sigma_t = numpy.tile((self.nbData*self.dt/self.nbStates)*0.8,[self.nbStates,1,1])
-        self.Data = numpy.zeros(shape=(self.nbVar*3,self.nbSamples*self.nbData))
+        self.d = np.zeros(shape=(self.nbSamples,
+                                 self.nbVar*3,
+                                 self.nbData))
+        self.Sigma_x = np.zeros(shape=(self.nbStates,
+                                       self.nbVar,
+                                       self.nbVar))
+        self.Wp = np.zeros(shape=(self.nbStates,
+                                  self.nbVar,
+                                  self.nbVar))
+        self.Mu_t = np.linspace(0, self.nbData*self.dt, self.nbStates)
+        self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
+                               [self.nbStates, 1, 1])
+        self.Data = np.zeros(shape=(self.nbVar*3,
+                                    self.nbSamples*self.nbData))
         self.loadDemonstration()
         rospy.loginfo('Loaded demonstrations')
-        #                        dimensions, trajectory DoF, samples of One Demo
-
+        # dimensions, trajectory DoF, samples of One Demo
 
     def getConfig(self):
 
@@ -53,127 +60,143 @@ class learningDmp :
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
-
-
-    def loadDemonstration(self) :
+    def loadDemonstration(self):
         for n in range(self.nbSamples):
-            ni=self.demonstrations[n]
-            logfile = open(self.demonstration_file+"_"+str(ni)+".csv", "r").readlines()
-            vars = numpy.zeros((1,self.nbVar))
-            for line in logfile :
-                vars_aux = numpy.array([])
-                for word in line.split() :
-                    vars_aux = numpy.append(vars_aux,word)
-                vars = numpy.vstack((vars,vars_aux))
+            ni = self.demonstrations[n]
+            logfile = open(self.demonstration_file + "_" + str(ni) + ".csv",
+                           "r").readlines()
+            vars = np.zeros((1, self.nbVar))
+            for line in logfile:
+                vars_aux = np.array([])
+                for word in line.split():
+                    vars_aux = np.append(vars_aux, word)
+                vars = np.vstack((vars, vars_aux))
 
-            vars = numpy.vsplit(vars,[1])[1]
-            nbDataTmp = vars.shape[0]-1 #shape(pose,1);
+            vars = np.vsplit(vars, [1])[1]
+            nbDataTmp = vars.shape[0]-1
+#shape(pose,1);
         #xx = linspace(1,nbDataTmp,nbData);
-        #d(n).Data(posEndEffectorId,:) = spline(1:nbDataTmp, posEndEffector, xx);
-            xx = numpy.linspace(0, nbDataTmp, self.nbData)
+#d(n).Data(posEndEffectorId,:) = spline(1:nbDataTmp, posEndEffector, xx);
+            xx = np.linspace(0, nbDataTmp, self.nbData)
 #            rospy.loginfo(str(pose.T[1,:]))
 #            rospy.loginfo("range "+ str(range(nbDataTmp)))
             f = interpolate.interp1d(range(nbDataTmp+1), vars.T, kind='cubic')
             yy = f(xx)
-            self.d[n,0:self.nbVar,:] = yy
+            self.d[n, 0:self.nbVar, :] = yy
             #Velocities generated from the interpolation
-            #d(n).Data(velId,:) = ([d(n).Data(posId,2:end) d(n).Data(posId,end)] - d(n).Data(posId,:)) ./ m.dt;
-            aux = numpy.zeros(shape=(self.nbVar,self.nbData))
-            aux[:,0:-1] = yy[:,1:]
-            aux[:,-1]= yy[:,-1]
+#d(n).Data(velId,:) = ([d(n).Data(posId,2:end) d(n).Data(posId,end)]
+#                     - d(n).Data(posId,:)) ./ m.dt;
+            aux = np.zeros(shape=(self.nbVar, self.nbData))
+            aux[:, 0:-1] = yy[:, 1:]
+            aux[:, -1] = yy[:, -1]
 
-            self.d[n,self.nbVar:self.nbVar*2,:] = ( ( aux - yy ) / self.dt )
+            self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.dt)
 
             #Accelerations generated from the interpolation
-            #d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)] - d(n).Data(velId,:)) ./ m.dt;
-            aux[:,0:-1] = self.d[n,self.nbVar:self.nbVar*2,1:]
-            aux[:,-1]= self.d[n,self.nbVar:self.nbVar*2,-1]
-            self.d[n,self.nbVar*2:self.nbVar*3,:] = ( ( aux - self.d[n,self.nbVar:self.nbVar*2,:] ) / self.dt )
-            self.Data[:,((n)*self.nbData):(self.nbData*(n+1)) ] = self.d[n,:,:]
-#           numpy.set_printoptions(threshold=100000)
-#            rospy.loginfo('\n Values in the d data number ' + str(n) + '\n' + str(self.d[n,:,:]) + '\n' )
+#d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)]
+#                       - d(n).Data(velId,:)) ./ m.dt;
+            aux[:, 0:-1] = self.d[n, self.nbVar:self.nbVar*2, 1:]
+            aux[:, -1] = self.d[n, self.nbVar:self.nbVar*2, -1]
+            self.d[n, self.nbVar*2:self.nbVar*3, :] = (
+                (aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.dt)
+            self.Data[:, ((n)*self.nbData):(self.nbData*(n+1))] = self.d[n, :, :]
+#           np.set_printoptions(threshold=100000)
+#rospy.loginfo('\n Values in the d data number ' + str(n) + '\n' +
+#                str(self.d[n,:,:]) + '\n' )
 #            p = raw_input('wait')
-
             #rospy.loginfo(self.d)
 
     def trainningDMP(self):
         rospy.loginfo('Learning DMP ...')
         #compute weights
-        s = 1;
+        s = 1
         #Initialization of decay term
-        H = numpy.zeros(shape=(self.nbData,self.nbStates))
-        h = numpy.zeros(shape=(self.nbStates))
+        H = np.zeros(shape=(self.nbData, self.nbStates))
+        h = np.zeros(shape=(self.nbStates))
 
         for n in range(self.nbData):
-            s = s + (-self.alpha*s)*self.dt #Update of decay term
+#Update of decay term
+            s = s + (-self.alpha*s)*self.dt
             t = -math.log(s)/self.alpha
             for i in range(self.nbStates):
-                h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i,0,0]) #Probability to be in a given state
-            H[n,:] = h/numpy.sum(h) #Normalization
+#Probability to be in a given state
+                h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i, 0, 0])
+#Normalization
+            H[n, :] = h/np.sum(h)
         #tile equivalent to repmat of matlab
-        self.H = numpy.tile(H,(self.nbSamples,1)) # Repeat the process for each demonstration
+# Repeat the process for each demonstration
+        self.H = np.tile(H, (self.nbSamples, 1))
 
-        #Batch least norm solution to find the centers of the states (or primitives) Mu_X (Y=Mu_x*H')
+        #Batch least norm solution to find the centers of the states
+#(or primitives) Mu_X (Y=Mu_x*H')
         #         acc                          pos             vel
-        Y = self.Data[self.nbVar*2:self.nbVar*3,:]*(1/self.kP) + self.Data[0:self.nbVar,:] + self.Data[self.nbVar:self.nbVar*2,:]*(self.kV/self.kP)
+        Y = (self.Data[self.nbVar*2:self.nbVar*3, :]*(1/self.kP) +
+             self.Data[0:self.nbVar, :] +
+             self.Data[self.nbVar:self.nbVar*2, :]*(self.kV/self.kP))
+#        rospy.loginfo(' Pseudo inversa H.t \n ' +
+#                      str( np.linalg.pinv(self.H.T) ) + '\n' )
+#Pseudoinverse solution Mu_x = [inv(H'*H)*H'*Y']'
+        self.Mu_x = np.dot(Y, np.linalg.pinv(self.H.T))
 
-#        rospy.loginfo(' Pseudo inversa H.t \n ' + str( numpy.linalg.pinv(self.H.T) ) + '\n' )
-
-        self.Mu_x = numpy.dot(Y,numpy.linalg.pinv(self.H.T)) #Pseudoinverse solution Mu_x = [inv(H'*H)*H'*Y']'
-
-        # Mu_x and H are equal to matlab. Y seem equal but Its difficult to see too many values
+# Mu_x and H are equal to matlab.
+# Y seem equal but Its difficult to see too many values
 
         #Compute residuals
-        RI = numpy.eye(self.nbVar,self.nbVar)*1E-3 #Regularization term for matrix inversion
+#Regularization term for matrix inversion
+        RI = np.eye(self.nbVar, self.nbVar)*1E-3
 
 #        rospy.loginfo('Mu_x \n' + str(self.Mu_x) + '\n' )
 #        casa = raw_input('Check Mu_x')
 #        rospy.loginfo('H \n' + str(self.H) + '\n' )
 #        casa = raw_input('Check H')
-#        numpy.set_printoptions(threshold=100000)
+#        np.set_printoptions(threshold=100000)
 #        rospy.loginfo('Values of Y \n' + str(Y) + '\n' )
 #        casa = raw_input('Check Reshape')
 
-        for i in range(self.nbStates) :
-            a = Y-numpy.tile(self.Mu_x[:,i].reshape(len(self.Mu_x[:,i]),1),(1,self.nbData*self.nbSamples))
-            b = numpy.diag(self.H[:,i])
-            product = numpy.dot(a,b)
-            self.Sigma_x[i,:,:] = numpy.cov( product )
-            self.Wp[i,:,:] = numpy.linalg.inv(self.Sigma_x[i,:,:]+RI) #Use variation information to determine stiffness
-
+        for i in range(self.nbStates):
+            a = Y-np.tile(self.Mu_x[:, i].reshape(len(self.Mu_x[:, i]), 1),
+                          (1, self.nbData*self.nbSamples))
+            b = np.diag(self.H[:, i])
+            product = np.dot(a, b)
+            self.Sigma_x[i, :, :] = np.cov(product)
+#Use variation information to determine stiffness
+            self.Wp[i, :, :] = np.linalg.inv(self.Sigma_x[i, :, :]+RI)
         # Warning sigmas are different from the matlab results I don
-
 
 #        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n')
 
         #Rescale Wp to stay within the [kPmin,kPmax] range
-        V=numpy.zeros(shape=(self.nbStates,self.nbVar,self.nbVar))
-        lambda_var = numpy.zeros(shape=(self.nbVar,self.nbStates))
+        V = np.zeros(shape=(self.nbStates, self.nbVar, self.nbVar))
+        lambda_var = np.zeros(shape=(self.nbVar, self.nbStates))
 #        rospy.loginfo( 'Values of Wp \n' + str(self.Wp) + '\n' )
-        for i in range(self.nbStates) :
-            [Dtmp,V[i,:,:]] = numpy.linalg.eig(self.Wp[i,:,:]) #Eigencomponents decomposition
-            lambda_var[:,i] = Dtmp
+        for i in range(self.nbStates):
+#Eigencomponents decomposition
+            [Dtmp, V[i, :, :]] = np.linalg.eig(self.Wp[i, :, :])
+            lambda_var[:, i] = Dtmp
             # The eigen values Dtmp can be different from the matlab answers
 
 #        rospy.loginfo( 'Values of V \n' + str(V) +'\n' )
-        lambda_min = numpy.min(lambda_var)
-        lambda_max = numpy.max(lambda_var)
+        lambda_min = np.min(lambda_var)
+        lambda_max = np.max(lambda_var)
 
-        for i in range(self.nbStates) :
+        for i in range(self.nbStates):
         #Full covariance stiffness matrix derived from residuals estimation
         #Rescale each eigenvalue such that they lie in the range [kPmin,kPmax]
-            Dtmp = numpy.diag((self.kPmax-self.kPmin)*(lambda_var[:,i]-lambda_min)/(lambda_max-lambda_min) + self.kPmin);
-            self.Wp[i,:,:] = numpy.dot(V[i,:,:], numpy.dot(Dtmp,numpy.linalg.inv(V[i,:,:])) ) #Reconstruction from the modified eigencomponents
+            Dtmp = np.diag((self.kPmax-self.kPmin) *
+                           (lambda_var[:, i]-lambda_min) /
+                           (lambda_max-lambda_min) + self.kPmin)
+#Reconstruction from the modified eigencomponents
+            self.Wp[i, :, :] = np.dot(V[i, :, :],
+                                      np.dot(Dtmp, np.linalg.inv(V[i, :, :])))
         #OR
             #Standard DMP
-            #self.Wp[:,:,i]=numpy.diag(numpy.ones(shape=(self.nbVar,1))*self.kP)
+            #self.Wp[:,:,i]=np.diag(np.ones(shape=(self.nbVar,1))*self.kP)
 
         #rospy.loginfo('\nValues Wp \n ' + str(self.Wp) + '\n' )
 
         rospy.loginfo('Learning finished successfully')
 
         self.exportPlayData()
-
 
     def gaussPDF(self, Data, Mu, Sigma):
 ###     This function computes the Probability Density Function (PDF) of a
@@ -190,86 +213,83 @@ class learningDmp :
 ###     Outputs ----------------------------------------------------------------
 ###         o prob:  1 x N array representing the probabilities for the
 ###                  N datapoints.
-        if numpy.shape(Data) == () :
+        if np.shape(Data) == ():
             nbVar = 1
             nbData = 1
             #Data = Data' - repmat(Mu',nbData,1);
-            Data = Data - numpy.tile(Mu,(nbData,1))
+            Data = Data - np.tile(Mu, (nbData, 1))
             prob = (Data*(1/Sigma)) * Data
-            prob = math.exp(-0.5*prob) / math.sqrt( numpy.power((2*math.pi),nbVar) * (abs(Sigma)+numpy.finfo(numpy.double).tiny))
+            prob = (math.exp(-0.5*prob) /
+                    math.sqrt(np.power((2*math.pi), nbVar) *
+                              (abs(Sigma)+np.finfo(np.double).tiny)))
             return prob
 
-        else :
-            [nbVar,nbData] = numpy.shape(Data)
+        else:
+            [nbVar, nbData] = np.shape(Data)
             #Data = Data' - repmat(Mu',nbData,1);
-            Data = Data.T - numpy.tile(Mu.T,(nbData,1))
-            prob = numpy.sum( numpy.dot(Data,numpy.linalg.inv(Sigma)) * Data, axis=1)
-            prob = math.exp(-0.5*prob) / math.sqrt(  numpy.power((2*math.pi),nbVar) * (abs(numpy.linalg.det(Sigma))+numpy.finfo(numpy.double).tiny))
+            Data = Data.T - np.tile(Mu.T, (nbData, 1))
+            prob = np.sum(np.dot(Data, np.linalg.inv(Sigma)) * Data, axis=1)
+            prob = (math.exp(-0.5*prob) /
+                    math.sqrt(np.power((2*math.pi), nbVar) *
+                              (abs(np.linalg.det(Sigma)) +
+                               np.finfo(np.double).tiny)))
             return prob
-#        Data = Data.T - numpy.tile(Mu.T,(nbData,1))
+#        Data = Data.T - np.tile(Mu.T,(nbData,1))
         #prob = sum((Data*inv(Sigma)).*Data, 2);
-#        prob = numpy.sum( numpy.dot(Data,numpy.linalg.inv(Sigma)) * Data, axis=1)
-        #realmin = numpy.finfo(numpy.double).tiny
-#        prob = math.exp(-0.5*prob) / math.sqrt((2*math.pi)^nbVar * (abs(numpy.linalg.det(Sigma))+numpy.finfo(numpy.double).tiny))
-
+#        prob = np.sum( np.dot(Data,np.linalg.inv(Sigma)) * Data, axis=1)
+        #realmin = np.finfo(np.double).tiny
+#prob = math.exp(-0.5*prob) / math.sqrt((2*math.pi)^nbVar *
+#(abs(np.linalg.det(Sigma))+np.finfo(np.double).tiny))
 
     def exportPlayData(self):
     #EXPORTPLAYDATA
     # This function export the data to be used with the prepare ekf_Track
     # source code.
-       file = open( self.export_filename, 'w')
+        file = open(self.export_filename, 'w')
 
-       file.write('kV\n' + repr(self.kV) +'\n\n')
+        file.write('kV\n' + repr(self.kV) + '\n\n')
 
-       file.write('kP\n' + repr(self.kP) +'\n\n')
+        file.write('kP\n' + repr(self.kP) + '\n\n')
 
-       file.write('Mu_t\n')
-       for j in self.Mu_t:
-           file.write(str(j)+' ')
-       file.write('\n\n')
+        file.write('Mu_t\n')
+        for j in self.Mu_t:
+            file.write(str(j)+' ')
+        file.write('\n\n')
 
-       file.write('Sigma_t\n')
-       for i in range(self.Sigma_t.shape[0]):
-           for k in range(self.Sigma_t.shape[2]):
-               for j in self.Sigma_t[i,k,:]:
-                   file.write(str(j)+' ')
-               file.write('\n')
-           file.write('\n')
+        file.write('Sigma_t\n')
+        for i in range(self.Sigma_t.shape[0]):
+            for k in range(self.Sigma_t.shape[2]):
+                for j in self.Sigma_t[i, k, :]:
+                    file.write(str(j)+' ')
+                file.write('\n')
+            file.write('\n')
 
+        file.write('Mu_x\n')
 
+        for i in range(self.Mu_x.shape[0]):
+            for j in self.Mu_x[i, :]:
+                file.write(str(j)+' ')
+            file.write('\n')
 
-       file.write('Mu_x\n' )
+        file.write('\n')
+        file.write('Wp\n')
 
-       format = numpy.zeros(shape=(numpy.shape(self.Mu_x)))
+        for i in range(self.Wp.shape[0]):
+            for k in range(self.Wp.shape[2]):
+                for j in self.Wp[i, :, k]:
+                    file.write(str(j)+' ')
+                file.write('\n')
+            file.write('\n')
 
-       for i in range(self.Mu_x.shape[0]):
-           for j in self.Mu_x[i,:]:
-               file.write(str(j)+' ')
-
-           file.write('\n')
-
-       file.write('\n')
-       file.write('Wp\n' )
-
-       format = numpy.zeros(shape=(numpy.shape(self.Wp)))
-
-       for i in range(self.Wp.shape[0]):
-           for k in range(self.Wp.shape[2]):
-               for j in self.Wp[i,:,k]:
-                   file.write(str(j)+' ')
-               file.write('\n')
-           file.write('\n')
-
-       file.close()
-
-       rospy.loginfo('The parameters learned has been exported to ' + self.export_filename )
-
+        file.close()
+        rospy.loginfo('The parameters learned has been exported to '
+                      + self.export_filename)
 
 if __name__ == '__main__':
     try:
         rospy.init_node('learning_dmp')
-        learning_dmp = learningDmp( rospy.get_name() )
+        learning_dmp = learningDmp(rospy.get_name())
         learning_dmp.trainningDMP()
 #        rospy.spin()
-
-    except rospy.ROSInterruptException: pass
+    except rospy.ROSInterruptException:
+        pass

@@ -43,7 +43,7 @@ visual_detector/panel/is_stereo: false
 # otherwise,
 #   use camera_root/image_topic
 # Simulator camera topics
-visual_detector/panel/sim_camera_root: "/stereo_front/left"
+visual_detector/panel/sim_camera_root: "g500/stereo_front/left"
 visual_detector/panel/sim_image_topic: "image_raw"
 # Real camera topics
 visual_detector/panel/real_camera_root: "/stereo_camera/left"
