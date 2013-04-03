@@ -1,41 +1,18 @@
 <launch>
 	<arg name="enableShadders" value="true" />
 	<arg name="enableLog" value="false" />
-  	<arg name="enableLandmarks" value="false"/>
-	<arg name="enableRViz" value="false" />
-	<arg name="enableTeleopArm" value="false" />
-	<arg name="enableJoystick" value="false" />
-	<arg name="joystickDevice" value="/dev/input/by-id/usb-Logitech_Wireless_Gamepad_F710_9FE89273-joystick"/>
-
+  	<arg name="enableLandmarks" value="true"/>
+	<arg name="enableRViz" value="true" />
+	
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
 	<!-- Load G500 components -->
- 	<include file="$(find cola2_launch)/launch/g500-sim.launch" />
+ 	<include file="$(find cola2_launch)/launch/g500-sim.launch">
+        	<arg name="enableTeleopArm" value="false" />
+        	<arg name="enableJoystick" value="false" />
+        	<arg name="joystickDevice" value="/dev/input/by-id/usb-Logitech_Wireless_Gamepad_F710_9FE89273-joystick"/>        
+        </include>
 	
-	<group if="$(arg enableTeleopArm)">
-	       	<rosparam command="load" file="$(find cola2_control)/config/joyArm.yaml"/>
-		<node name="keyboardArm" pkg="cola2_control" type="keyboardArm" />
-		<node respawn="true" pkg="joy" type="joy_node" name="joystick" > 
-	  		<param name="deadzone" value="0.05"/>
-			<param name="dev" value="/dev/input/js0"/>
-                </node>
-                <node name="logitech_f510_joystick" pkg="cola2_control_dev" type="logitech_f510_joystick.py" />
- 	</group>
-
-	<group unless="$(arg enableTeleopArm)">
-		<!-- Run Joystick or Keyboard -->
-		<group if="$(arg enableJoystick)">
-			<node respawn="true" pkg="joy" type="joy_node" name="joystick"> 
-		  		<param name="deadzone" value="0.05"/>
-				<param name="dev" value="$(arg joystickDevice)"/>
-			</node>
-			<node respawn="true" name="logitech_fx10_joystick" pkg="cola2_control_dev" type="logitech_fx10_joystick.py" output="screen"/>
-	    	</group>
-
-		<group unless="$(arg enableJoystick)">
-			<node name="keyboard" pkg="cola2_control" type="keyboard" />
-	 	</group>
-	</group>
 
 	<!-- Run UWSim -->
 	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find
