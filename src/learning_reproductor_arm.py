@@ -8,9 +8,6 @@ import rospy
 #use to load the configuration function
 import cola2_ros_lib
 
-#use to normalize the angle
-import cola2_lib
-
 # import the message to know the position
 from geometry_msgs.msg import PoseStamped
 
@@ -21,11 +18,11 @@ import math
 import numpy
 
 import threading
-import tf
 
-class learningReproductor :
 
-    def __init__(self , name) :
+class learningReproductor:
+
+    def __init__(self, name):
         self.name = name
         self.getConfig()
         self.getLearnedParameters()
@@ -49,8 +46,12 @@ class learningReproductor :
         self.currPosSim[2] = 0.8
         self.currNbDataRepro = 0
 
-        if self.simulation : self.file = open( self.exportFile, 'w')
-        else : self.fileTraj = open( 'real_traj.csv', 'w')
+        if self.simulation:
+            self.file = open(self.exportFile, 'w')
+            self.canonical = open('canonical.csv', 'w')
+            self.pesos = open('pesos.csv', 'w')
+        else:
+            self.fileTraj = open('real_traj.csv', 'w')
 
         #Debugging
         # self.filePub = open( 'pub_arm_pose.csv', 'w' )
@@ -60,15 +61,15 @@ class learningReproductor :
         # self.fileDesiredPose = open('desired_pose.csv', 'w')
 
         self.lock = threading.Lock()
-        self.pub_desired_position = rospy.Publisher("cola2_control/joystick_arm_data", Joy )
+        self.pub_desired_position = rospy.Publisher(
+            "cola2_control/joystick_arm_data", Joy)
 
         rospy.Subscriber("/arm/valve_pose", PoseStamped, self.updateGoalPose)
-        rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose )
+        rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
 
-        rospy.loginfo('Configuration ' + str(name) +  ' Loaded ')
+        rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
-
-    def getConfig(self) :
+    def getConfig(self):
         param_dict = {'reproductor_parameters': 'learning/reproductor/parameters',
                       'alpha': 'learning/reproductor/alpha',
                       's': 'learning/reproductor/s',
@@ -79,7 +80,7 @@ class learningReproductor :
                       'exportFile': 'learning/reproductor/exportFile'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
-        rospy.loginfo('Interval time value: ' + str(self.interval_time) )
+        rospy.loginfo('Interval time value: ' + str(self.interval_time))
 
 #WARNING THIS HAS NOT SENSE
 # THE UPDATE WILL HAVE TO BE UPDATED BY THE DETECTION NOT FROM THE UPDATE
@@ -91,231 +92,213 @@ class learningReproductor :
         finally:
             self.lock.release()
 
-    def updateArmPose (self, armPose):
+    def updateArmPose(self, armPose):
         self.lock.acquire()
         try:
-            if self.dataGoalReceived :
-                if self.dataReceived == 0 :
-                    self.currPos[0] = self.goalPose.pose.position.x - armPose.pose.position.x
-                    self.currPos[1] = self.goalPose.pose.position.y - armPose.pose.position.y
-                    self.currPos[2] = self.goalPose.pose.position.z - armPose.pose.position.z
-
-                    self.currTime = armPose.header.stamp.secs + (armPose.header.stamp.nsecs*1E-9)
+            if self.dataGoalReceived:
+                if self.dataReceived == 0:
+                    self.currPos[0] = (self.goalPose.pose.position.x -
+                                       armPose.pose.position.x)
+                    self.currPos[1] = (self.goalPose.pose.position.y -
+                                       armPose.pose.position.y)
+                    self.currPos[2] = (self.goalPose.pose.position.z -
+                                       armPose.pose.position.z)
+                    self.currTime = (armPose.header.stamp.secs +
+                                     (armPose.header.stamp.nsecs*1E-9))
                     self.dataReceived += 1
-
-
-                elif self.dataReceived == 1 :
+                elif self.dataReceived == 1:
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-
-                    self.currPos[0] = self.goalPose.pose.position.x - armPose.pose.position.x
-                    self.currPos[1] = self.goalPose.pose.position.y - armPose.pose.position.y
-                    self.currPos[2] = self.goalPose.pose.position.z - armPose.pose.position.z
-
-                    self.currTime = armPose.header.stamp.secs + (armPose.header.stamp.nsecs*1E-9)
-                    self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
-
+                    self.currPos[0] = (self.goalPose.pose.position.x -
+                                       armPose.pose.position.x)
+                    self.currPos[1] = (self.goalPose.pose.position.y -
+                                       armPose.pose.position.y)
+                    self.currPos[2] = (self.goalPose.pose.position.z -
+                                       armPose.pose.position.z)
+                    self.currTime = (armPose.header.stamp.secs +
+                                     (armPose.header.stamp.nsecs*1E-9))
+                    self.currVel = ((self.currPos-self.prevPos) /
+                                    (self.currTime-self.prevTime))
                     self.dataReceived += 1
-                else :
+                else:
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-
-                    self.currPos[0] = self.goalPose.pose.position.x - armPose.pose.position.x
-                    self.currPos[1] = self.goalPose.pose.position.y - armPose.pose.position.y
-                    self.currPos[2] = self.goalPose.pose.position.z - armPose.pose.position.z
-
-                    self.currTime = armPose.header.stamp.secs + (armPose.header.stamp.nsecs*1E-9)
-                    self.currVel = (self.currPos-self.prevPos) / (self.currTime-self.prevTime)
-
-            else :
+                    self.currPos[0] = (self.goalPose.pose.position.x -
+                                       armPose.pose.position.x)
+                    self.currPos[1] = (self.goalPose.pose.position.y -
+                                       armPose.pose.position.y)
+                    self.currPos[2] = (self.goalPose.pose.position.z -
+                                       armPose.pose.position.z)
+                    self.currTime = (armPose.header.stamp.secs +
+                                     (armPose.header.stamp.nsecs*1E-9))
+                    self.currVel = ((self.currPos-self.prevPos) /
+                                    (self.currTime-self.prevTime))
+            else:
                 rospy.loginfo('Waiting to initialise the valve and robot position')
         finally:
             self.lock.release()
 
-    def play(self) :
+    def play(self):
 #        pub = rospy.Publisher('arm', )
         while not rospy.is_shutdown():
             self.lock.acquire()
             try:
-                if not self.simulation :
-                    if  self.dataReceived >1 :
+                if not self.simulation:
+                    if self.dataReceived > 1:
                         rospy.loginfo('Data received')
                         self.generateNewPose()
-                else :
+                else:
                     self.simulatedNewPose()
-                    if self.currNbDataRepro >= self.nbDataRepro :
+                    if self.currNbDataRepro >= self.nbDataRepro:
                         rospy.loginfo('Finish !!!!')
                         rospy.signal_shutdown('The reproduction has finish')
             finally:
                 self.lock.release()
             rospy.sleep(self.interval_time)
 
-
-    def simulatedNewPose(self) :
+    def simulatedNewPose(self):
         t = -math.log(self.s)/self.alpha
         # for each atractor or state obtain the weigh
         #rospy.loginfo('Time :' + str(t) )
         h = numpy.zeros(self.numStates)
-        for i in xrange(self.numStates) :
+        for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
         h = h / numpy.sum(h)
-
         #init to vectors
         currTar = numpy.zeros(self.nbVar)
-        currWp = numpy.zeros(shape=(self.nbVar,self.nbVar))
-
+        currWp = numpy.zeros(shape=(self.nbVar, self.nbVar))
         #For each actuator, State, Acumulate the position using weigh
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
-
-        for i in xrange(self.numStates ) :
-            currTar = currTar + self.Mu_x[:,i]*h[i]
-            currWp = currWp + self.Wp[i,:,:]*h[i]
-
+        for i in xrange(self.numStates):
+            currTar = currTar + self.Mu_x[:, i]*h[i]
+            currWp = currWp + self.Wp[i, :, :]*h[i]
         #rospy.loginfo( 'CurrWp \n' + currWp )
         #rospy.loginfo( 'CurrWp \n' + currWp )
-        self.currAcc = (numpy.dot(currWp, (currTar-self.currPosSim))) - (self.kV*self.currVel)
-
+        self.currAcc = ((numpy.dot(currWp, (currTar-self.currPosSim))) -
+                        (self.kV*self.currVel))
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
-
-        s = repr( self.desPos[0] ) + " " + repr( self.desPos[1]) +  " " + repr(self.desPos[2]) + "\n"
+        s = (repr(self.desPos[0]) + " " + repr(self.desPos[1]) + " " +
+             repr(self.desPos[2]) + "\n")
         self.file.write(s)
-
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         self.s = self.s + (-self.alpha*self.s)*self.interval_time
-
+        self.canonical.write(repr(self.s) + "\n")
+        self.pesos.write(repr(h[0]) + " " + repr(h[1]) + " " + repr(h[2]) + '\n')
         self.currNbDataRepro = self.currNbDataRepro+1
         self.currPosSim = self.desPos
 
-    def generateNewPose(self) :
+    def generateNewPose(self):
         t = -math.log(self.s)/self.alpha
         # for each atractor or state obtain the weigh
         #rospy.loginfo('Time :' + str(t) )
         h = numpy.zeros(self.numStates)
-        for i in xrange(self.numStates) :
+        for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
-        if numpy.sum(h) == 0 :
+        if numpy.sum(h) == 0:
             rospy.loginfo('The time used in the demonstration is exhausted')
-            rospy.signal_shutdown('The time used in the demonstration is exhausted')
-        else :
+            rospy.signal_shutdown('The time used in ' +
+                                  'the demonstration is exhausted')
+        else:
             h = h / numpy.sum(h)
-
         #init to vectors
         currTar = numpy.zeros(self.nbVar)
-        currWp = numpy.zeros(shape=(self.nbVar,self.nbVar))
-
+        currWp = numpy.zeros(shape=(self.nbVar, self.nbVar))
         #For each actuator, State, Acumulate the position using weigh
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
-
-        for i in xrange(self.numStates ) :
-            currTar = currTar + self.Mu_x[:,i]*h[i]
-            currWp = currWp + self.Wp[i,:,:]*h[i]
-
+        for i in xrange(self.numStates):
+            currTar = currTar + self.Mu_x[:, i]*h[i]
+            currWp = currWp + self.Wp[i, :, :]*h[i]
         #Compute acceleration
         #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
-        self.desAcc = (numpy.dot(currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
+        self.desAcc = ((numpy.dot(currWp, (currTar-self.currPos))) -
+                       (self.kV*self.currVel))
         # action is a scalar value to evaluate the safety
         #currAcc = currAcc * math.fabs(self.action)
-
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
         self.desPos = self.currPos + self.desVel * self.interval_time
-
-        #s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
+        #s = (repr(self.currPos[0]) + " " + repr(self.currPos[1]) +  " " +
+        #     repr(self.currPos[2]) + "\n"))
         #self.fileTraj.write(s)
         self.publishArmPose()
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
-
-    def publishArmPose(self) :
+    def publishArmPose(self):
         joyCommand = Joy()
 
 #        rospy.loginfo('Goal pose' + str(self.goalPose.pose.position.x))
 #        rospy.loginfo('Des pose' + str(self.desPos))
-
-        newArmPose_x = self.goalPose.pose.position.x + self.desPos[0] # desired_pose_tf[0]
-        newArmPose_y = self.goalPose.pose.position.y + self.desPos[1] # desired_pose_tf[1]
-        newArmPose_z = self.goalPose.pose.position.z + self.desPos[2] # desired_pose_tf[2]
-
 #        rospy.loginfo('Arm pose' + str(self.armPose.pose.position.x))
-
         command_x = -(self.desPos[0] - self.currPos[0])
         command_y = -(self.desPos[1] - self.currPos[1])
         command_z = -(self.desPos[2] - self.currPos[2])
-
-        # command_x = newArmPose_x - self.armPose.pose.position.x
-        # command_y = newArmPose_y - self.armPose.pose.position.y
-        # command_z = newArmPose_z - self.armPose.pose.position.z
-
-        joyCommand.axes.append( command_x )
-        joyCommand.axes.append( command_y )
-        joyCommand.axes.append( command_z )
-        joyCommand.axes.append( 0.0 )
-        joyCommand.axes.append( 0.0 )
-        joyCommand.axes.append( 0.0 )
-
-        s = repr( self.currPos[0] ) + " " + repr( self.currPos[1]) +  " " + repr(self.currPos[2]) + "\n"
+        joyCommand.axes.append(command_x)
+        joyCommand.axes.append(command_y)
+        joyCommand.axes.append(command_z)
+        joyCommand.axes.append(0.0)
+        joyCommand.axes.append(0.0)
+        joyCommand.axes.append(0.0)
+        s = (repr(self.currPos[0]) + " " + repr(self.currPos[1]) + " " +
+             repr(self.currPos[2]) + "\n")
         self.fileTraj.write(s)
-
         self.pub_desired_position.publish(joyCommand)
 
-
-    def getLearnedParameters(self) :
+    def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
         logfile = [word.strip() for word in logfile]
-
 #        self.Mu_t = numpy.zeros( 3 )
-
-        for i in xrange(len(logfile)) :
+        for i in xrange(len(logfile)):
             if logfile[i] == 'kV':
-                i+=1
+                i += 1
                 self.kV = float(logfile[i])
-            elif logfile[i] == 'kP' :
-                i+=1
+            elif logfile[i] == 'kP':
+                i += 1
                 self.kP = float(logfile[i])
-            elif logfile[i] == 'Mu_t' :
-                i+=1
+            elif logfile[i] == 'Mu_t':
+                i += 1
                 aux = logfile[i].split(' ')
                 self.numStates = len(aux)
                 self.Mu_t = numpy.zeros(self.numStates)
-                for j in xrange(self.numStates) :
+                for j in xrange(self.numStates):
                     self.Mu_t[j] = float(aux[j])
-            elif logfile[i] == 'Sigma_t' :
-                i+=1
+            elif logfile[i] == 'Sigma_t':
+                i += 1
                 self.Sigma_t = numpy.zeros(self.numStates)
-                for j in xrange(self.numStates) :
+                for j in xrange(self.numStates):
                     self.Sigma_t[j] = float(logfile[i])
-                    i+=2
-            elif logfile[i] == 'Mu_x' :
-                i+=1
-                self.Mu_x = numpy.zeros(shape=(self.nbVar,self.numStates))
-                for k in xrange(self.nbVar) :
+                    i += 2
+            elif logfile[i] == 'Mu_x':
+                i += 1
+                self.Mu_x = numpy.zeros(shape=(self.nbVar, self.numStates))
+                for k in xrange(self.nbVar):
                     aux = logfile[i].split(' ')
-                    for j in xrange(self.numStates) :
-                        self.Mu_x[k,j] = float(aux[j])
-                    i+=1
+                    for j in xrange(self.numStates):
+                        self.Mu_x[k, j] = float(aux[j])
+                    i += 1
 #                rospy.loginfo('Values of the Mu_x \n' + str(self.Mu_x) )
             elif logfile[i] == 'Wp':
-                i+=1
-                self.Wp = numpy.zeros(shape=(self.numStates,self.nbVar,self.nbVar))
-                for z in xrange(self.numStates) :
-                    for k in xrange(self.nbVar) :
+                i += 1
+                self.Wp = numpy.zeros(shape=(self.numStates,
+                                             self.nbVar,
+                                             self.nbVar))
+                for z in xrange(self.numStates):
+                    for k in xrange(self.nbVar):
                         aux = logfile[i].split(' ')
-                        for j in xrange(self.nbVar) :
-                            self.Wp[z,k,j] = float(aux[j])
-                        i+=1
-                    i+=1
+                        for j in xrange(self.nbVar):
+                            self.Wp[z, k, j] = float(aux[j])
+                        i += 1
+                    i += 1
 #                rospy.loginfo('Values of Wp ' + str(self.Wp))
-            else :
+            else:
                 pass
                 #rospy.loginfo( logfile[i] +' ja no vull llegir mes')
-
 
     def gaussPDF(self, Data, Mu, Sigma):
 ###     This function computes the Probability Density Function (PDF) of a
@@ -324,35 +307,31 @@ class learningReproductor :
 ###     Author:	Sylvain Calinon, 2009
 ###             http://programming-by-demonstration.org
 ###
-###     Inputs -----------------------------------------------------------------
-###         o Data:  D x N array representing N datapoints of D dimensions.
-###         o Mu:    D x K array representing the centers of the K GMM components.
-###         o Sigma: D x D x K array representing the covariance matrices of the
-###                  K GMM components.
-###     Outputs ----------------------------------------------------------------
-###         o prob:  1 x N array representing the probabilities for the
-###                  N datapoints.
-        if numpy.shape(Data) == () :
+###   Inputs -----------------------------------------------------------------
+###      o Data:  D x N array representing N datapoints of D dimensions.
+###      o Mu:    D x K array representing the centers of the K GMM components.
+###      o Sigma: D x D x K array representing the covariance matrices of the
+###               K GMM components.
+###   Outputs ----------------------------------------------------------------
+###      o prob:  1 x N array representing the probabilities for the
+###               N datapoints.
+        if numpy.shape(Data) == ():
             nbVar = 1
             nbData = 1
             #Data = Data' - repmat(Mu',nbData,1);
-            Data = Data - numpy.tile(Mu,(nbData,1))
+            Data = Data - numpy.tile(Mu, (nbData, 1))
             prob = (Data*(1/Sigma)) * Data
-            prob = math.exp(-0.5*prob) / math.sqrt( numpy.power((2*math.pi),nbVar) * (abs(Sigma)+numpy.finfo(numpy.double).tiny))
+            prob = (math.exp(-0.5*prob) /
+                    math.sqrt(numpy.power((2*math.pi), nbVar) *
+                              (abs(Sigma)+numpy.finfo(numpy.double).tiny)))
             return prob
-
-        else :
-            [nbVar,nbData] = numpy.shape(Data)
+        else:
+            [nbVar, nbData] = numpy.shape(Data)
             #Data = Data' - repmat(Mu',nbData,1);
-            Data = Data.T - numpy.tile(Mu.T,(nbData,1))
-            prob = numpy.sum( numpy.dot(Data,numpy.linalg.inv(Sigma)) * Data, axis=1)
-            prob = math.exp(-0.5*prob) / math.sqrt(  numpy.power((2*math.pi),nbVar) * (abs(numpy.linalg.det(Sigma))+numpy.finfo(numpy.double).tiny))
+            Data = Data.T - numpy.tile(Mu.T, (nbData, 1))
+            prob = numpy.sum(numpy.dot(Data, numpy.linalg.inv(Sigma))*Data, axis=1)
+            prob = math.exp(-0.5*prob) / math.sqrt(numpy.power((2*math.pi),nbVar)*(abs(numpy.linalg.det(Sigma))+numpy.finfo(numpy.double).tiny))
             return prob
-#        Data = Data.T - numpy.tile(Mu.T,(nbData,1))
-        #prob = sum((Data*inv(Sigma)).*Data, 2);
-#        prob = numpy.sum( numpy.dot(Data,numpy.linalg.inv(Sigma)) * Data, axis=1)
-        #realmin = numpy.finfo(numpy.double).tiny
-#        prob = math.exp(-0.5*prob) / math.sqrt((2*math.pi)^nbVar * (abs(numpy.linalg.det(Sigma))+numpy.finfo(numpy.double).tiny))
 
 
 if __name__ == '__main__':
@@ -364,12 +343,10 @@ if __name__ == '__main__':
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            rospy.logerr( "Could not locate learning_reproductor_arm.yaml")
-
-
+            rospy.logerr("Could not locate learning_reproductor_arm.yaml")
         rospy.init_node('learning_reproductor_arm')
-        learning_reproductor = learningReproductor( rospy.get_name() )
+        learning_reproductor = learningReproductor(rospy.get_name())
         learning_reproductor.play()
 #        rospy.spin()
-
-    except rospy.ROSInterruptException: pass
+    except rospy.ROSInterruptException:
+        pass

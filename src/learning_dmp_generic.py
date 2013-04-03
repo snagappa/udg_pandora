@@ -122,7 +122,7 @@ class learningDmp:
 #Probability to be in a given state
                 h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i, 0, 0])
 #Normalization
-            H[n, :] = h/np.sum(h)
+                H[n, :] = h/np.sum(h)
         #tile equivalent to repmat of matlab
 # Repeat the process for each demonstration
         self.H = np.tile(H, (self.nbSamples, 1))
@@ -205,12 +205,12 @@ class learningDmp:
 ###     Author:	Sylvain Calinon, 2009
 ###             http://programming-by-demonstration.org
 ###
-###     Inputs -----------------------------------------------------------------
-###         o Data:  D x N array representing N datapoints of D dimensions.
-###         o Mu:    D x K array representing the centers of the K GMM components.
-###         o Sigma: D x D x K array representing the covariance matrices of the
+###     Inputs ---------------------------------------------------------------
+###      o Data:  D x N array representing N datapoints of D dimensions.
+###      o Mu:    D x K array representing the centers of the K GMM components.
+###      o Sigma: D x D x K array representing the covariance matrices of the
 ###                  K GMM components.
-###     Outputs ----------------------------------------------------------------
+###     Outputs --------------------------------------------------------------
 ###         o prob:  1 x N array representing the probabilities for the
 ###                  N datapoints.
         if np.shape(Data) == ():
