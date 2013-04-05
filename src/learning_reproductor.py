@@ -40,7 +40,7 @@ class learningReproductor:
         self.goalPose = Point()
         self.goalOrientation = np.zeros(3)
         self.robotPose = Odometry()
-        self.armPose = np.zero(3)
+        self.armPose = np.zeros(3)
         self.armOrientation = np.zeros(3)
         self.prevPos = np.zeros(self.nbVar)
         self.prevTime = 0.0
@@ -54,7 +54,7 @@ class learningReproductor:
         self.dataRobotReceived = False
         self.dataComputed = 0
         #Simulation parameter
-        self.currPosSim = np.zeros(3)
+        self.currPosSim = np.zeros(self.nbVar)
         self.currPosSim[0] = 0.5
         self.currPosSim[1] = 0.05
         self.currPosSim[2] = 0.8
@@ -105,9 +105,6 @@ class learningReproductor:
                       'simulation': 'learning/reproductor/simulation',
                       'nbDataRepro': 'learning/reproductor/nbDataRepro',
                       'exportFile': 'learning/reproductor/exportFile',
-                      'demonstration_file':
-                      'learning/reproductor/demonstration_file',
-                      'demonstrations': 'learning/reproductor/demonstrations',
                       'frame_id_goal': 'learning/reproductor/frame_id_goal',
                       'poseGoal_x': 'learning/reproductor/poseGoal_x',
                       'poseGoal_y': 'learning/reproductor/poseGoal_y',
@@ -230,7 +227,10 @@ class learningReproductor:
         #write in a file
         s = (repr(self.desPos[0]) + " " +
              repr(self.desPos[1]) + " " +
-             repr(self.desPos[2]) + "\n")
+             repr(self.desPos[2]) + " " +
+             repr(self.desPos[3]) + " " +
+             repr(self.desPos[4]) + " " +
+             repr(self.desPos[5]) + "\n")
         self.file.write(s)
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
@@ -298,17 +298,14 @@ class learningReproductor:
         newArmPose_x = self.goalPose.x + self.desPos[0]
         newArmPose_y = self.goalPose.y + self.desPos[1]
         newArmPose_z = self.goalPose.z + self.desPos[2]
-        newArmOri_x = self.goalOrientation[0] + self.desPos[3]
-        newArmOri_y = self.goalOrientation[1] + self.desPos[4]
-        newArmOri_z = self.goalOrientation[2] + self.desPos[5]
 
         #World orientation
         command_x = newArmPose_x - self.armPose[0]
         command_y = newArmPose_y - self.armPose[1]
         command_z = newArmPose_z - self.armPose[2]
-        command_roll = newArmOri_x - self.armOrientation[0]
-        command_pitch = newArmOri_y - self.armOrientation[1]
-        command_yaw = newArmOri_z - self.armOrientation[2]
+        command_roll = self.desPos[3] - self.currPos[3]
+        command_pitch = self.desPos[4] - self.currPos[4]
+        command_yaw = self.desPos[5] - self.currPos[5]
 
         #rospy.loginfo('Command ' + str(command_x) + ', ' +
         #              str(command_y) + ', ' + str(command_z))
@@ -382,8 +379,8 @@ class learningReproductor:
         self.fileTraj.write(s)
 
         s = (repr(newArmPose_x) + " " + repr(newArmPose_y) + " " +
-             repr(newArmPose_z) + " " + repr(newArmOri_x) + " " +
-             repr(newArmOri_y) + " " + repr(newArmOri_z) + "\n")
+             repr(newArmPose_z) + " " + repr(self.desPos[3]) + " " +
+             repr(self.desPos[4]) + " " + repr(self.desPos[5]) + "\n")
         self.desTraj.write(s)
         self.pub_arm_command.publish(joyCommand)
 
@@ -418,16 +415,19 @@ class learningReproductor:
                 self.tflistener.getLatestCommonTime("world", "end_effector"))
             self.armPose = arm_pose_tf
             self.armOrientation = euler_from_quaternion(rot)
-
+            #In the angles between the end EE and the valve are changed
+            # Roll is the difference between Pitch in the world
+            # Pitch is the difference between Roll in the world
+            # Yaw is the differences between the Yaw in the world
             if self.dataRobotReceived and self.dataGoalReceived:
                 if self.dataReceived == 0:
                     self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
                     self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
                     self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
-                    self.currPos[3] = (self.armOrientation[0] -
-                                       self.goalOrientation[0])
-                    self.currPos[4] = (self.armOrientation[1] -
+                    self.currPos[3] = (self.armOrientation[1] -
                                        self.goalOrientation[1])
+                    self.currPos[4] = (self.armOrientation[0] -
+                                       self.goalOrientation[0])
                     self.currPos[5] = (self.armOrientation[2] -
                                        self.goalOrientation[2])
                     self.currTime = (data.header.stamp.secs +
@@ -440,10 +440,10 @@ class learningReproductor:
                     self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
                     self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
                     self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
-                    self.currPos[3] = (self.armOrientation[0] -
-                                       self.goalOrientation[0])
-                    self.currPos[4] = (self.armOrientation[1] -
+                    self.currPos[3] = (self.armOrientation[1] -
                                        self.goalOrientation[1])
+                    self.currPos[4] = (self.armOrientation[0] -
+                                       self.goalOrientation[0])
                     self.currPos[5] = (self.armOrientation[2] -
                                        self.goalOrientation[2])
                     self.currTime = (data.header.stamp.secs +
@@ -457,10 +457,10 @@ class learningReproductor:
                     self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
                     self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
                     self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
-                    self.currPos[3] = (self.armOrientation[0] -
-                                       self.goalOrientation[0])
-                    self.currPos[4] = (self.armOrientation[1] -
+                    self.currPos[3] = (self.armOrientation[1] -
                                        self.goalOrientation[1])
+                    self.currPos[4] = (self.armOrientation[0] -
+                                       self.goalOrientation[0])
                     self.currPos[5] = (self.armOrientation[2] -
                                        self.goalOrientation[2])
                     self.currTime = (data.header.stamp.secs +

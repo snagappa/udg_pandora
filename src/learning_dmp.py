@@ -11,33 +11,33 @@ from scipy import interpolate
 #value to show all the numbers in a matrix
 # numpy.set_printoptions(threshold=100000)
 
-class learningDmp :
+class learningDmp:
 
     def __init__(self, name):
         self.name = name
         self.getConfig()
         rospy.loginfo('Configuration Loaded')
         self.nbSamples = len(self.demonstrations)
-        self.d = numpy.zeros(shape=(self.nbSamples,9,self.nbData))
-        self.Sigma_x = numpy.zeros(shape=(self.nbStates,3,3))
-        self.Wp = numpy.zeros(shape=(self.nbStates,3,3))
-        self.Mu_t = numpy.linspace(0,self.nbData*self.dt,self.nbStates)
-        self.Sigma_t = numpy.tile((self.nbData*self.dt/self.nbStates)*0.8,[self.nbStates,1,1])
-        self.Data = numpy.zeros(shape=(9,self.nbSamples*self.nbData))
+        self.d = numpy.zeros(shape=(self.nbSamples, 9, self.nbData))
+        self.Sigma_x = numpy.zeros(shape=(self.nbStates, 3, 3))
+        self.Wp = numpy.zeros(shape=(self.nbStates, 3, 3))
+        self.Mu_t = numpy.linspace(0, self.nbData*self.dt, self.nbStates)
+        self.Sigma_t = numpy.tile((self.nbData*self.dt/self.nbStates)*0.8,
+                                  [self.nbStates, 1, 1])
+        self.Data = numpy.zeros(shape=(9, self.nbSamples*self.nbData))
         self.loadDemonstration()
         rospy.loginfo('Loaded demonstrations')
-        #                        dimensions, trajectory DoF, samples of One Demo
-
+        # dimensions, trajectory DoF, samples of One Demo
 
     def getConfig(self):
-        if rospy.has_param('learning/dmp/nbData') :
+        if rospy.has_param('learning/dmp/nbData'):
             self.nbData = rospy.get_param('learning/dmp/nbData')
-        else :
+        else:
             rospy.logerr('Prameter nbData not found')
 
-        if rospy.has_param('learning/dmp/nbDataRepro') :
+        if rospy.has_param('learning/dmp/nbDataRepro'):
             self.nbDataRepro = rospy.get_param('learning/dmp/nbDataRepro')
-        else :
+        else:
             rospy.logerr('Prameter nbDataRepro not found')
 
         if rospy.has_param('learning/dmp/nbDataExport') :

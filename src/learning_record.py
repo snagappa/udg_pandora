@@ -76,23 +76,34 @@ class LearningRecord:
                         "world", "end_effector"))
                     #rospy.loginfo( 'Arm global Pose ' + str(arm_pose)  )
                 arm_ori = euler_from_quaternion(rot)
+                # rospy.loginfo('Current Arm Roll ' + str(arm_ori[0])
+                #               + ' Pitch ' + str(arm_ori[1])
+                #               + ' Yaw ' + str(arm_ori[2]))
+                # rospy.loginfo('Current Valve Roll ' +
+                #               str(self.goalOrientation[0])
+                #               + ' Pitch ' + str(self.goalOrientation[1])
+                #               + ' Yaw ' + str(self.goalOrientation[2]))
+                #In the angles between the end EE and the valve are changed
+                # Roll is the difference between Pitch in the world
+                # Pitch is the difference between Roll in the world
+                # Yaw is the differences between the Yaw in the world
                 s = (repr(arm_pose[0] - self.goalPose.x) + " " +
                      repr(arm_pose[1] - self.goalPose.y) + " " +
                      repr(arm_pose[2] - self.goalPose.z) + " " +
-                     repr(cola2_lib.normalizeAngle(arm_ori[0] -
-                                                   self.goalOrientation[0]))
-                     + " " +
                      repr(cola2_lib.normalizeAngle(arm_ori[1] -
                                                    self.goalOrientation[1]))
+                     + " " +
+                     repr(cola2_lib.normalizeAngle(arm_ori[0] -
+                                                   self.goalOrientation[0]))
                      + " " +
                      repr(cola2_lib.normalizeAngle(arm_ori[2] -
                                                    self.goalOrientation[2]))
                      + "\n")
+                self.file.write(s)
             else:
                 rospy.loginfo('Goal pose Not initialized')
         finally:
             self.lock.release()
-        self.file.write(s)
 
     def updateGoalPose(self, landMarkMap):
         self.lock.acquire()
