@@ -26,6 +26,7 @@ from tf.transformations import euler_from_quaternion
 #import to use mutex
 import threading
 import tf
+import math
 
 
 class LearningRecord:
@@ -93,8 +94,10 @@ class LearningRecord:
                      repr(cola2_lib.normalizeAngle(arm_ori[1] -
                                                    self.goalOrientation[1]))
                      + " " +
-                     repr(cola2_lib.normalizeAngle(arm_ori[0] -
-                                                   self.goalOrientation[0]))
+                     repr(cola2_lib.normalizeAngle(
+                            cola2_lib.normalizeAngle(arm_ori[0] -
+                                                     self.goalOrientation[0])
+                            - (math.pi/2.0)))
                      + " " +
                      repr(cola2_lib.normalizeAngle(arm_ori[2] -
                                                    self.goalOrientation[2]))

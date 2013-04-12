@@ -30,6 +30,9 @@ import tf
 #value to show all the numbers in a matrix
 # np.set_printoptions(threshold=100000)
 
+#use to normalize the angle
+import cola2_lib
+
 
 class learningReproductor:
 
@@ -244,7 +247,7 @@ class learningReproductor:
         self.currPosSim = self.desPos
 
     def generateNewPose(self):
-        rospy.loginfo('Action value ' + str(self.action))
+        #rospy.loginfo('Action value ' + str(self.action))
         if self.action == 1:
             t = -math.log(self.s)/self.alpha
             # for each atractor or state obtain the weigh
@@ -303,9 +306,17 @@ class learningReproductor:
         command_x = newArmPose_x - self.armPose[0]
         command_y = newArmPose_y - self.armPose[1]
         command_z = newArmPose_z - self.armPose[2]
-        command_roll = self.desPos[3] - self.currPos[3]
-        command_pitch = self.desPos[4] - self.currPos[4]
-        command_yaw = self.desPos[5] - self.currPos[5]
+        command_roll = 0.0
+        # command_roll = cola2_lib.normalizeAngle(
+        #     self.desPos[3] - self.currPos[3])
+        #command_pitch = 0.0
+        command_pitch = cola2_lib.normalizeAngle(
+            self.desPos[4] - self.currPos[4])
+        #command_yaw = 0.0
+        command_yaw = cola2_lib.normalizeAngle(
+            self.desPos[5] - self.currPos[5])
+
+        #rospy.loginfo('Command Yaw' + str(command_yaw))
 
         #rospy.loginfo('Command ' + str(command_x) + ', ' +
         #              str(command_y) + ', ' + str(command_z))
@@ -318,17 +329,20 @@ class learningReproductor:
         command_pose = np.asarray([command_x, command_y, command_z, 1])
         command_pose_tf = np.dot(rotation_matrix, command_pose)[:3]
 
-        command_ori = np.asarray([command_roll, command_pitch, command_yaw, 1])
-        command_ori_tf = np.dot(rotation_matrix, command_ori)[:3]
+        # command_ori = np.asarray([command_roll, command_pitch, command_yaw, 1])
+        # command_ori_tf = np.dot(rotation_matrix, command_ori)[:3]
 
         # rospy.loginfo('Command Oriented ' + str(command_tf[0]) + ', ' +
         #               str(command_tf[1]) + ', ' + str(command_tf[2]))
         joyCommand.axes.append(command_pose_tf[0])
         joyCommand.axes.append(command_pose_tf[1])
         joyCommand.axes.append(command_pose_tf[2])
-        joyCommand.axes.append(command_ori_tf[0])
-        joyCommand.axes.append(command_ori_tf[1])
-        joyCommand.axes.append(command_ori_tf[2])
+        # joyCommand.axes.append(0.0)
+        # joyCommand.axes.append(0.0)
+        # joyCommand.axes.append(0.0)
+        joyCommand.axes.append(command_roll/6.0)
+        joyCommand.axes.append(command_pitch/6.0)
+        joyCommand.axes.append(command_yaw/6.0)
 
         # Files to debug.
         #s = (repr(command_x) + " " + repr(command_y) +
@@ -440,12 +454,16 @@ class learningReproductor:
                     self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
                     self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
                     self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
-                    self.currPos[3] = (self.armOrientation[1] -
-                                       self.goalOrientation[1])
-                    self.currPos[4] = (self.armOrientation[0] -
-                                       self.goalOrientation[0])
-                    self.currPos[5] = (self.armOrientation[2] -
-                                       self.goalOrientation[2])
+                    self.currPos[3] = cola2_lib.normalizeAngle(
+                        self.armOrientation[1] - self.goalOrientation[1])
+                    self.currPos[4] = cola2_lib.normalizeAngle(
+                        cola2_lib.normalizeAngle(
+                            self.armOrientation[0] -
+                            self.goalOrientation[0]) -
+                        (math.pi/2.0))
+                    self.currPos[5] = cola2_lib.normalizeAngle(
+                        (self.armOrientation[2] -
+                         self.goalOrientation[2]))
                     self.currTime = (data.header.stamp.secs +
                                      (data.header.stamp.nsecs*1E-9))
                     self.currVel = ((self.currPos-self.prevPos) /
@@ -457,12 +475,16 @@ class learningReproductor:
                     self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
                     self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
                     self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
-                    self.currPos[3] = (self.armOrientation[1] -
-                                       self.goalOrientation[1])
-                    self.currPos[4] = (self.armOrientation[0] -
-                                       self.goalOrientation[0])
-                    self.currPos[5] = (self.armOrientation[2] -
-                                       self.goalOrientation[2])
+                    self.currPos[3] = cola2_lib.normalizeAngle(
+                        self.armOrientation[1] - self.goalOrientation[1])
+                    self.currPos[4] = cola2_lib.normalizeAngle(
+                        cola2_lib.normalizeAngle(
+                            self.armOrientation[0] -
+                            self.goalOrientation[0]) -
+                        (math.pi/2.0))
+                    self.currPos[5] = cola2_lib.normalizeAngle(
+                        (self.armOrientation[2] -
+                         self.goalOrientation[2]))
                     self.currTime = (data.header.stamp.secs +
                                      (data.header.stamp.nsecs*1E-9))
                     self.currVel = ((self.currPos-self.prevPos) /

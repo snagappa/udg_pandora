@@ -1,5 +1,5 @@
 learning/reproductor/parameters : learned_data.txt
-learning/reproductor/alpha : 2
+learning/reproductor/alpha : 1
 learning/reproductor/s : 1
 learning/reproductor/nbVar : 6
 learning/reproductor/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
