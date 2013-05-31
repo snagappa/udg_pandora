@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<robot name="girona500">
+
+  <link name="base_link">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://udg_pandora/data2/robot2/GIRONA500v2/g500.osg"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <link name="profiler">
+    <visual>
+      <origin rpy="0.0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.1" length="0.2"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <joint name="baselink_to_part0" type="continuous">
+    <parent link="base_link"/>
+    <child link="profiler"/>
+    <origin rpy="0 0 0" xyz="0 0 -1.5"/>
+  </joint>
+
+ 
+
+</robot>

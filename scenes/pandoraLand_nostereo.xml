@@ -260,11 +260,11 @@
   </object>
   <rosInterfaces>
     <ROSOdomToPAT>
-      <topic> /dataNavigator </topic>
+      <topic> /g500/ros_odom_to_pat </topic>
       <vehicleName> girona500 </vehicleName>
     </ROSOdomToPAT>
     <PATToROSOdom>
-      <topic> /uwsim/girona500_odom </topic>
+      <topic> /g500/pat_to_ros_odom</topic>
       <vehicleName> girona500 </vehicleName>
     </PATToROSOdom>
     <ArmToROSJointState> 
@@ -278,13 +278,13 @@
 
     <VirtualCameraToROSImage>
       <cameraName>usb_cam</cameraName>
-      <imageTopic> /usb_cam/image_raw </imageTopic>
-      <infoTopic> /usb_cam/camera_info </infoTopic>
+      <imageTopic> /g500/camera/image_raw </imageTopic>
+      <infoTopic> /g500/camera/camera_info </infoTopic>
     </VirtualCameraToROSImage>
 
     <RangeSensorToROSRange>
       <name>sonar</name>
-      <topic> /uwsim/g500/range </topic>
+      <topic> /g500/range </topic>
       <rate>5</rate>
     </RangeSensorToROSRange>
   </rosInterfaces>

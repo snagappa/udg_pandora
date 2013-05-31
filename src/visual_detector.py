@@ -118,9 +118,13 @@ class VisualDetector(object):
         self.disable_valve_detection = metaclient.Service('/visual_detector/disable_valve_detection', std_srvs.srv.Empty, self.disableValveDetectionSrv, {})
         self.disable_chain_detection = metaclient.Service('/visual_detector/disable_chain_detection', std_srvs.srv.Empty, self.disableChainDetectionSrv, {})
         
-        
-        camera_root = rospy.get_param("visual_detector/panel/camera_root")
-        image_topic = rospy.get_param("visual_detector/panel/image_topic")
+        SIMULATOR = rospy.get_param("visual_detector/panel/simulator")
+        if SIMULATOR:
+            camera_root = rospy.get_param("visual_detector/panel/sim_camera_root")
+            image_topic = rospy.get_param("visual_detector/panel/sim_image_topic")
+        else:
+            camera_root = rospy.get_param("visual_detector/panel/real_camera_root")
+            image_topic = rospy.get_param("visual_detector/panel/real_image_topic")
         is_stereo = rospy.get_param("visual_detector/panel/is_stereo")
         # Initialise image buffer
         self.image_buffer = camera_buffer(camera_root, image_topic, is_stereo)
