@@ -1,8 +1,8 @@
 <launch>
 	<arg name="enableShadders" value="true" />
 	<arg name="enableLog" value="false" />
-  	<arg name="enableLandmarks" value="true"/>
-	<arg name="enableRViz" value="true" />
+  	<arg name="enableLandmarks" value="false"/>
+	<arg name="enableRViz" value="false" />
 	
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
@@ -16,7 +16,7 @@
 
 	<!-- Run UWSim -->
 	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find
-    udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/ " respawn="false" output="screen"/>
+    udg_pandora)/scenes/pandoraProfiler.xml --dataPath $(find udg_pandora)/ " respawn="false" output="screen"/>
 
 	<node unless="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile
     $(find udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/" respawn="false"/>
