@@ -5,7 +5,7 @@ import numpy as np
 
 from numpy.linalg import norm
 from scipy.linalg import block_diag
-from scipy.optimize import minimize
+import scipy.optimize
 import scipy.io
 
 import cv2
@@ -17,6 +17,7 @@ from lib import cameramodels, image_feature_extractor
 
 import code
 
+_minimize_ = getattr(scipy.optimize, "minimize", None)
 
 class PoseDetector(object):
     def __init__(self, feat_detector=image_feature_extractor.orb):
@@ -300,14 +301,22 @@ class PoseDetector(object):
             XL = np.hstack((self.kvec_scaled, self.wNm_flat,
                             self.kscale*self.matches.obj_keypoints_2d.flatten()))
             self._object_.XL = XL
-            # Refine the pose using Simplex Downhill
-            #Tfin, fopt, num_iters, num_funcalls, warnflag = scipy.optimize.fmin(
-            #    function_cost_total, poseparams_ini, (XL, kscale, mosaic_points),
-            #    xtol=1e-6, ftol=1e-6, full_output=1)
-            obj_opt_pose = minimize(function_cost_total, poseparams_ini,
+            
+            if not _minimize_ is None:
+                obj_opt_pose = _minimize_(function_cost_total, poseparams_ini,
                 (XL, self.kscale, self.matches.obj_keypoints_2d),
                 method="L-BFGS-B", tol=1e-3)#"L-BFGS-B") #"Nelder-Mead")
-            self.obj_opt_pose = self.obj_opt_pose
+            else:
+                # Refine the pose using Simplex Downhill
+                Tfin, fopt, num_iters, num_funcalls, warnflag = (
+                    scipy.optimize.fmin(function_cost_total, poseparams_ini,
+                    (XL, self.kscale, self.matches.obj_keypoints_2d),
+                    xtol=1e-6, ftol=1e-6, full_output=1))
+                obj_opt_pose = scipy.optimize.optimize.Result({"x":Tfin,
+                    "fun":fopt, "nfev":num_funcalls, "nit":num_iters,
+                    "success":not warnflag, "status":warnflag})
+            
+            self.obj_opt_pose = obj_opt_pose
             if obj_opt_pose.success:
                 retval = True
                 self.obj_trans = obj_opt_pose.x[3:]
@@ -426,16 +435,19 @@ def compute_pose_unc(image_points, mosaic_points, camera_matrix, wNm,
     fcost_ini = function_cost_total(poseparams_ini, XL, kscale, mosaic_points)
     print 'Initial cost: ', fcost_ini
     
-    # Refine the pose using Simplex Downhill
-    #Tfin, fopt, num_iters, num_funcalls, warnflag = scipy.optimize.fmin(
-    #    function_cost_total, poseparams_ini, (XL, kscale, mosaic_points),
-    #    xtol=1e-6, ftol=1e-6, full_output=1)
-    result = scipy.optimize.minimize(function_cost_total, poseparams_ini,
-                                     (XL, kscale, mosaic_points),
-                                     method="L-BFGS-B", tol=1e-3)#"L-BFGS-B") #"Nelder-Mead")
-    
-    if not result.success:
-        print "Minimization did not converge!"
+    if not _minimize_ is None:
+        result = _minimize_(function_cost_total, poseparams_ini,
+                          (XL, kscale, mosaic_points),
+                          method="L-BFGS-B", tol=1e-3)#"L-BFGS-B") #"Nelder-Mead")
+    else:
+        # Refine the pose using Simplex Downhill
+        Tfin, fopt, num_iters, num_funcalls, warnflag = scipy.optimize.fmin(
+            function_cost_total, poseparams_ini, (XL, kscale, mosaic_points),
+            xtol=1e-6, ftol=1e-6, full_output=1)
+        result = scipy.optimize.optimize.Result({"x":Tfin,
+            "fun":fopt, "nfev":num_funcalls, "nit":num_iters,
+            "success":not warnflag, "status":warnflag})
+        
     Tfin = result.x
     fcost_fin = result.fun #function_cost_total(Tfin, XL, kscale, mosaic_points)
     print 'Initial cost: ', fcost_ini
@@ -1193,14 +1205,14 @@ wNm_cov = test_data["COVMWR"]
 
 print "result = objdetect.compute_pose_unc(coori, coorm, camera_matrix, wNm, pixel_noise_var, homography_matrix, camera_cov, wNm_cov)"
 
-#if __name__ == "__main__":
-result = compute_pose_unc(coori, coorm, camera_matrix, wNm, pixel_noise_var, homography_matrix, camera_cov, wNm_cov)
-print "\nPose:"
-print result[0]
-print "\nPose Covariance:"
-print np.diag(result[1])
-
-print "\nAbs Pose Error:"
-print np.abs(result[0] - test_data["POSEPAR"])
-print "\nAbs Pose Cov Error:"
-print np.diag(np.abs(result[1] - test_data["COVPOSEPAR"]))
+if __name__ == "__main__":
+    result = compute_pose_unc(coori, coorm, camera_matrix, wNm, pixel_noise_var, homography_matrix, camera_cov, wNm_cov)
+    print "\nPose:"
+    print result[0]
+    print "\nPose Covariance:"
+    print np.diag(result[1])
+    
+    print "\nAbs Pose Error:"
+    print np.abs(result[0] - test_data["POSEPAR"])
+    print "\nAbs Pose Cov Error:"
+    print np.diag(np.abs(result[1] - test_data["COVPOSEPAR"]))
