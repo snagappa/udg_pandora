@@ -185,7 +185,7 @@ class camera_buffer(message_buffer):
                  for cam_info_topic in self._camera_info_topics_])
         except rospy.ROSException:
             rospy.logerr("Could not read camera parameters")
-            camera_pickle_file = "bumblebee.p"
+            camera_pickle_file = "bumblebee_new.p"
             print "Loading information from "+camera_pickle_file
             camera_info_pickle = (roslib.packages.get_pkg_dir("udg_pandora")+
             "/src/lib/" + camera_pickle_file)

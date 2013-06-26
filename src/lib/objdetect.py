@@ -14,7 +14,7 @@ import numpy as np
 import code
 #import copy
 from scipy import weave
-from misctools import STRUCT#, estimate_rigid_transform_3d
+from misctools import STRUCT, normalize_angle #, estimate_rigid_transform_3d
 import cameramodels
 import image_feature_extractor
 import tf
@@ -51,6 +51,9 @@ class Detector(object):
         self._object_.intensity_threshold = None
         # Minimum required correspondences to validate localisation
         self._object_.min_correspondences = 10
+        # Near and far distances for detection
+        self._object_.near_distance = 0.25
+        self._object_.far_distance = 5
         
         # Store matched points
         self._matches_ = STRUCT()
@@ -75,9 +78,8 @@ class Detector(object):
         
         # Rotation matrix and translation vector from solvePnP
         self.obj_rpy = None
-        self.obj_rpy_cov = None
         self.obj_trans = None
-        self.obj_trans_cov = None
+        self.obj_cov = None
         self.obj_corners = np.empty(0)
         # Image of the current scene
         self._scene_ = None
@@ -89,7 +91,7 @@ class Detector(object):
     
     def init_camera(self, camera_info, *dummy_args):
         self.camera.fromCameraInfo(camera_info)
-        camera_matrix = self.camera.projection_matrix[:, :3]
+        camera_matrix = (self.camera.projection_matrix()[:, :3]).copy()
         # Normalise(?) camera matrix
         camera_matrix /= camera_matrix[2, 2]
         # Normalisation of camera matrix covariance (use Frobenius norm)
@@ -105,9 +107,12 @@ class Detector(object):
     def get_wNm(self):
         return self._object_.wNm.copy()
     
-    def set_wNm(self, wNm, wNm_cov=None):
-        assert np.abs(np.linalg.norm(wNm) - 1) < 1e-6, "Norm of wNm must be 1"
-        
+    def set_wNm(self, wNm, wNm_cov=None, FORCE=False):
+        wNm_norm_test = np.abs(np.linalg.norm(wNm) - 1) < 1e-6
+        if not FORCE:
+            assert wNm_norm_test, "Norm of wNm must be 1"
+        elif not wNm_norm_test:
+            print "Norm of wNm not equal 1, but FORCE=True"
         self._camera_params_.wNm = wNm.copy()
         self._camera_params_.wNm_flat = wNm.flatten()
         self._camera_params_.inv_wNm = np.linalg.inv(wNm)
@@ -118,6 +123,12 @@ class Detector(object):
     
     def set_flann_ratio_threshold(self, flann_ratio_threshold):
         self.flann_ratio_threshold = flann_ratio_threshold
+    
+    def set_near_far(self, near=None, far=None):
+        if not near is None:
+            self._object_.near_distance = near
+        if not far is None:
+            self._object_.far_distance = far
     
     def set_template(self, template_im=None, corners_3d=None, template_mask=None):
         """
@@ -218,21 +229,26 @@ class Detector(object):
                                                   descriptors_scene,
                                                   self.flann_ratio_threshold)
         pts_obj, pts_scn = dam_result[0:2]
+        self._object_.pts_obj = pts_obj
+        self._object_.pts_scn = pts_scn
+        #self._object_.kp_scn = np.asarray([_kp_.pt for _kp_ in keypoints_scene])
+        # ORIGINAL,  h_mat = inv(h_mat)
         status, h_mat, num_inliers, inliers_status = (
-        self.camera.find_homography(pts_scn, pts_obj, ransacReprojThreshold=1,
+        self.camera.find_homography(pts_obj, pts_scn, ransacReprojThreshold=1,
             min_inliers=self._object_.min_correspondences))
-        try:
-            h_mat = np.linalg.inv(h_mat)
-        except:
-            print "Error computing inverse of homography!"
-            h_mat = None
-            status = False
-            self._matches_.kp_obj = None
-            self._matches_.kp_scn = None
-        else:
-            inliers_idx = inliers_status.astype(np.bool)
-            self._matches_.kp_obj = pts_obj[inliers_idx]
-            self._matches_.kp_scn = pts_scn[inliers_idx]
+        # Save only the inliers
+        inliers_idx = inliers_status.astype(np.bool)
+        self._object_.pts_obj = pts_obj[inliers_idx]
+        self._object_.pts_scn = pts_scn[inliers_idx]
+        #try:
+        #    # Compute the inverse if findHomography(pts_scn, pts_obj)
+        #    h_mat = np.linalg.inv(h_mat)
+        #except:
+        #    print "Error computing inverse of homography!"
+        #    h_mat = None
+        #    status = False
+        #    #self._matches_.kp_obj = None
+        #    #self._matches_.kp_scn = None
         return status, h_mat, num_inliers, inliers_status
     
     def detect(self, im_scene, *dummy_args):
@@ -271,46 +287,77 @@ class Detector(object):
         # C = -R^{-1}T = -R^T T (since R is a rotation matrix)."
         #camera_centre = np.dot(-(cv2.Rodrigues(rvec)[0].T), tvec)
         detected = False
+        camera_params = self._camera_params_
         if self._object_.status:
-            # Use Sturm method to generate pose and optimize if possible
-            camera_params = self._camera_params_
-            MiWini = np.dot(self._object_.h_mat, camera_params.inv_wNm)
-            poseparams = getposeparam_sturm(
-                camera_params.camera_matrix, MiWini, "WTC",
-                camera_params.inv_camera_matrix)
+            # Project the corners of the template onto the scene
+            self.obj_corners = cv2.perspectiveTransform(
+                self._object_.corners_2d.reshape(1, -1, 2),
+                self._object_.h_mat).reshape(-1, 2)
+            USE_STURM = False
+            if not camera_params.wNm is None and USE_STURM:
+                #print "Using Sturm method"
+                # Use Sturm method to generate pose and optimize if possible
+                # Mimini should be the same as h_mat
+                #Mimini, _CONDS, _A, _R = lsnormplanar(self._object_.pts_scn, self._object_.pts_obj, 'stdv')
+                #MiWini = np.dot(Mimini, camera_params.inv_wNm)
+                MiWini = np.dot(self._object_.h_mat, camera_params.inv_wNm)
+                poseparams = getposeparam_sturm(
+                    camera_params.camera_matrix, MiWini, "WTC",
+                    camera_params.inv_camera_matrix)
+                
+                # Perform minimization
+                if not _minimize_ is None:
+                    #print "Performing minimization"
+                    #print "Initial pose: ", poseparams
+                    XL = np.hstack((camera_params.kvec_scaled,
+                                    camera_params.wNm_flat,
+                                    camera_params.kscale*self._object_.pts_scn.flatten()))
+                    obj_opt_pose = _minimize_(function_cost_total, poseparams,
+                    (XL, camera_params.kscale, self._object_.pts_obj),
+                    method="L-BFGS-B", tol=1e-3)#"L-BFGS-B") #"Nelder-Mead")
+                    if obj_opt_pose.success:
+                        poseparams = obj_opt_pose.x
+                    #print "Final pose: ", poseparams
+                
+                retval = 1
+                self.obj_rpy = np.asarray(poseparams[:3][::-1])
+                self.obj_trans = np.asarray(poseparams[3:])
+                #print "Pos: ", self.obj_trans
+                #print "Ori: ", self.obj_rpy
+                #print "Computing covariance:"
+                # Compute estimate of the covariance
+                #self.obj_cov = np.asarray(self.covariance())
+                #print self.obj_cov
+            else:
+                #print "Using old method"
+                # Solve perspective n-point
+                camera_matrix = np.asarray(
+                        self.camera.projection_matrix()[:3, :3], order='C')
+                retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d,
+                    self.obj_corners, camera_matrix, np.empty(0))
+                    #np.asarray(self.camera.distortionCoeffs()))
+                # Convert the rotation vector to RPY
+                r_mat = cv2.Rodrigues(rvec)[0]
+                self.obj_rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
+                self.obj_trans = np.squeeze(tvec)
+                #print "Pos Diff: ", self.obj_trans - sturm_obj_trans
+                #print "Ori Diff: ", normalize_angle(self.obj_rpy - sturm_obj_rpy)
+                
             
-            # Perform minimization
-            if not _minimize_ is None:
-                XL = np.hstack((self.kvec_scaled, self.wNm_flat,
-                            self.kscale*self.matches.kp_obj.flatten()))
-                obj_opt_pose = _minimize_(function_cost_total, poseparams,
-                (XL, camera_params.kscale, self._matches_.kp_obj),
-                method="L-BFGS-B", tol=1e-3)#"L-BFGS-B") #"Nelder-Mead")
-                if obj_opt_pose.success:
-                    poseparams = obj_opt_pose.x
-            
-            retval = 1
-            self.obj_rpy = poseparams[:3][::-1]
-            self.obj_trans = poseparams[3:]
-            
-            # Compute estimate of the covariance
-            self.obj_cov = self.covariance()
-#            # Project the corners of the template onto the scene
-#            self.obj_corners = cv2.perspectiveTransform(
-#                self._object_.corners_2d.reshape(1, -1, 2),
-#                self._object_.h_mat).reshape(-1, 2)
-#            # Solve perspective n-point
-#            camera_matrix = np.asarray(
-#                    self.camera.projection_matrix()[:3, :3], order='C')
-#            retval, rvec, tvec = cv2.solvePnP(self._object_.corners_3d,
-#                self.obj_corners, camera_matrix, np.empty(0))
-#                #np.asarray(self.camera.distortionCoeffs()))
-#            # Convert the rotation vector to RPY
-#            r_mat = cv2.Rodrigues(rvec)[0]
-#            self.obj_rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
-#            self.obj_trans = np.squeeze(tvec)
+            if not camera_params.wNm is None:
+                # Compute estimate of the covariance
+                self.obj_cov = np.asarray(self.covariance())
+            else:
+                # Fake the covariance
+                self.obj_cov = 0.0175*np.ones((6, 6))
+                pos_diag_idx = range(3)
+                self.obj_cov[pos_diag_idx, pos_diag_idx] = (
+                    (((1.2*np.linalg.norm(self.obj_trans))**2)*0.03)**2)
+            #print np.diag(self.obj_cov)
             obj_range = np.linalg.norm(self.obj_trans)
-            if not retval or (not 0.25 < obj_range < 5):
+            near = self._object_.near_distance
+            far = self._object_.far_distance
+            if not retval or (not near < obj_range < far):
                 print "Too close/far for reliable estimation"
             else:
                 detected = True
@@ -326,40 +373,65 @@ class Detector(object):
     
     def covariance(self):
         camera_params = self._camera_params_
-        matches = self._matches_
-        # S� se est� a considerar ruido independente nas coordenadas
-        # Number of matched points
-        num_matched_points = self.matches.okp_obj.shape[0]
-        # Too expensive to evaluate the covariance for more than 50 points
-        max_num_points = 10
+        USE_RANDOM_POINTS = False
+        matches = self._object_
         # Noise variance for each pixel
-        px_noise_var = 1.
-        # Evaluate the covariance using the maximum allowed number of points
-        num_points = min((max_num_points, num_matched_points))
-        # Assume order of the points is random, then select points with linear
-        # spacing. The first 13 parameters correspond to camera parameters
-        xl_range = np.unique(np.round(np.linspace(13, num_matched_points-1, 
+        px_noise_var = 1
+        if not USE_RANDOM_POINTS:
+            # Too expensive to evaluate covariance for all points - 
+            # use a subset corresponding to corners and centre of panel
+            num_points = 5
+            
+            pts_obj = np.asarray(matches.pts_obj)
+            pts_scn = np.asarray(matches.pts_scn)
+            # S� se est� a considerar ruido independente nas coordenadas
+            # Select points from pts_obj which are closest to the corners
+            # and centre of the template
+            height, width = matches.template.shape[:2]
+            test_points = np.vstack((matches.corners_2d,
+                                     [[width/2., height/2.]]))
+            residuals = pts_obj[np.newaxis] - test_points[:, np.newaxis]
+            distance = (residuals**2).sum(axis=2)
+            test_points_idx = distance.argmin(axis=1)
+            # Select the corner points from the template and scene
+            cov_pts_obj = pts_obj[test_points_idx]
+            cov_pts_scn = pts_scn[test_points_idx]
+            
+        else:
+            # Assume order of the points is random, then select points with
+            # linear spacing.
+            # Number of matched points
+            num_matched_points = matches.pts_obj.shape[0]
+            # Select at most 10(?) points to estimate the covariance
+            max_num_points = 10
+            num_points = min((max_num_points, num_matched_points))
+            
+            # The first 13 parameters correspond to camera parameters
+            xl_range = np.unique(np.round(np.linspace(13, num_matched_points-1, 
                                                   num_points))).astype(np.int)
-        XL = np.hstack((camera_params.kvec_scaled, camera_params.wNm_flat,
-                        camera_params.kscale*matches.kp_scn[xl_range].flatten()))
-        cov_x_coor = px_noise_var*camera_params.kscale**2*np.eye(num_points*2)
+            cov_pts_scn = matches.pts_scn[xl_range]
+            cov_pts_obj = matches.pts_obj[xl_range]
         
+        XL = np.hstack((camera_params.kvec_scaled, camera_params.wNm_flat,
+                        camera_params.kscale*cov_pts_scn.flatten()))
+        cov_x_coor = px_noise_var*camera_params.kscale**2*np.eye(num_points*2)
         # Adicionar covari�ncia dos par�metros intr�nsecos
         cov_XL = scipy.linalg.block_diag(
             camera_params.camera_cov_scaled, camera_params.wNm_cov, cov_x_coor)
-        
+        # Jitter(?) value for calculating the Hessian
         h = 1e-6
         # Calculo da Hessiana de F em ordem a Tetha
         Theta = np.hstack((self.obj_rpy[::-1], self.obj_trans))
         d2FdTheta2 = function_d2FdTheta2(Theta, XL, camera_params.kscale,
-                                    matches.kp_obj[xl_range], h)
-        
+                                    cov_pts_obj, h)
+        #
         d2FdThetadXL = function_d2FdThetadXL(Theta, XL, camera_params.kscale,
-                                        matches.kp_obj[xl_range], h)
+                                        cov_pts_obj, h)
         
         inv_d2FdTheta2 = np.linalg.inv(d2FdTheta2)
         pose_cov_ypr_xyz = np.dot(inv_d2FdTheta2, np.dot(d2FdThetadXL.T, 
             np.dot(cov_XL, np.dot(d2FdThetadXL, inv_d2FdTheta2))))
+        
         # Reorder the matrix to x, y, z, roll, pitch, yaw
         cov_xyz = pose_cov_ypr_xyz[3:, 3:]
         cov_rpy = pose_cov_ypr_xyz[:3, :3][::-1]
@@ -829,6 +901,229 @@ def trancoor(transformation, coords):
         tr_coords = tr_coords[:, :, :2]/tr_coords[:, :, 2, np.newaxis]
     
     return tr_coords
+
+
+def lsnormplanar(COOR1, COOR2, methodnorm):
+    """M12 = lsnormplanar(COOR1, COOR2, methodnorm)
+    Least Squares Normalized Planar Transformation
+    
+    Determina��o da Transforma��o Planar M12(3x3) que relaciona os pontos 
+    com coordenadas COOR1 e COOR2. Esta fun��o normaliza as coordenadas 
+    dos pontos impondo m�dia nula e permite ainda efectuar 
+    escalamentos do tipo :
+    methodnorm = 'nnor' : (no normalization). 
+    methodnorm = 'none' : nenhum escalamento. 
+    methodnorm = 'stdv' : desvio padr�o unit�rio em cada coordenada.
+    methodnorm = 'sqrt' : desvio padr�o igual � raiz quadrada do d.p. original.
+    S�o necess�rias pelo menos 4 pontos em cada lista de coordenadas.
+    
+    M12, CONDS = lsnormplanar(COOR1, COOR2) devolve tamb�m o n� de 
+    condi��o do sistema (A'*A) referente 'as coordenadas normalizadas.
+    M12, CONDS, A, R = lsnormplanar(COOR1, COOR2) devolve a matriz do 
+    sistema A e o vector de res�duos R referente 'as coordenadas 
+    normalizadas.
+    
+    Usa o sistema (u,v) para as coordenadas 2-D.
+    
+    M12 = lsplanar(COOR1, COOR2, methodnorm, methodplan)
+    Permite a especifica��o de uma outra transforma��o planar:
+      methodplan = 
+          'lsplanar' : Transforma��o planar gen�rica.
+    """
+    
+    assert COOR1.shape == COOR2.shape, (
+        "Coordinate lists must have the same size.")
+    
+    # Normalize the coordinates
+    NCL1, T1 = normcoor(COOR1, methodnorm)
+    NCL2, T2 = normcoor(COOR2, methodnorm)
+    
+    # Call the usual planar transformation estimation function
+    M12norm, CONDS, A, R = lsplanar(NCL1, NCL2, 'none')
+    
+    # Invert the effect of the normalization
+    M12 = np.dot(np.linalg.inv(T1), np.dot(M12norm, T2))
+    
+    M12 /= M12[2, 2]
+    #print "lsnormplanar():296"
+    #code.interact(local=locals())
+    
+    return M12, CONDS, A, R
+
+
+def normcoor(COOR, METHOD="none"):
+    """NCOOR, T = normcoor(COOR)
+    Normalize 2D Coordinates:
+    
+    Normaliza uma lista COOR de coordenadas 2D, tal que tenha m�dia nula.
+    Devolve lista modificada NCOOR e a tranforma��o homog�nea afim T(3x3) 
+    correspondente.
+    
+    NCOOR, T = normcoor(COOR, METHOD)
+    Permite efectuar escalamentos do tipo :
+      METHOD =
+      'nnor' : (no normalization). Devolve as coordenadas de entrada,
+               com T = eye(3)
+      'none' : nenhum escalamento. 
+      'stdv' : desvio padr�o unit�rio e independente em cada coordenada.
+      'equa' : desvio padr�o aproximadamente unit�rio e igual para as duas
+               coordenadas (m�dia dos desvios padroes).
+      'sqrt' : desvio padr�o igual � raiz quadrada do d.p. original.
+    
+    COOR = trancoor(inv(T),NCOOR)
+    """
+    METHOD = METHOD.lower()
+    assert METHOD in ("nnor", "stdv", "equa", "sqrt", "none"), (
+        'METHOD must be one of "nnor", "stdv", "equa", "sqrt", "none"')
+    if METHOD == "nnor":
+        # Devolver as coordenadas de entrada 
+        NCOOR = COOR
+        T = np.eye(3)
+        return NCOOR, T
+    
+    assert COOR.shape[1] == 2, "Coordinate array error"
+    
+    # Create the list of the repeated vector mean 
+    MCOOR = np.mean(COOR, axis=0)
+    
+    if METHOD == "stdv":
+        # Compute the vector standard deviation
+        SDCOOR = np.mean((COOR - MCOOR)**2, axis=0)**0.5
+    elif METHOD == 'equa':
+        # Compute the average standard deviation
+        SDCOOR = np.mean(
+            np.mean((COOR - MCOOR)**2, axis=0), axis=0)*np.ones(2)
+    elif METHOD == "sqrt":
+        # Compute the sqr of the vector standard deviation
+        SDCOOR = np.mean((COOR - MCOOR)**2, axis=0)
+    elif METHOD == "none":
+        SDCOOR = np.ones(2)
+    
+    # Account for data degeneracies, i. e., null st. dev.
+    SDCOOR += np.any(SDCOOR < 1e-3) * 1e-3
+    
+    # Compute the homogeneous transformation
+    transformation = np.eye(3)
+    transformation[0, 0] = SDCOOR[0]**(-1)
+    transformation[1, 1] = SDCOOR[1]**(-1)
+    transformation[:2, 2] = -(MCOOR/SDCOOR)
+    
+    # Create homogeneous list
+    COOR = np.hstack((COOR, np.ones((COOR.shape[0], 1))))
+    
+    # Get transformed list
+    NCOOR = np.dot(COOR, transformation.T)
+    
+    # Divide by the homogeneous parameter
+    NCOOR = NCOOR[:, :2]/NCOOR[:, np.newaxis, 2]
+    
+    return NCOOR, transformation
+
+
+def lsplanar(COOR1, COOR2, normmethod='stdv'):
+    """M12 = lsplanar(COOR1, COOR2)
+    Determina��o da Transforma��o Planar M12(3x3) que relaciona os pontos
+    com coordenadas COOR1 e COOR2.
+    S�o necess�rias pelo menos 4 pontos em cada lista de coordenadas.
+    
+    M12, CONDS = lsplanar(COOR1, COOR2) devolve tamb�m o n� de condi��o 
+    do sistema (A'*A).
+    [M12,CONDS,A,R] = lsplanar(COOR1, COOR2) devolve a matriz do sistema 
+    A e o vector de res�duos R.
+    
+    Usa o sistema (u,v) para as coordenadas 2-D.
+    
+    M12 = lsplanar(COOR1, COOR2, method)
+    Permite a especifica��o de uma outra transforma��o planar:
+      method = 'lsplanar' :  Transforma��o planar gen�rica.
+    
+    M12 = lsplanar(COOR1, COOR2, method, normmethod)
+    Permite a especifica��o de um metodo para a normaliza�ao de coordenadas
+    antes da estima�ao da transformacao planar:
+      normmethod = 
+          'none' : nenhum escalamento, so' transla�ao. 
+          'stdv' : desvio padr�o unit�rio em cada coordenada.
+          'sqrt' : desvio padr�o igual � raiz quadrada do d.p. original.
+    """
+    
+    assert COOR1.shape == COOR2.shape, (
+        "Coordinate lists must have the same size.")
+    
+    num_points = COOR1.shape[0]
+    assert num_points > 1, (
+        "Coordinate lists must have at least 1 matched points")
+    
+    # Teste com normaliza��o de coordenadas (parte 1/2)
+    NCOOR1, T1 = normcoor(COOR1, normmethod)
+    NCOOR2, T2 = normcoor(COOR2, normmethod)
+    COOR1 = NCOOR1
+    COOR2 = NCOOR2
+    
+    # No coordinate swapping
+    ones_vec = np.ones((num_points, 1))
+    COOR1 = np.hstack((COOR1, ones_vec))
+    COOR2 = np.hstack((COOR2, ones_vec))
+    
+    #print "lsplanar():413"
+    #code.interact(local=locals())
+    
+    A = np.zeros((2*num_points, 9))
+    
+    mat_1 = np.asarray([[1., 0., 0.]])
+    mat_2 = np.asarray([[0., 1., 0.]])
+    for l in range(num_points):
+        mat_1[0, 2] = -COOR1[l, 0]
+        mat_2[0, 2] = -COOR1[l, 1]
+        ML1 = np.dot(COOR2[l, np.newaxis].T, mat_1)
+        ML2 = np.dot(COOR2[l, np.newaxis].T, mat_2)
+        A[2*l] = ML1.T.flatten()
+        A[2*l+1] = ML2.T.flatten()
+    
+    #print "lsplanar():428"
+    #code.interact(local=locals())
+    
+    # get the unit eigvector of A'*A corresponding to the smallest
+    # eigenvalue of A'*A.
+    N, CONDS = uniteig(A)
+    if np.isinf(CONDS):
+        print('A condi��o de A�*A � infinita !')
+    
+    # compute the residuals
+    R = np.dot(A, N)
+    #M12 = reshape(N(:,1),3,3)';
+    M12 = N.reshape((3, 3))
+    
+    # Teste com normaliza��o de coordenadas (parte 2/2)
+    M12 = np.dot(np.linalg.inv(T1), np.dot(M12, T2))
+    
+    #print "lsplanar():441"
+    #code.interact(local=locals())
+    return M12, CONDS, A, R
+
+
+def uniteig(A):
+    """N = uniteig(A)
+    Get Unit Eigenvector of A'*A :
+    Devolve o vector pr�prio unit�rio de A'*A correspondente ao menor
+    valor pr�prio de A�*A. 
+    
+    N,CONDNUM = uniteig(A) :  Devolve tamb�m o n� de condi��o de A'*A. 
+    """
+    # get the unit eigvector of A'*A corresponding to the 
+    # smallest eigenvalue of A.
+    AT_A = np.dot(A.T, A)
+    D, V = np.linalg.eigh(AT_A)
+    I = D.argmin()
+    N = V[:, I]
+    N /= np.sqrt((N**2).sum())
+    
+    CONDNUM = np.linalg.cond(AT_A)
+    
+    if np.isinf(CONDNUM):
+        print('UNITEIG : A condi��o de A�*A � infinita !')
+    #print "uniteig():461"
+    #code.interact(local=locals())
+    return N, CONDNUM
 
 
 def mvee(points, tol = 0.001):
