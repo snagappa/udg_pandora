@@ -147,9 +147,9 @@
     <name>girona500</name>
     <file>scenes/g500ARMPandora.urdf</file>
     <jointValues>
-      <joint> 1.46 </joint>
-      <joint> 1.07 </joint>  <!-- 0.75 1.5 -->
-      <joint> -1.175 </joint> <!-- -0.75 -2.5-->
+      <joint> -0.00 </joint> <!--1.46 -->
+      <joint> -0.15 </joint> <!--1.07-->
+      <joint> 0.30  </joint> <!---1.175-->
       <joint> 1.57 </joint>
       <joint> 0.0</joint>
     </jointValues>
@@ -164,7 +164,26 @@
       <y>0</y>
     </orientation>
 
-       <virtualCamera>
+    <virtualCamera>
+      <name>hand_camera</name>
+      <relativeTo>palm</relativeTo>
+      <resw> 720 </resw>
+      <resh> 540 </resh>
+      <position>
+        <x>0.0</x>
+        <y>0.0</y>
+        <z>0.0</z> <!-- -0.7 -->
+      </position>
+      <orientation>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+    <baseline>0.12</baseline>
+    <frameId> /g500/hand_camera</frameId>
+    </virtualCamera>
+
+    <virtualCamera>
       <name>left_down</name>
       <relativeTo>base_link</relativeTo>
       <resw> 640 </resw>
@@ -201,7 +220,6 @@
     <baseline>0.12</baseline>
     <frameId> /g500/stereo_down </frameId>
     </virtualCamera>
-
 
     <virtualCamera>
       <name>left_front</name>
@@ -240,6 +258,7 @@
     <baseline>0.12</baseline>
     <frameId> /g500/stereo_front </frameId>
     </virtualCamera>
+
 
 <rangeSensor>
       <name>sonar</name>
@@ -428,6 +447,12 @@
     </ROSJointStateToArm>
 
     <VirtualCameraToROSImage>
+      <cameraName>hand_camera</cameraName>
+      <imageTopic>/g500/hand_camera/image_raw  </imageTopic>
+      <infoTopic>/g500/hand_camera/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+
+    <VirtualCameraToROSImage>
       <cameraName>right_down</cameraName>
       <imageTopic> /g500/stereo_down/right/image_raw </imageTopic>
       <infoTopic> /g500/stereo_down/right/camera_info </infoTopic>
@@ -437,7 +462,6 @@
       <imageTopic>/g500/stereo_down/left/image_raw  </imageTopic>
       <infoTopic>/g500/stereo_down/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
-
 
     <VirtualCameraToROSImage>
       <cameraName>right_front</cameraName>

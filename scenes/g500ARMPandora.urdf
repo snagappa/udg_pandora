@@ -13,9 +13,9 @@
 
    <link name="base">
       <visual>
-        <origin rpy="0 0 0" xyz="0.0 0 0.0"/> 
+        <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
          <geometry>
-           <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part1.osg"/> 
+           <mesh filename="package://udg_pandora/data2/robot2/NEW_PANDORA_ARM/part1.osg"/>
          </geometry>
       </visual>
    </link>
@@ -37,7 +37,7 @@
       </visual>
    </link>
 
-   <joint name="base_to_shoulder" type="continuous"> 
+   <joint name="base_to_shoulder" type="continuous">
       <parent link="base"/>
       <child link="shoulder"/>
       <axis xyz="0 0 1"/>
