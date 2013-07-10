@@ -20,6 +20,7 @@ import image_feature_extractor
 import tf
 import scipy.optimize
 _minimize_ = getattr(scipy.optimize, "minimize", None)
+from IPython import embed
 
 #from matplotlib import pyplot
 #from lib.common.misctools import cartesian_to_spherical as c2s
@@ -76,11 +77,19 @@ class Detector(object):
         self._camera_params_.inv_wNm = None
         self._camera_params_.wNm_cov = None
         
-        # Rotation matrix and translation vector from solvePnP
+        # Rotation matrix and translation vector
         self.obj_rpy = None
         self.obj_trans = None
         self.obj_cov = None
         self.obj_corners = np.empty(0)
+        
+        # Pose estimated by OpenCV
+        self.opencv_obj_trans = None
+        self.opencv_obj_rpy = None
+        # Pose estimated using Sturm method
+        self.sturm_obj_trans = None
+        self.sturm_obj_rpy = None
+        
         # Image of the current scene
         self._scene_ = None
         # Set up FLANN matcher
@@ -274,7 +283,8 @@ class Detector(object):
         """
         return self._object_.h_mat
     
-    def location(self):
+    def location(self, USE_STURM=False, CROSS_VERIFY=False,
+                 VERIFY_MAX_ERR_M=0.05, VERIFY_MAX_ERR_RAD=0.035):
         """
         Return detected (bool), relative position (x, y, z) and
         orientation (RPY) of the object.
@@ -293,16 +303,24 @@ class Detector(object):
             self.obj_corners = cv2.perspectiveTransform(
                 self._object_.corners_2d.reshape(1, -1, 2),
                 self._object_.h_mat).reshape(-1, 2)
-            USE_STURM = False
-            if not camera_params.wNm is None and USE_STURM:
-                #print "Using Sturm method"
+            # Cannot use Sturm method if wNm not specified.
+            # Don't cross-verify Sturm with OpenCV unless
+            # USE_STURM=True and CROSS_VERIFY=True
+            if camera_params.wNm is None or not USE_STURM:
+                USE_STURM = False
+                CROSS_VERIFY = False
+            USE_OPENCV = not USE_STURM or CROSS_VERIFY
+            
+            if USE_STURM:
                 # Use Sturm method to generate pose and optimize if possible
                 # Mimini should be the same as h_mat
                 #Mimini, _CONDS, _A, _R = lsnormplanar(self._object_.pts_scn, self._object_.pts_obj, 'stdv')
                 #MiWini = np.dot(Mimini, camera_params.inv_wNm)
+                #print "Mimini/h_mat:\n", Mimini/self._object_.h_mat
                 MiWini = np.dot(self._object_.h_mat, camera_params.inv_wNm)
+                # Get the initial pose
                 poseparams = getposeparam_sturm(
-                    camera_params.camera_matrix, MiWini, "WTC",
+                    camera_params.camera_matrix, MiWini, "CTW",
                     camera_params.inv_camera_matrix)
                 
                 # Perform minimization
@@ -320,16 +338,10 @@ class Detector(object):
                     #print "Final pose: ", poseparams
                 
                 retval = 1
-                self.obj_rpy = np.asarray(poseparams[:3][::-1])
-                self.obj_trans = np.asarray(poseparams[3:])
-                #print "Pos: ", self.obj_trans
-                #print "Ori: ", self.obj_rpy
-                #print "Computing covariance:"
-                # Compute estimate of the covariance
-                #self.obj_cov = np.asarray(self.covariance())
-                #print self.obj_cov
-            else:
-                #print "Using old method"
+                self.sturm_obj_rpy = np.asarray(poseparams[:3][::-1])
+                self.sturm_obj_trans = np.asarray(poseparams[3:])
+            
+            if USE_OPENCV:
                 # Solve perspective n-point
                 camera_matrix = np.asarray(
                         self.camera.projection_matrix()[:3, :3], order='C')
@@ -338,22 +350,39 @@ class Detector(object):
                     #np.asarray(self.camera.distortionCoeffs()))
                 # Convert the rotation vector to RPY
                 r_mat = cv2.Rodrigues(rvec)[0]
-                self.obj_rpy = np.asarray(tf.transformations.euler_from_matrix(r_mat))
-                self.obj_trans = np.squeeze(tvec)
-                #print "Pos Diff: ", self.obj_trans - sturm_obj_trans
-                #print "Ori Diff: ", normalize_angle(self.obj_rpy - sturm_obj_rpy)
-                
+                self.opencv_obj_rpy = np.asarray(
+                    tf.transformations.euler_from_matrix(r_mat))
+                self.opencv_obj_trans = np.squeeze(tvec)
+            
+            # Sturm and OpenCV poses computed only if CROSS_VERIFY=True
+            if CROSS_VERIFY:
+                trans_err = np.abs(self.sturm_obj_trans-self.opencv_obj_trans)
+                rpy_err = np.abs(normalize_angle(
+                    self.sturm_obj_rpy-self.opencv_obj_rpy))
+                if ((np.any(trans_err > VERIFY_MAX_ERR_M)) or
+                    (np.any(rpy_err > VERIFY_MAX_ERR_RAD))):
+                    print "Cross verify failed"
+                    print "Sturm pose :\n", (
+                        np.hstack((self.sturm_obj_trans, self.sturm_obj_rpy)))
+                    print "OpenCV pose:\n", (
+                        np.hstack((self.opencv_obj_trans, self.opencv_obj_rpy)))
+                    print "Error:\n", np.hstack((trans_err, rpy_err))
+                    self.obj_trans = self.opencv_obj_trans
+                    self.obj_rpy = self.opencv_obj_rpy
+                else:
+                    print "Verification passed."
+                    self.obj_trans = self.sturm_obj_trans
+                    self.obj_rpy = self.sturm_obj_rpy
             
             if not camera_params.wNm is None:
                 # Compute estimate of the covariance
-                self.obj_cov = np.asarray(self.covariance())
+                self.obj_cov = self.covariance(True, None)
             else:
                 # Fake the covariance
                 self.obj_cov = 0.0175*np.ones((6, 6))
                 pos_diag_idx = range(3)
                 self.obj_cov[pos_diag_idx, pos_diag_idx] = (
                     (((1.2*np.linalg.norm(self.obj_trans))**2)*0.03)**2)
-            #print np.diag(self.obj_cov)
             obj_range = np.linalg.norm(self.obj_trans)
             near = self._object_.near_distance
             far = self._object_.far_distance
@@ -371,12 +400,11 @@ class Detector(object):
             self.obj_cov = np.zeros((6, 6))
         return detected, self.obj_trans, self.obj_rpy, self.obj_cov
     
-    def covariance(self):
+    def covariance(self, USE_RANDOM_POINTS=False, NUM_POINTS=None):
         camera_params = self._camera_params_
-        USE_RANDOM_POINTS = False
         matches = self._object_
         # Noise variance for each pixel
-        px_noise_var = 1
+        px_noise_var = 2.
         if not USE_RANDOM_POINTS:
             # Too expensive to evaluate covariance for all points - 
             # use a subset corresponding to corners and centre of panel
@@ -403,11 +431,15 @@ class Detector(object):
             # Number of matched points
             num_matched_points = matches.pts_obj.shape[0]
             # Select at most 10(?) points to estimate the covariance
-            max_num_points = 10
+            max_num_points = num_matched_points
+            if NUM_POINTS is None:
+                max_num_points = num_matched_points
+            else:
+                max_num_points = NUM_POINTS
             num_points = min((max_num_points, num_matched_points))
             
             # The first 13 parameters correspond to camera parameters
-            xl_range = np.unique(np.round(np.linspace(13, num_matched_points-1, 
+            xl_range = np.unique(np.round(np.linspace(0, num_matched_points-1, 
                                                   num_points))).astype(np.int)
             cov_pts_scn = matches.pts_scn[xl_range]
             cov_pts_obj = matches.pts_obj[xl_range]
@@ -434,7 +466,7 @@ class Detector(object):
         
         # Reorder the matrix to x, y, z, roll, pitch, yaw
         cov_xyz = pose_cov_ypr_xyz[3:, 3:]
-        cov_rpy = pose_cov_ypr_xyz[:3, :3][::-1]
+        cov_rpy = pose_cov_ypr_xyz[:3, :3][::-1, ::-1]
         cov_xyz_rpy = pose_cov_ypr_xyz[3:, :3][:, ::-1]
         cov_pose = np.empty((6, 6))
         cov_pose[:3, :3] = cov_xyz
@@ -693,7 +725,7 @@ def function_cost_total(Thetain, XLin, kscale, COORm):
                     [0, XLin[1], XLin[3]],
                     [0, 0, kscale]])
     wNm = XLin[4:13].reshape((3, 3))
-    TiW = pose1homo(Thetain, K, 'WTC')
+    TiW = pose1homo(Thetain, K, 'CTW')
     
     image_points = XLin[13:]/kscale
     num_points = image_points.shape[0]/2
@@ -1161,6 +1193,20 @@ def ellipse_extreme_points(A, c):
     http://www.cs.cornell.edu/cv/OtherPdf/Ellipse.pdf
     """
     pass
+
+
+
+def wnm_cost(wnm, camera_matrix, mimini, target_pose):
+    wnm_mat = np.reshape(wnm, (3, 3))
+    inv_wnm = np.linalg.inv(wnm_mat)
+    inv_camera_matrix = np.linalg.inv(camera_matrix)
+    miwini = np.dot(mimini, inv_wnm)
+    poseparams = getposeparam_sturm(camera_matrix, miwini, "WTC", inv_camera_matrix)
+    poseparams_xyz = poseparams[3:]
+    poseparams_rpy = poseparams[:3][::-1]
+    cost = np.linalg.norm(poseparams_xyz - target_pose[:3])
+    cost += np.linalg.norm(normalize_angle(poseparams_rpy - target_pose[3:]))
+    return cost
 
 ##############################################################################
 def _estimateAffine3D_(src_points, dst_points):

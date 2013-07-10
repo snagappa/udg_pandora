@@ -38,6 +38,15 @@ visual_detector/valves/filter_length: 5
 # Stereo or monocular detection
 visual_detector/panel/is_stereo: false
 
+# Use Sturm method for pose estimation (experimental)
+visual_detector/panel/use_sturm: true
+# Verify Sturm pose with result from OpenCV solve PnP
+visual_detector/panel/cross_verify: true
+# Maximum allowed variation in metres
+visual_detector/panel/verify_limit_m: 0.05
+# Maximum allowed variation in radians
+visual_detector/panel/verify_limit_rad: 0.035
+
 # if is_stereo == true,
 #   use camera_root/{left,right}/image_topic
 # otherwise,

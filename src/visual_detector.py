@@ -317,21 +317,29 @@ class VisualDetector(object):
         px_per_m = np.mean([panel_width_px/panel_width_m,
                             panel_height_px/panel_height_m])
         # Create wNm matrix
-        wNm = np.zeros((3, 3))
+        wNm = np.eye(3)
         wNm[0, 0] = panel_width_m/panel_width_px
-        wNm[0, 2] = -float(panel_width_m)/2.
         wNm[1, 1] = panel_height_m/panel_height_px
+        wNm[0, 2] = -float(panel_width_m)/2.
         wNm[1, 2] = -float(panel_height_m)/2.
-        wNm[2, 2] = 1
-        #embed()
+        #wNm[2, 2] = px_per_m #(panel_width_px/panel_width_m)
+        wNm /= np.linalg.norm(wNm)
         rot_mat = np.eye(3)
+        # Invert the y axis so that up is positive
         #rot_mat[0, 0] = -1
         rot_mat[1, 1] = -1
         wNm = np.dot(rot_mat, wNm)
-        wNm /= np.linalg.norm(wNm)
-        #embed()
         panel.detector.set_wNm(wNm)
         
+        # Specify whether to use Sturm method for pose estimation
+        panel.use_sturm = rospy.get_param("visual_detector/panel/use_sturm",
+                                          default=False)
+        panel.cross_verify = rospy.get_param(
+            "visual_detector/panel/cross_verify", default=True)
+        panel.cross_verify_err_m = rospy.get_param(
+            "visual_detector/panel/verify_limit_m", default=0.05)
+        panel.cross_verify_err_rad = rospy.get_param(
+            "visual_detector/panel/verify_limit_rad", default=0.035)
         # Compute bounding regions for the valves
         panel.valves = STRUCT()
         valves = panel.valves
@@ -526,12 +534,13 @@ class VisualDetector(object):
         panel.detector.detect(*cvimage)
         #self.panel.detector.show()
         panel_detected, panel_centre, panel_orientation, panel_cov = (
-            panel.detector.location())
-        print "Panel detection result:"
-        print "Panel detected = ", panel_detected
-        print "Panel centre: ", panel_centre
-        print "Panel orientation: ", panel_orientation
-        print "Panel cov: ", np.diag(panel_cov)
+            panel.detector.location(panel.use_sturm, panel.cross_verify,
+            panel.cross_verify_err_m, panel.cross_verify_err_rad))
+        #print "Panel detection result:"
+        #print "Panel detected = ", panel_detected
+        #print "Panel centre: ", panel_centre
+        #print "Panel orientation: ", panel_orientation
+        #print "Panel cov: ", np.diag(panel_cov)
         panel_rpy = panel_orientation#[[2, 0, 1]]
         valid_panel_orientation = (
             self._check_valid_panel_orientation_(panel_rpy))
@@ -570,7 +579,12 @@ class VisualDetector(object):
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
                 panel_orientation_quaternion,
                 time_now, "panel_centre", self._camera_.frame_id)
-
+            if not self.panel.detector.sturm_obj_trans is None:
+                self.tf_broadcaster.sendTransform(
+                    tuple(self.panel.detector.sturm_obj_trans),
+                    quaternion_from_euler(*self.panel.detector.sturm_obj_rpy),
+                    time_now, "sturm_panel_centre", self._camera_.frame_id)
+            
             # Detect valves if panel was detected at less than 2 metres
             self.detect_valves(panel.pose_msg)
 
