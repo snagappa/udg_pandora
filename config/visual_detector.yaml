@@ -39,7 +39,7 @@ visual_detector/valves/filter_length: 5
 visual_detector/panel/is_stereo: false
 
 # Use Sturm method for pose estimation (experimental)
-visual_detector/panel/use_sturm: true
+visual_detector/panel/use_sturm: false
 # Verify Sturm pose with result from OpenCV solve PnP
 visual_detector/panel/cross_verify: true
 # Maximum allowed variation in metres

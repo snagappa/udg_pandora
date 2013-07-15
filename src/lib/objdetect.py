@@ -20,7 +20,9 @@ import tf
 import scipy.optimize
 _minimize_ = getattr(scipy.optimize, "minimize", None)
 
-import np.linalg.LinAlgError as LinAlgError
+
+#import np.linalg.LinAlgError as LinAlgError
+from numpy.linalg.linalg import LinAlgError
 import traceback
 import sys
 
@@ -357,6 +359,9 @@ class Detector(object):
                 self.opencv_obj_rpy = np.asarray(
                     tf.transformations.euler_from_matrix(r_mat))
                 self.opencv_obj_trans = np.squeeze(tvec)
+                if not USE_STURM:
+                    self.obj_trans = self.opencv_obj_trans
+                    self.obj_rpy = self.opencv_obj_rpy
             
             # Sturm and OpenCV poses computed only if CROSS_VERIFY=True
             if CROSS_VERIFY:
@@ -378,8 +383,8 @@ class Detector(object):
                     self.obj_trans = self.sturm_obj_trans
                     self.obj_rpy = self.sturm_obj_rpy
             
-            COMPUTE_FAKE_COV = False
             if not camera_params.wNm is None:
+                COMPUTE_FAKE_COV = False
                 # Compute estimate of the covariance
                 try:
                     self.obj_cov = self.covariance(True, None)
@@ -388,10 +393,12 @@ class Detector(object):
                     exc_info = sys.exc_info()
                     print traceback.print_tb(exc_info[2])
                     COMPUTE_FAKE_COV = True
+            else:
+                COMPUTE_FAKE_COV = True
             # Fake uncertainty if covariance computation failed/not possible
             if COMPUTE_FAKE_COV:
                 # Fake the covariance
-                self.obj_cov = 0.0175*np.ones((6, 6))
+                self.obj_cov = 0.0175*np.eye(6)
                 pos_diag_idx = range(3)
                 self.obj_cov[pos_diag_idx, pos_diag_idx] = (
                     (((1.2*np.linalg.norm(self.obj_trans))**2)*0.03)**2)

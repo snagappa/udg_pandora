@@ -329,7 +329,7 @@ class VisualDetector(object):
         #rot_mat[0, 0] = -1
         rot_mat[1, 1] = -1
         wNm = np.dot(rot_mat, wNm)
-        panel.detector.set_wNm(wNm)
+        #panel.detector.set_wNm(wNm)
         
         # Specify whether to use Sturm method for pose estimation
         panel.use_sturm = rospy.get_param("visual_detector/panel/use_sturm",
