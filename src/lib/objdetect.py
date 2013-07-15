@@ -11,7 +11,6 @@ import rospy
 #import phasecorr
 import cv2
 import numpy as np
-import code
 #import copy
 from scipy import weave
 from misctools import STRUCT, normalize_angle #, estimate_rigid_transform_3d
@@ -20,7 +19,12 @@ import image_feature_extractor
 import tf
 import scipy.optimize
 _minimize_ = getattr(scipy.optimize, "minimize", None)
-from IPython import embed
+
+import np.linalg.LinAlgError as LinAlgError
+import traceback
+import sys
+
+#from IPython import embed
 
 #from matplotlib import pyplot
 #from lib.common.misctools import cartesian_to_spherical as c2s
@@ -374,10 +378,18 @@ class Detector(object):
                     self.obj_trans = self.sturm_obj_trans
                     self.obj_rpy = self.sturm_obj_rpy
             
+            COMPUTE_FAKE_COV = False
             if not camera_params.wNm is None:
                 # Compute estimate of the covariance
-                self.obj_cov = self.covariance(True, None)
-            else:
+                try:
+                    self.obj_cov = self.covariance(True, None)
+                except LinAlgError:
+                    print "Error computing covariance"
+                    exc_info = sys.exc_info()
+                    print traceback.print_tb(exc_info[2])
+                    COMPUTE_FAKE_COV = True
+            # Fake uncertainty if covariance computation failed/not possible
+            if COMPUTE_FAKE_COV:
                 # Fake the covariance
                 self.obj_cov = 0.0175*np.ones((6, 6))
                 pos_diag_idx = range(3)
