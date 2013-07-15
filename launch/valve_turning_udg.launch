@@ -11,7 +11,7 @@
  	<include file="$(find cola2_launch)/launch/g500-sim.launch">
         	<arg name="enableTeleopArm" value="true" />
         	<arg name="enableJoystick" value="true" />
-                <arg name="enableNtuaControl" value="false" />             
+                <arg name="enableNtuaControl" value="true" />             
         	<arg name="joystickDevice" value="/dev/input/js0"/>        
         </include>
 	
