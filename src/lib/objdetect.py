@@ -290,6 +290,7 @@ class Detector(object):
         return self._object_.h_mat
     
     def location(self, USE_STURM=False, CROSS_VERIFY=False,
+                 COMPUTE_FAKE_COV=False,
                  VERIFY_MAX_ERR_M=0.05, VERIFY_MAX_ERR_RAD=0.035):
         """
         Return detected (bool), relative position (x, y, z) and
@@ -383,8 +384,7 @@ class Detector(object):
                     self.obj_trans = self.sturm_obj_trans
                     self.obj_rpy = self.sturm_obj_rpy
             
-            if not camera_params.wNm is None:
-                COMPUTE_FAKE_COV = False
+            if not camera_params.wNm is None and not COMPUTE_FAKE_COV:
                 # Compute estimate of the covariance
                 try:
                     self.obj_cov = self.covariance(True, None)
@@ -393,13 +393,13 @@ class Detector(object):
                     exc_info = sys.exc_info()
                     print traceback.print_tb(exc_info[2])
                     COMPUTE_FAKE_COV = True
-            else:
-                COMPUTE_FAKE_COV = True
+            
             # Fake uncertainty if covariance computation failed/not possible
             if COMPUTE_FAKE_COV:
-                # Fake the covariance
-                self.obj_cov = 0.0175*np.eye(6)
+                # Fake the covariance - 2 deg uncertainty on orientation
+                self.obj_cov = 0.035*np.eye(6)
                 pos_diag_idx = range(3)
+                # position uncertainty is a function of the range
                 self.obj_cov[pos_diag_idx, pos_diag_idx] = (
                     (((1.2*np.linalg.norm(self.obj_trans))**2)*0.03)**2)
             obj_range = np.linalg.norm(self.obj_trans)

@@ -329,13 +329,15 @@ class VisualDetector(object):
         #rot_mat[0, 0] = -1
         rot_mat[1, 1] = -1
         wNm = np.dot(rot_mat, wNm)
-        #panel.detector.set_wNm(wNm)
+        panel.detector.set_wNm(wNm)
         
         # Specify whether to use Sturm method for pose estimation
         panel.use_sturm = rospy.get_param("visual_detector/panel/use_sturm",
                                           default=False)
         panel.cross_verify = rospy.get_param(
             "visual_detector/panel/cross_verify", default=True)
+        panel.compute_fake_cov = rospy.get_param(
+            "visual_detector/panel/compute_fake_cov", default=False)
         panel.cross_verify_err_m = rospy.get_param(
             "visual_detector/panel/verify_limit_m", default=0.05)
         panel.cross_verify_err_rad = rospy.get_param(
@@ -535,7 +537,8 @@ class VisualDetector(object):
         #self.panel.detector.show()
         panel_detected, panel_centre, panel_orientation, panel_cov = (
             panel.detector.location(panel.use_sturm, panel.cross_verify,
-            panel.cross_verify_err_m, panel.cross_verify_err_rad))
+            panel.compute_fake_cov, panel.cross_verify_err_m,
+            panel.cross_verify_err_rad))
         #print "Panel detection result:"
         #print "Panel detected = ", panel_detected
         #print "Panel centre: ", panel_centre
