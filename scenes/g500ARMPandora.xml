@@ -40,12 +40,12 @@
       <!-- visio lateral esquerra-->
       <x>1.0</x>
       <y>-2.5</y>
-      <z>-4</z> 
+      <z>-4</z>
       <!-- visio des de sota-->
       <!-- <x>1.0</x>
       <y>0</y>
       <z>-6</z> -->
-    </position> 
+    </position>
     <lookAt>
       <x>1.0</x>
       <y>0 </y>
@@ -87,7 +87,7 @@
       <x>-0.5</x>
       <y> 1 </y>
       <z> -0.2 </z>
-    </position>  
+    </position>
   </virtualCamera>
   </vehicle>
 
@@ -100,15 +100,15 @@
       <topic> /g500/pat_to_ros_odom</topic>
       <vehicleName> girona500 </vehicleName>
     </PATToROSOdom>
-    <ArmToROSJointState> 
+    <ArmToROSJointState>
 	<topic>/uwsim/joint_state</topic>
 	<vehicleName> girona500 </vehicleName>
     </ArmToROSJointState>
-    <ROSJointStateToArm> 
+    <ROSJointStateToArm>
 	<topic>/uwsim/joint_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
-    <VirtualCameraToROSImage> 
+    <VirtualCameraToROSImage>
       <cameraName>bowtech1</cameraName>
       <imageTopic> /g500/camera/image_raw </imageTopic>
       <infoTopic> /g500/camera/camera_info </infoTopic>
@@ -117,8 +117,7 @@
       <name>sonar</name>
       <topic> /g500/range </topic>
       <rate>10</rate>
-    </RangeSensorToROSRange>	
-  </rosInterfaces> 
+    </RangeSensorToROSRange>
+  </rosInterfaces>
 
 </UWSimScene>
-

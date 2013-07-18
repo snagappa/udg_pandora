@@ -1,16 +1,18 @@
 <launch>
 	<arg name="enableShadders" value="true" />
 	<arg name="enableLog" value="false" />
-  	<arg name="enableLandmarks" value="true"/>
-	<arg name="enableRViz" value="true" />
+  	<arg name="enableLandmarks" value="false"/>
+	<arg name="enableRViz" value="false" />
+        <arg name="enableValveNtua" value="false" />
 	
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 	
 	<!-- Load G500 components -->
  	<include file="$(find cola2_launch)/launch/g500-sim.launch">
-        	<arg name="enableTeleopArm" value="false" />
-        	<arg name="enableJoystick" value="false" />
-        	<arg name="joystickDevice" value="/dev/input/by-id/usb-Logitech_Wireless_Gamepad_F710_9FE89273-joystick"/>        
+        	<arg name="enableTeleopArm" value="true" />
+        	<arg name="enableJoystick" value="true" />
+                <arg name="enableNtuaControl" value="true" />             
+        	<arg name="joystickDevice" value="/dev/input/js0"/>        
         </include>
 	
 
@@ -36,6 +38,9 @@
 <!--	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/> -->
 <!--	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/> -->
 <!--    <node name="phdslam" pkg="udg_pandora" type="g500slam.py" />  -->
+
+        <!-- Load control position -->
+<!--        <node if="$(arg enableValveNtua)" name="valveTrackingControllerUpdate" pkg="ntua_pandora" type="valveTrackingControllerUpdate.py" /> -->
 
 	<!-- stereo image proc down & front-->	
         <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
