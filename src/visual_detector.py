@@ -659,7 +659,7 @@ class VisualDetector(object):
         print "Subpanel orientation = ", panel_orientation
         
         # Detect valve orientation if the subpanel was detected
-        this_valve_orientation = np.zeros(3)
+        this_valve_orientation = 0
         valve_detected = False
         if panel_detected:
             valves = self.endeffector.valves
@@ -696,6 +696,7 @@ class VisualDetector(object):
                     valve_detected = True
                 else:
                     valve_detected = False
+                    this_valve_orientation = 0
             
             bbox_colour = (255, 255, 255)
             corners = detector.obj_corners.astype(np.int32)
@@ -704,8 +705,12 @@ class VisualDetector(object):
                           True, bbox_colour, 6)
             corners_valve = np.asarray(((left, top), (right, top), (right, bottom), (left, bottom)))
             cv2.polylines(out_img, [corners_valve], True, bbox_colour, 4)
+            valve_centre = panel_centre + valves.centre[0, :3]
+            valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
         else:
             out_img = detector.get_scene(0)
+            valve_centre = np.zeros(3)
+            valve_rpy = np.zeros(3)
         
         # Publish image of detected panel
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(out_img), 
@@ -714,10 +719,7 @@ class VisualDetector(object):
         self.panel.ee_img_pub.publish(img_msg)
         print "Valve Detected = ", valve_detected
         print "Orientation = ", this_valve_orientation
-        
         # Add offsets to get pose of the valve wrt camera
-        valve_centre = panel_centre + valves.centre[0]
-        valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
         
         # Publish end-effector detection message
         time_now = rospy.Time.now()
