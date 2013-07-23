@@ -43,6 +43,8 @@ visual_detector/panel/is_stereo: false
 visual_detector/panel/use_sturm: false
 # Verify Sturm pose with result from OpenCV solve PnP
 visual_detector/panel/cross_verify: true
+# Specify whether to use a faked covariance or estimate from the data
+visual_detector/panel/compute_fake_cov: true
 # Maximum allowed variation in metres
 visual_detector/panel/verify_limit_m: 0.05
 # Maximum allowed variation in radians
