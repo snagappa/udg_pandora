@@ -180,7 +180,7 @@ class VisualDetector(object):
         # Initialise the panel detector
         self.panel = STRUCT()
         self.init_panel_detector()
-        self._endeffector_ = STRUCT()
+        self.endeffector = STRUCT()
         self.init_endeffector_detector()
         
         # Publish panel position
@@ -194,6 +194,10 @@ class VisualDetector(object):
             '/visual_detector/panel_img', Image, {})
         self.panel.ee_img_pub = metaclient.Publisher(
             '/visual_detector/ee_panel_img', Image, {})
+        
+        # Publish subpanel position from end effector
+        self.endeffector.pub = metaclient.Publisher(
+            '/visual_detector/endeffector_valve', Detection, {})
         
         # Valve detection
         self.valve = STRUCT()
@@ -390,12 +394,12 @@ class VisualDetector(object):
         valve_centre = np.asarray(rospy.get_param(
             "visual_detector/end_effector/sub_valve_centre"))
         
-        #num_images = len(self._endeffector_.templates)
+        #num_images = len(self.endeffector.templates)
         # Create a list of detectors, one for each valve(?)
-        self._endeffector_.detector = objdetect.Detector(
+        self.endeffector.detector = objdetect.Detector(
             #feat_detector=_default_feature_extractor_)
             image_feature_extractor.Surf)
-        detector = self._endeffector_.detector
+        detector = self.endeffector.detector
         detector.camera.make_grid_adapted_detector()
         # Set near and far detection distances to 0.1m and 0.4m
         detector.set_near_far(0.1, 1.0)
@@ -455,8 +459,8 @@ class VisualDetector(object):
         px_per_m = np.mean([panel_width_px/panel_width_m,
                             panel_height_px/panel_height_m])
         
-        self._endeffector_.valves = STRUCT()
-        valves = self._endeffector_.valves
+        self.endeffector.valves = STRUCT()
+        valves = self.endeffector.valves
         valves.px_per_m = px_per_m
         valve_radius = rospy.get_param("visual_detector/valves/radius")
         valves.radius = valve_radius
@@ -478,6 +482,11 @@ class VisualDetector(object):
         # valve overlay
         valves.handle_corners = np.array([[-valves.radius, 0, 0, 0],
                                           [ valves.radius, 0, 0, 0]])
+        
+        # Create detection messages
+        detection_msg = Detection()
+        detection_msg.header.frame_id = cam_info[0].header.frame_id
+        self.endeffector.detection_msg = detection_msg
     
     def enablePanelValveDetectionSrv(self, req):
         self._enablePanelValveDetectionSrv_()
@@ -489,7 +498,7 @@ class VisualDetector(object):
         self.panel.callback_id = (
             self.image_buffer.register_callback(self.detect_panel,
                                                 self.panel.update_rate))
-        self._endeffector_.callback_id = (
+        self.endeffector.callback_id = (
             self.end_effector_image_buffer.register_callback(self.ee_detect_panel))
         #self.panel.sub = rospy.Subscriber("/stereo_camera/left/image_raw",
         #                                  sensor_msgs.msg.Image,
@@ -507,7 +516,7 @@ class VisualDetector(object):
         #self.panel.ts.callbacks = dict()
         self.image_buffer.unregister_callback(self.panel.callback_id)
         self.end_effector_image_buffer.unregister_callback(
-            self._endeffector_.callback_id)
+            self.endeffector.callback_id)
         print "Disabled panel detection"
         return std_srvs.srv.EmptyResponse()
 
@@ -641,7 +650,7 @@ class VisualDetector(object):
             cv2.medianBlur(np.asarray(self.ros2cvimg.cvimage(_img_, COLOUR_FMT="bgr8")), 3)
             for _img_ in args]
         cvimage = _cvimage_
-        detector = self._endeffector_.detector
+        detector = self.endeffector.detector
         detector.detect(*cvimage)
         #self.panel.detector.show()
         panel_detected, panel_centre, panel_orientation, panel_cov = detector.location()
@@ -653,7 +662,7 @@ class VisualDetector(object):
         this_valve_orientation = np.zeros(3)
         valve_detected = False
         if panel_detected:
-            valves = self._endeffector_.valves
+            valves = self.endeffector.valves
             homogenous_rotation_matrix = (
                 euler_matrix(*panel_orientation))
             homogenous_rotation_matrix[:3, -1] = panel_centre
@@ -664,7 +673,7 @@ class VisualDetector(object):
             this_valve_camcoords = np.dot(homogenous_rotation_matrix,
                                           this_valve.T).T
             # Project the 3D points from camera coordinates to pixels
-            px_corners = self._endeffector_.detector.camera.project3dToPixel(
+            px_corners = self.endeffector.detector.camera.project3dToPixel(
                 this_valve_camcoords[:, :3])
             px_corners = px_corners.astype(np.int32)
             left, top = np.min(px_corners, axis=0)
@@ -705,6 +714,27 @@ class VisualDetector(object):
         self.panel.ee_img_pub.publish(img_msg)
         print "Valve Detected = ", valve_detected
         print "Orientation = ", this_valve_orientation
+        
+        # Add offsets to get pose of the valve wrt camera
+        valve_centre = panel_centre + valves.centre[0]
+        valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
+        
+        # Publish end-effector detection message
+        time_now = rospy.Time.now()
+        detection_msg = self.endeffector.detection_msg
+        detection_msg.header.stamp = time_now
+        valve_orientation_quaternion = quaternion_from_euler(*valve_rpy)
+        detection_msg.detected = valve_detected
+        (detection_msg.position.position.x,
+         detection_msg.position.position.y,
+         detection_msg.position.position.z) = valve_centre
+        (detection_msg.position.orientation.x,
+         detection_msg.position.orientation.y,
+         detection_msg.position.orientation.z,
+         detection_msg.position.orientation.w) = (
+             valve_orientation_quaternion)
+        self.endeffector.pub.publish(detection_msg)
+        
         return valve_detected, this_valve_orientation
     
     def detect_valves(self, detection_msg):
