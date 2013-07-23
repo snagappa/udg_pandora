@@ -238,19 +238,24 @@ class Detector(object):
             self.camera.get_features(proc_im_scene))
         #for _kp_ in keypoints_scene:
         #    self._scene_[_kp_.pt[1], _kp_.pt[0]] = 255
-        dam_result = self.camera.detect_and_match(self._object_.keypoints,
-                                                  self._object_.descriptors,
-                                                  keypoints_scene,
-                                                  descriptors_scene,
-                                                  self.flann_ratio_threshold)
-        pts_obj, pts_scn = dam_result[0:2]
-        self._object_.pts_obj = pts_obj
-        self._object_.pts_scn = pts_scn
-        #self._object_.kp_scn = np.asarray([_kp_.pt for _kp_ in keypoints_scene])
-        # ORIGINAL,  h_mat = inv(h_mat)
-        status, h_mat, num_inliers, inliers_status = (
-        self.camera.find_homography(pts_obj, pts_scn, ransacReprojThreshold=1,
-            min_inliers=self._object_.min_correspondences))
+        if not descriptors_scene is None and descriptors_scene.shape[0] > 2:
+            dam_result = self.camera.detect_and_match(self._object_.keypoints,
+                                                      self._object_.descriptors,
+                                                      keypoints_scene,
+                                                      descriptors_scene,
+                                                      self.flann_ratio_threshold)
+            pts_obj, pts_scn = dam_result[0:2]
+            status, h_mat, num_inliers, inliers_status = (
+                self.camera.find_homography(pts_obj, pts_scn, ransacReprojThreshold=1,
+                                            min_inliers=self._object_.min_correspondences))
+        else:
+            pts_scn = np.zeros(0)
+            pts_obj = np.zeros(0)
+            status = False
+            inliers_status = np.zeros(0, dtype=np.bool)
+            num_inliers = 0
+            h_mat = None
+        
         # Save only the inliers
         inliers_idx = inliers_status.astype(np.bool)
         self._object_.pts_obj = pts_obj[inliers_idx]

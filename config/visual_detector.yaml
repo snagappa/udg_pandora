@@ -26,6 +26,7 @@ visual_detector/camera_baseline_orientation: [0., 0., 0.]
 # To select between the simulated and real templates
 visual_detector/panel/simulator: true
 visual_detector/panel/simulator_template: ["simulator_panel2.png"]
+#visual_detector/panel/simulator_template: ["docking_panel_simulator_template.png"]
 visual_detector/panel/simulator_template_mask: []
 visual_detector/panel/real_template: ["new_panel_template2.png"]
 visual_detector/panel/real_template_mask: []
@@ -70,14 +71,16 @@ visual_detector/valves/radius: 0.05
 visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
 
 # Parameters for end effector camera
-visual_detector/end_effector/camera_root: "/camera"
-visual_detector/end_effector/camera_image_topic: "image_rect_color"
+visual_detector/end_effector/camera_root: "/g500/hand_camera"
+visual_detector/end_effector/camera_image_topic: "image_raw"
 visual_detector/end_effector/num_features: 1000
 visual_detector/end_effector/flann_ratio: 0.75
-visual_detector/end_effector/sub_templates: ["valve_template_scaled_far.png", "valve_template_scaled_close.png"]
-visual_detector/end_effector/sub_masks: ["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]
+#visual_detector/end_effector/sub_templates: ["valve_template_scaled_far.png", "valve_template_scaled_close.png"]
+#visual_detector/end_effector/sub_masks: ["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]
 #visual_detector/end_effector/sub_corners: [[[-0.105, 0.0754, 0], [0.105, 0.0754, 0], [0.105, -0.0754, 0], [-0.105, -0.0754, 0]]]
-visual_detector/end_effector/sub_corners: [[[-0.221, 0.165, 0], [0.221, 0.165, 0], [0.221, -0.165, 0], [-0.221, -0.165, 0]]]
+visual_detector/end_effector/sub_templates: ["valve_template_close_sim.jpg"]
+visual_detector/end_effector/sub_masks: []
+visual_detector/end_effector/sub_corners: [[[-0.118, 0.088, 0], [0.118, 0.088, 0], [0.118, -0.088, 0], [-0.118, -0.088, 0]]]
 #visual_detector/end_effector/sub_corners: [[[-0.166, 0.104, 0], [0.166, 0.104, 0], [0.166, -0.104, 0], [-0.166, -0.104, 0]]]
-visual_detector/end_effector/sub_valve_centre: [[0.0, 0.052, 0.11]]
+visual_detector/end_effector/sub_valve_centre: [[-0.0098, 0.0, 0.11]]
 

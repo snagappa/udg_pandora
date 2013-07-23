@@ -304,7 +304,7 @@ class VisualDetector(object):
                 template_mask = cv2.imread(template_mask_file, cv2.CV_8UC1)
             
             panel.detector.add_to_template(template_image, template_mask)
-        
+        print "Detected %d features from template" % panel.detector._object_.descriptors.shape[0]
         # Panel dimensions in pixels (from template)
         corners_2d = panel.detector._object_.corners_2d
         panel_width_px = corners_2d[1, 0] - corners_2d[0, 0]
@@ -669,23 +669,29 @@ class VisualDetector(object):
             # Only proceed if the bounding box is within the image
             if (left < 0 or top < 0 or 
                 right > cvimage[0].shape[1] or bottom > cvimage[0].shape[0]):
+                print "Valve not within bounding box"
                 pass
             else:
                 # Get approximate length of the valve in pixels
                 bbox_side_lengths = ((np.diff(np.vstack((px_corners, px_corners[0])), axis=0)**2).sum(axis=1))**0.5
-                valve_length_px = np.int32(0.8*np.mean(bbox_side_lengths))
+                valve_length_px = np.int32(0.7*np.mean(bbox_side_lengths))
                 valve_im_bbox = (left, top, right, bottom)
                 this_valve_orientation = self.detect_valve_orientation(
-                    cvimage[0], valve_im_bbox, HoughMinLineLength=valve_length_px,
-                    HoughThreshold=int(0.9*valve_length_px),
+                    cvimage[0], valve_im_bbox, CannyThreshold1=20, CannyThreshold2=40, HoughMinLineLength=valve_length_px,
+                    HoughThreshold=int(0.8*valve_length_px),
                     HIGHLIGHT_VALVE=True)
-                valve_detected = True
+                if not this_valve_orientation is None:
+                    valve_detected = True
+                else:
+                    valve_detected = False
             
             bbox_colour = (255, 255, 255)
             corners = detector.obj_corners.astype(np.int32)
             out_img = detector.get_scene(0)
             cv2.polylines(out_img, [corners],
                           True, bbox_colour, 6)
+            corners_valve = np.asarray(((left, top), (right, top), (right, bottom), (left, bottom)))
+            cv2.polylines(out_img, [corners_valve], True, bbox_colour, 4)
         else:
             out_img = detector.get_scene(0)
         
