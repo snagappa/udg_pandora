@@ -51,6 +51,7 @@ class LearningRecordArm:
                      repr(self.goalPose.pose.position.z -
                           self.armPose.pose.position.z) + "\n")
                 self.file.write(s)
+                #rospy.loginfo('recording the trajectory')
             finally:
                 self.lock.release()
         else:
