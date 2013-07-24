@@ -12,7 +12,7 @@ import cola2_ros_lib
 import cola2_lib
 
 #include "geometry_msgs/PoseStamped.h"
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose
 #include message of the ekf giving the valve position
 #from geometry_msgs.msg import PoseWithCovarianceStamped
 #include message of the ekf giving the position of the robot
@@ -21,8 +21,8 @@ from nav_msgs.msg import Odometry
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
-from geometry_msgs.msg import Point
-from geometry_msgs.msg import Quaternion
+#from geometry_msgs.msg import Point
+#from geometry_msgs.msg import Quaternion
 
 from tf.transformations import euler_from_quaternion
 #import numpy as np
@@ -37,11 +37,9 @@ class LearningRecord:
     def __init__(self, name):
         self.name = name
         self.getConfig()
-        self.goalPose = Point()
-        self.goalQuaternion = Quaternion()
-        self.goalPoseOld = Point()
+        self.goalPose = Pose()
         self.robotPose = Odometry()
-        self.initTF = False
+        self.initPose = False
         self.lock = threading.Lock()
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
         rospy.Subscriber(
@@ -67,27 +65,8 @@ class LearningRecord:
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
-                    self.goalPose = mark.position
-                    try:
-                    #Try to read the original pose detected
-                    #with the visual detector
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world",
-                            self.frame_goal_id,
-                            self.tflistener.getLatestCommonTime(
-                                "world", self.frame_goal_id))
-                        self.goalQuaternion.x = rot[0]
-                        self.goalQuaternion.y = rot[1]
-                        self.goalQuaternion.z = rot[2]
-                        self.goalQuaternion.w = rot[3]
-                        rospy.loginfo('Orientation of the panel' + str(rot))
-                    except tf.Exception:
-                        #rospy.loginfo('Orientation loaded from the configuration file')
-                        self.goalQuaternion.x = self.quaternion_x
-                        self.goalQuaternion.y = self.quaternion_y
-                        self.goalQuaternion.z = self.quaternion_z
-                        self.goalQuaternion.w = self.quaternion_w
-                        #rospy.loginfo('Goal Pose: ' + str(self.goalPose.x) +', '+ str(self.goalPose.y) +', '+ str(self.goalPose.z))
+                    self.goalPose = mark.pose.pose
+                    self.initPose = True
         finally:
             self.lock.release()
 
@@ -96,22 +75,26 @@ class LearningRecord:
         try:
             #self.robotPose = odometry
             goalYaw = euler_from_quaternion(
-                [self.goalQuaternion.x,
-                 self.goalQuaternion.y,
-                 self.goalQuaternion.z,
-                 self.goalQuaternion.w])[2]
+                [self.goalPose.orientation.x,
+                 self.goalPose.orientation.y,
+                 self.goalPose.orientation.z,
+                 self.goalPose.orientation.w])[2]
             robotYaw = euler_from_quaternion(
                 [odometry.pose.pose.orientation.x,
                  odometry.pose.pose.orientation.y,
                  odometry.pose.pose.orientation.z,
                  odometry.pose.pose.orientation.w])[2]
-            s = (repr(odometry.pose.pose.position.x - self.goalPose.x) +
-                 " " + repr(odometry.pose.pose.position.y - self.goalPose.y) +
-                 " " + repr(odometry.pose.pose.position.z - self.goalPose.z) +
+            s = (repr(odometry.pose.pose.position.x -
+                      self.goalPose.position.x) +
+                 " " + repr(odometry.pose.pose.position.y -
+                            self.goalPose.position.y) +
+                 " " + repr(odometry.pose.pose.position.z -
+                            self.goalPose.position.z) +
                  " " + repr(cola2_lib.normalizeAngle(robotYaw-goalYaw)) + "\n")
         finally:
             self.lock.release()
-        self.file.write(s)
+        if self.initPose:
+            self.file.write(s)
 
 if __name__ == '__main__':
     try:
