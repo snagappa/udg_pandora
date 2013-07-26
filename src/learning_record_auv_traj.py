@@ -44,6 +44,7 @@ class LearningRecord:
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
         rospy.Subscriber(
             "/pose_ekf_slam/odometry", Odometry, self.updateRobotPose)
+        # Frequenzy 30 Hz
         self.tflistener = tf.TransformListener()
 
     def getConfig(self):

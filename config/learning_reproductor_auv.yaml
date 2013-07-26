@@ -3,18 +3,12 @@ learning/reproductor/auv/alpha : 2
 learning/reproductor/auv/s : 1
 learning/reproductor/auv/nbVar : 4
 learning/reproductor/auv/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
-learning/reproductor/auv/interval_time : 0.01 #10Hz
+learning/reproductor/auv/interval_time : 0.03 #10Hz
 learning/reproductor/auv/simulation : 0
 learning/reproductor/auv/nbDataRepro : 500 
 learning/reproductor/auv/exportFile : trajectoryPlayed.cvs
-learning/reproductor/auv/demonstration_file : trajectory_demonstration_arm
-learning/reproductor/auv/demonstrations : [ 0, 1, 2, 3, 4, 5, 6 ]
+learning/reproductor/auv/demonstration_file : trajectory_demonstration_auv
+learning/reproductor/auv/demonstrations : [ 0, 1, 2]
 learning/reproductor/auv/frame_id_goal : 'panel_centre'
 learning/reproductor/auv/name_pub_demonstrate : '/learning/trajectory_demonstrated'
 learning/reproductor/auv/name_pub_done : '/learning/trajectory'
-#Work Around
-learning/reproductor/auv/quaternion_x : -0.4860164345566604
-learning/reproductor/auv/quaternion_y : 0.5165734730384907
-learning/reproductor/auv/quaternion_z : -0.4793320976915157
-learning/reproductor/auv/quaternion_w : 0.5168951657893834
-

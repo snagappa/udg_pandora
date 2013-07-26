@@ -1,5 +1,5 @@
 learning/record/auv_traj/filename : 'trajectory_demonstration_auv'
-learning/record/auv_traj/number_sample : 4
+learning/record/auv_traj/number_sample : 0
 learning/record/auv_traj/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
 learning/record/auv_traj/frame_goal_id : 'panel_centre'
 learning/record/auv_traj/quaternion_x : -0.4860164345566604
