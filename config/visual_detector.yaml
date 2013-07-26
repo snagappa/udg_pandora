@@ -96,5 +96,5 @@ visual_detector/end_effector/valve_centres/real: [[0.0, 0.052, 0.11]]
 visual_detector/end_effector/templates/simulator: [["valve_template_close_sim.png", "valve_template_close_sim2.png", "valve_template_close_sim3.png"]]
 visual_detector/end_effector/masks/simulator: [["valve_template_mask_close_sim.png", "valve_template_mask_close_sim2.png", "valve_template_mask_close_sim3.png"]]
 visual_detector/end_effector/corners/simulator: [[[-0.236, 0.177, 0], [0.236, 0.177, 0], [0.236, -0.177, 0], [-0.236, -0.177, 0]]]
-visual_detector/end_effector/valve_centres/simulator: [[0.018, 0.0512, 0.11]]
+visual_detector/end_effector/valve_centres/simulator: [[0.118, 0.0512, 0.11]]
 

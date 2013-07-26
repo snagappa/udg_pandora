@@ -244,23 +244,25 @@ class VisualDetector(object):
         self.pub_chain = metaclient.Publisher('/visual_detector/chain',
                                               Detection, {})
         
+        self.publish_tf_l = True
+        self.publish_tf_r = True
         # Check if anyone is publishing the transforms for the bumblebee
-        frame_id = self._camera_.frame_id
-        listener = TransformListener()
-        try:
-            listener.waitForTransform("girona500", frame_id, rospy.Time(),
-                                      rospy.Duration(4.0))
-        except tf.Exception:
-            self.publish_tf_l = True
-        else:
-            self.publish_tf_l = False
-        try:
-            listener.waitForTransform(frame_id, frame_id+"_right",
-                                      rospy.Time(), rospy.Duration(4.0))
-        except tf.Exception:
-            self.publish_tf_r = True
-        else:
-            self.publish_tf_l = False
+        # frame_id = self._camera_.frame_id
+        # listener = TransformListener()
+        # try:
+        #     listener.waitForTransform("girona500", frame_id, rospy.Time(),
+        #                               rospy.Duration(4.0))
+        # except tf.Exception:
+        #     self.publish_tf_l = True
+        # else:
+        #     self.publish_tf_l = False
+        # try:
+        #     listener.waitForTransform(frame_id, frame_id+"_right",
+        #                               rospy.Time(), rospy.Duration(4.0))
+        # except tf.Exception:
+        #     self.publish_tf_r = True
+        # else:
+        #     self.publish_tf_l = False
         if self.publish_tf_l or self.publish_tf_r:
             rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         
@@ -437,6 +439,7 @@ class VisualDetector(object):
             "visual_detector/end_effector/valve_centres"+self._source_))
         
         num_valves = len(endeffector_templates)
+        print "Config contains %d templates for end effector" % num_valves
         # Get camera info msg to initialise detector camera
         cam_info = self.end_effector_image_buffer.get_camera_info()
         
@@ -452,7 +455,7 @@ class VisualDetector(object):
                                            range(num_valves)):
             detector.camera.make_grid_adapted_detector()
             # Set near and far detection distances to 0.1m and 0.4m
-            detector.set_near_far(0.1, 1.0)
+            detector.set_near_far(0.01, 0.6)
         
             # Set number of features from detector
             num_features = rospy.get_param(
@@ -565,7 +568,7 @@ class VisualDetector(object):
                     self.end_effector_image_buffer.unregister_callback(
                         self.endeffector.callback_id)
                     self.endeffector.active_detector_idx = new_idx
-                elif 1 <= new_idx <= len(self.endeffector.detector):
+                elif 1 <= new_idx <= len(self.endeffector.detectors):
                     self.endeffector.active_detector_idx = new_idx
                     self.endeffector.callback_id = (
                         self.end_effector_image_buffer.register_callback(
@@ -712,7 +715,7 @@ class VisualDetector(object):
 #        if not panel_detected:
 #            return
         active_detector_idx = self.endeffector.active_detector_idx
-        if not 1 <= active_detector_idx <= len(self.endeffector.detector):
+        if not 1 <= active_detector_idx <= len(self.endeffector.detectors):
             return False, 0
         
         args = (args[0],)
@@ -724,7 +727,7 @@ class VisualDetector(object):
         cvimage = _cvimage_
         
         # Select the active detector and valve specification
-        detector = self.endeffector.detector[active_detector_idx-1]
+        detector = self.endeffector.detectors[active_detector_idx-1]
         valves = self.endeffector.valves[active_detector_idx-1]
         
         # Perform the detection
@@ -750,28 +753,30 @@ class VisualDetector(object):
             this_valve_camcoords = np.dot(homogenous_rotation_matrix,
                                           this_valve.T).T
             # Project the 3D points from camera coordinates to pixels
-            px_corners = self.endeffector.detector.camera.project3dToPixel(
+            px_corners = detector.camera.project3dToPixel(
                 this_valve_camcoords[:, :3])
             px_corners = px_corners.astype(np.int32)
             left, top = np.min(px_corners, axis=0)
             right, bottom = np.max(px_corners, axis=0)
             # Only proceed if the bounding box is mostly within the image
+            bbox_tol_frac = 0.2
             bbox_width = right - left
             bbox_height = bottom - top
-            width_tol = int(0.1*bbox_width)
-            height_tol = int(0.1*bbox_height)
+            width_tol = int(bbox_tol_frac*bbox_width)
+            height_tol = int(bbox_tol_frac*bbox_height)
             
             if (left   < -width_tol or
                 top    < -height_tol or
                 right  >  cvimage[0].shape[1]+width_tol or
                 bottom >  cvimage[0].shape[0]+height_tol):
                 print "Valve not within bounding box"
+                left = right = bottom = top = np.int32(0)
             else:
                 # Select region of the bounding box that overlaps the image
-                left = np.max((left, 0))
-                top = np.max((top, 0))
-                right = np.min((right, cvimage[0].shape[1]))
-                bottom = np.min((bottom, cvimage[0].shape[0]))
+                left = np.int32(np.max((left, 0)))
+                top = np.int32(np.max((top, 0)))
+                right = np.int32(np.min((right, cvimage[0].shape[1])))
+                bottom = np.int32(np.min((bottom, cvimage[0].shape[0])))
                 
                 # Get approximate length of the valve in pixels
                 bbox_side_lengths = ((np.diff(np.vstack(
