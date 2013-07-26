@@ -17,7 +17,7 @@ from nav_msgs.msg import Odometry
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
 #from geometry_msgs.msg import Quaternion
 #include message of the point
 from sensor_msgs.msg import Joy
@@ -40,7 +40,7 @@ class learningReproductor:
         self.name = name
         self.getConfig()
         self.getLearnedParameters()
-        self.goalPose = Point()
+        self.goalPose = Pose()
         self.goalOrientation = np.zeros(3)
         self.robotPose = Odometry()
         self.armPose = np.zeros(3)
@@ -81,7 +81,7 @@ class learningReproductor:
         self.pub_desired_position = rospy.Publisher(
             "/arm/desired_position", PoseStamped)
         self.pub_arm_command = rospy.Publisher(
-            "/cola2_control/joystick_arm_data", Joy)
+            "/cola2_control/joystick_arm_ef", Joy)
 
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
@@ -114,11 +114,7 @@ class learningReproductor:
                       'poseGoal_z': 'learning/reproductor/poseGoal_z',
                       'name_pub_demonstrate':
                       'learning/reproductor/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/name_pub_done',
-                      'quaternion_x': 'learning/reproductor/quaternion_x',
-                      'quaternion_y': 'learning/reproductor/quaternion_y',
-                      'quaternion_z': 'learning/reproductor/quaternion_z',
-                      'quaternion_w': 'learning/reproductor/quaternion_w'
+                      'name_pub_done': 'learning/reproductor/name_pub_done'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -127,7 +123,7 @@ class learningReproductor:
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
-                    self.goalPose = mark.position
+                    self.goalPose = mark.pose.pose
                     try:
                         trans, rot = self.tflistener.lookupTransform(
                             "world",
@@ -143,25 +139,35 @@ class learningReproductor:
                                                1])
                         goalPose_rot = np.dot(rotation_matrix, goalPose)
 
-                        self.goalPose.x = mark.position.x + goalPose_rot[0]
-                        self.goalPose.y = mark.position.y + goalPose_rot[1]
-                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+                        self.goalPose.position.x = (self.goalPose.position.x +
+                                                    goalPose_rot[0])
+                        self.goalPose.position.y = (self.goalPose.position.y +
+                                                    goalPose_rot[1])
+                        self.goalPose.position.z = (self.goalPose.position.z +
+                                                    goalPose_rot[2])
                         self.goalOrientation = euler_from_quaternion(rot)
                     except tf.Exception:
                         rotation_matrix = tf.transformations.quaternion_matrix(
-                            [self.quaternion_x, self.quaternion_y,
-                             self.quaternion_z, self.quaternion_w])
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])
                         goalPose = np.asarray([self.poseGoal_x,
                                                self.poseGoal_y,
                                                self.poseGoal_z,
                                                1])
                         goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.x = mark.position.x + goalPose_rot[0]
-                        self.goalPose.y = mark.position.y + goalPose_rot[1]
-                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+                        self.goalPose.position.x = (self.goalPose.position.x +
+                                                    goalPose_rot[0])
+                        self.goalPose.position.y = (self.goalPose.position.y +
+                                                    goalPose_rot[1])
+                        self.goalPose.position.z = (self.goalPose.position.z +
+                                                    goalPose_rot[2])
                         self.goalOrientation = euler_from_quaternion(
-                            [self.quaternion_x, self.quaternion_y,
-                             self.quaternion_z, self.quaternion_w])
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])
                     self.dataGoalReceived = True
         finally:
             self.lock.release()
@@ -298,9 +304,9 @@ class learningReproductor:
         # desired_pose = np.asarray([self.desPos[0], self.desPos[1], self.desPos[2], 1])
         # desired_pose_tf = np.dot(rotation_matrix, desired_pose)[:3]
 #        rospy.loginfo('Desired pose ' + str(self.desPos[0]) +', '+ str(self.desPos[1]) +', '+ str(self.desPos[2]) )
-        newArmPose_x = self.goalPose.x + self.desPos[0]
-        newArmPose_y = self.goalPose.y + self.desPos[1]
-        newArmPose_z = self.goalPose.z + self.desPos[2]
+        newArmPose_x = self.goalPose.position.x + self.desPos[0]
+        newArmPose_y = self.goalPose.position.y + self.desPos[1]
+        newArmPose_z = self.goalPose.position.z + self.desPos[2]
 
         #World orientation
         command_x = newArmPose_x - self.armPose[0]
@@ -435,9 +441,9 @@ class learningReproductor:
             # Yaw is the differences between the Yaw in the world
             if self.dataRobotReceived and self.dataGoalReceived:
                 if self.dataReceived == 0:
-                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
-                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
-                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
+                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.position.x
+                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.position.y
+                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.position.z
                     self.currPos[3] = (self.armOrientation[1] -
                                        self.goalOrientation[1])
                     self.currPos[4] = (self.armOrientation[0] -
@@ -451,9 +457,9 @@ class learningReproductor:
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
 
-                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
-                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
-                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
+                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.position.x
+                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.position.y
+                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.position.z
                     self.currPos[3] = cola2_lib.normalizeAngle(
                         self.armOrientation[1] - self.goalOrientation[1])
                     self.currPos[4] = cola2_lib.normalizeAngle(
@@ -472,9 +478,9 @@ class learningReproductor:
                 else:
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.x
-                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.y
-                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.z
+                    self.currPos[0] = arm_pose_tf[0] - self.goalPose.position.x
+                    self.currPos[1] = arm_pose_tf[1] - self.goalPose.position.y
+                    self.currPos[2] = arm_pose_tf[2] - self.goalPose.position.z
                     self.currPos[3] = cola2_lib.normalizeAngle(
                         self.armOrientation[1] - self.goalOrientation[1])
                     self.currPos[4] = cola2_lib.normalizeAngle(

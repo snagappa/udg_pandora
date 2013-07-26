@@ -20,7 +20,7 @@ from geometry_msgs.msg import PoseStamped
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
 #from geometry_msgs.msg import Quaternion
 from tf.transformations import euler_from_quaternion
 #import to use mutex
@@ -35,9 +35,7 @@ class LearningRecord:
         self.name = name
         self.getConfig()
         rospy.loginfo('Configuration Loaded')
-        self.goalPose = Point()
-        self.goalPoseOld = Point()
-        self.goalOrientation = np.zeros(3)
+        self.goalPose = Pose()
         self.lock = threading.Lock()
         self.initGoalPose = False
         rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
@@ -55,10 +53,6 @@ class LearningRecord:
                       'poseGoal_x': 'learning/record/poseGoal_x',
                       'poseGoal_y': 'learning/record/poseGoal_y',
                       'poseGoal_z': 'learning/record/poseGoal_z',
-                      'quaternion_x': 'learning/record/quaternion_x',
-                      'quaternion_y': 'learning/record/quaternion_y',
-                      'quaternion_z': 'learning/record/quaternion_z',
-                      'quaternion_w': 'learning/record/quaternion_w'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         self.file = open(self.filename + "_" +
@@ -71,38 +65,38 @@ class LearningRecord:
         self.lock.acquire()
         try:
             if self.initGoalPose:
-                arm_pose, rot = self.tflistener.lookupTransform(
-                    "world", "end_effector",
-                    self.tflistener.getLatestCommonTime(
-                        "world", "end_effector"))
+                try:
+                    arm_pose, rot = self.tflistener.lookupTransform(
+                        "world", "end_effector",
+                        self.tflistener.getLatestCommonTime(
+                            "world", "end_effector"))
                     #rospy.loginfo( 'Arm global Pose ' + str(arm_pose)  )
-                arm_ori = euler_from_quaternion(rot)
-                # rospy.loginfo('Current Arm Roll ' + str(arm_ori[0])
-                #               + ' Pitch ' + str(arm_ori[1])
-                #               + ' Yaw ' + str(arm_ori[2]))
-                # rospy.loginfo('Current Valve Roll ' +
-                #               str(self.goalOrientation[0])
-                #               + ' Pitch ' + str(self.goalOrientation[1])
-                #               + ' Yaw ' + str(self.goalOrientation[2]))
-                #In the angles between the end EE and the valve are changed
-                # Roll is the difference between Pitch in the world
-                # Pitch is the difference between Roll in the world
-                # Yaw is the differences between the Yaw in the world
-                s = (repr(arm_pose[0] - self.goalPose.x) + " " +
-                     repr(arm_pose[1] - self.goalPose.y) + " " +
-                     repr(arm_pose[2] - self.goalPose.z) + " " +
-                     repr(cola2_lib.normalizeAngle(arm_ori[1] -
-                                                   self.goalOrientation[1]))
-                     + " " +
-                     repr(cola2_lib.normalizeAngle(
-                            cola2_lib.normalizeAngle(arm_ori[0] -
-                                                     self.goalOrientation[0])
-                            - (math.pi/2.0)))
-                     + " " +
-                     repr(cola2_lib.normalizeAngle(arm_ori[2] -
-                                                   self.goalOrientation[2]))
-                     + "\n")
-                self.file.write(s)
+                    arm_ori = euler_from_quaternion(rot)
+                    #In the angles between the end EE and the valve are changed
+                    # Roll is the difference between Pitch in the world
+                    # Pitch is the difference between Roll in the world
+                    # Yaw is the differences between the Yaw in the world
+                    s = (repr(arm_pose[0] - self.goalPose.position.x) + " " +
+                         repr(arm_pose[1] - self.goalPose.position.y) + " " +
+                         repr(arm_pose[2] - self.goalPose.position.z) + " " +
+                         repr(cola2_lib.normalizeAngle(arm_ori[1] -
+                                                       self.goalOrientation[1]))
+                         + " " +
+                         repr(cola2_lib.normalizeAngle(
+                             cola2_lib.normalizeAngle(arm_ori[0] -
+                                                      self.goalOrientation[0])
+                             - (math.pi/2.0)))
+                         + " " +
+                         repr(cola2_lib.normalizeAngle(arm_ori[2] -
+                                                       self.goalOrientation[2]))
+                         + "\n")
+                    self.file.write(s)
+                except tf.Exception:
+                    rospy.loginfo(
+                        'Error in the TF using the last arm pose published')
+                    #TODO Subscribe the node tho the arm position.
+                    # Think how we transform for the arm position to the world position 
+                    # without using the TF
             else:
                 rospy.loginfo('Goal pose Not initialized')
         finally:
@@ -113,7 +107,7 @@ class LearningRecord:
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
-                    self.goalPose = mark.position
+                    self.goalPose = mark.pose.pose
                     try:
                         trans, rot = self.tflistener.lookupTransform(
                             "world", "panel_centre",
@@ -126,26 +120,37 @@ class LearningRecord:
                                                self.poseGoal_z,
                                                1])
                         goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.x = mark.position.x + goalPose_rot[0]
-                        self.goalPose.y = mark.position.y + goalPose_rot[1]
-                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+                        self.goalPose.position.x = (self.goalPose.position.x +
+                                                    goalPose_rot[0])
+                        self.goalPose.position.y = (self.goalPose.position.y +
+                                                    goalPose_rot[1])
+                        self.goalPose.position.z = (self.goalPose.position.z +
+                                                    goalPose_rot[2])
                         self.goalOrientation = euler_from_quaternion(rot)
                         self.initGoalPose = True
                     except tf.Exception:
                         rotation_matrix = tf.transformations.quaternion_matrix(
-                            [self.quaternion_x, self.quaternion_y,
-                             self.quaternion_z, self.quaternion_w])
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])
+                        #poseGoal is the position of the vavle
                         goalPose = np.asarray([self.poseGoal_x,
                                                self.poseGoal_y,
                                                self.poseGoal_z,
                                                1])
                         goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.x = mark.position.x + goalPose_rot[0]
-                        self.goalPose.y = mark.position.y + goalPose_rot[1]
-                        self.goalPose.z = mark.position.z + goalPose_rot[2]
+                        self.goalPose.position.x = (self.goalPose.position.x +
+                                                    goalPose_rot[0])
+                        self.goalPose.position.y = (self.goalPose.position.y +
+                                                    goalPose_rot[1])
+                        self.goalPose.position.z = (self.goalPose.position.z +
+                                                    goalPose_rot[2])
                         self.goalOrientation = euler_from_quaternion(
-                            [self.quaternion_x, self.quaternion_y,
-                             self.quaternion_z, self.quaternion_w])
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])
                         self.initGoalPose = True
         finally:
             self.lock.release()
