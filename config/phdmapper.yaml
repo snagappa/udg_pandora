@@ -1,0 +1,7 @@
+phdmapper/vars/prune_threshold: 0.0025
+phdmapper/vars/merge_threshold: 0.75
+phdmapper/vars/max_num_components: 8000
+phdmapper/vars/birth_intensity: 0.05
+phdmapper/vars/clutter_intensity: 1
+phdmapper/vars/pd: 0.6
+
