@@ -20,6 +20,7 @@ import code
 from geometry_msgs.msg import PointStamped
 import sys
 import traceback
+import kalmanfilter
 
 default_float = "float64"
 
@@ -48,7 +49,8 @@ def transform_numpy_array(target_frame, source_frame, numpy_points,
     assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
             (np.prod(numpy_points.shape) == 0)), (
             "Points must be Nx3 numpy array")
-    if numpy_points.shape[0] == 0:
+    if ((numpy_points.shape[0] == 0) or 
+        (numpy_points.shape[0]*numpy_points.shape[1] == 0)):
         return np.empty(0)
     
     arr_len = numpy_points.shape[0]
@@ -153,7 +155,7 @@ class _FoV_(object):
         return cart_coords
     
     def _observation_volume_(self):
-        return 4/3*np.pi*(self.fov_far**3 - self.fov_near**3)
+        return 4./3.*np.pi*(self.fov_far**3 - self.fov_near**3)
     
     def set_const_pd(self, pd=0.9):
         """set_const_pd(self, pd=0.9) -> None
@@ -487,6 +489,54 @@ class PinholeCameraModel(_FoV_, ros_cameramodels.PinholeCameraModel):
     def get_tf_frame(self):
         return (self.tfFrame,)
     
+    def observation_px_jacobian(self, np.ndarray[double, ndim=2] states not None):
+        cdef int num_states
+        cdef np.ndarray[double, ndim=2] proj_matrix, rot_matrix, rot_states
+        cdef np.ndarray[double, ndim=1] zz, zz_sq, f_zz_sq
+        cdef np.ndarray[double, ndim=3] J_matrix
+        num_states = states.shape[0]
+        proj_matrix = self.projection_matrix()
+        f = proj_matrix[0, 0]
+        rot_matrix = self.inv_rotation_matrix()
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = rot_states[:, 2]
+        zz_sq = zz**2
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.empty((num_states, 3, 3))
+        # Set last row to zero for all states
+        J_matrix[:, 2, :] = 0
+        # First row
+        J_matrix[:, 0, 0] = f_zz_sq*(rot_matrix[0, 0]*zz - rot_matrix[2, 0]*rot_states[:, 0])
+        J_matrix[:, 0, 1] = f_zz_sq*(rot_matrix[0, 1]*zz - rot_matrix[2, 1]*rot_states[:, 0])
+        J_matrix[:, 0, 2] = f_zz_sq*(rot_matrix[0, 2]*zz - rot_matrix[2, 2]*rot_states[:, 0])
+        # Second row
+        J_matrix[:, 1, 0] = f_zz_sq*(rot_matrix[1, 0]*zz - rot_matrix[2, 0]*rot_states[:, 1])
+        J_matrix[:, 1, 1] = f_zz_sq*(rot_matrix[1, 1]*zz - rot_matrix[2, 1]*rot_states[:, 1])
+        J_matrix[:, 1, 2] = f_zz_sq*(rot_matrix[1, 2]*zz - rot_matrix[2, 2]*rot_states[:, 1])
+        
+        return J_matrix
+        """
+        u = proj_matrix[0, 2]
+        v = proj_matrix[1, 2]
+        J_matrix = self.inv_rotation_matrix()
+        J_matrix[:2, :2] *= f
+        J_matrix[0, :] += u*J_matrix[2, :]
+        J_matrix[1, :] += v*J_matrix[2, :]
+        J_matrix[:, 2] = 0
+        z = states[:, 2, np.newaxis, np.newaxis] # (num_states x 1 x 1 ndarray)
+        J_matrix = J_matrix/z
+        return J_matrix
+        
+        #rot_matrix[0, :] *= proj_matrix[0, 0]
+        rot_matrix[:, 0, :]
+        rot_matrix[0, :] += proj_matrix[0, 2]/f*rot_matrix[2, :]
+        #rot_matrix[1, :] *= proj_matrix[1, 1]
+        rot_matrix[1, :] += proj_matrix[1, 2]/f*rot_matrix[2, :]
+        return rot_matrix
+        """
+
 
 class StereoCameraModel(_FoV_, ros_cameramodels.StereoCameraModel):
     def __init__(self):
@@ -579,14 +629,15 @@ class StereoCameraModel(_FoV_, ros_cameramodels.StereoCameraModel):
             clutter_l[replace_idx] = clutter_r[replace_idx]
         return clutter_l
     
-    def triangulate(self, pts_left, pts_right):
+    def triangulate(self, np.ndarray[double, ndim=2] pts_left not None,
+                    np.ndarray[double, ndim=2] pts_right):
         """triangulate(self, pts_left, pts_right) -> points3d
         Triangulate points using rectified camera. pts_left and pts_right must
         be Nx2 numpy arrays
         """
         # Triangulate the points
-        assert (pts_left.ndim == 2) and (pts_right.ndim == 2), "pts must be Nx2 numpy array"
-        assert pts_left.shape == pts_right.shape, "pts_{left/right} must have the same shape"
+        assert (pts_left.shape[1] == 2) and (pts_right.shape[1] == 2), "pts must be Nx2 numpy array"
+        assert pts_left.shape[0] == pts_right.shape[0], "pts_{left/right} must have the same shape"
         if pts_left.shape[0] == 0:
             return np.empty(0)
         points4d = cv2.triangulatePoints(np.asarray(self.left.P),
@@ -612,8 +663,13 @@ class StereoCameraModel(_FoV_, ros_cameramodels.StereoCameraModel):
     def get_tf_frame(self):
         return (self.left.tfFrame, self.right.tfFrame)
     
-    def observations(self, states):
+    def observations(self, states, idx=None):
         rel_states = self.from_world_coords(states)
+        assert idx in [0, 1], "idx must be 0 or 1"
+        if idx == 0:
+            rel_states = rel_states[0]
+        elif idx == 1:
+            rel_states = rel_states[1]
         return rel_states
     
     def observations_px(self, states):
@@ -625,6 +681,69 @@ class StereoCameraModel(_FoV_, ros_cameramodels.StereoCameraModel):
         else:
             disparity_obs = np.empty((0, 3))
         return disparity_obs
+    
+    def observation_px_jacobian_full(self, np.ndarray[double, ndim=2] states not None):
+        cdef int num_states
+        cdef np.ndarray[double, ndim=2] proj_matrix_l, proj_matrix_r, rot_matrix, rot_states
+        cdef np.ndarray[double, ndim=1] zz, zz_sq, f_zz_sq
+        cdef np.ndarray[double, ndim=3] J_matrix
+        num_states = states.shape[0]
+        proj_matrix_l, proj_matrix_r = self.projection_matrix()
+        
+        f = proj_matrix_l[0, 0]
+        baseline = proj_matrix_r[0, 3]
+        rot_matrix = self.inv_rotation_matrix()
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = rot_states[:, 2]
+        zz_sq = zz**2
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.empty((num_states, 3, 3))
+        # First row
+        J_matrix[:, 0, 0] = f_zz_sq*(rot_matrix[0, 0]*zz - rot_matrix[2, 0]*rot_states[:, 0])
+        J_matrix[:, 0, 1] = f_zz_sq*(rot_matrix[0, 1]*zz - rot_matrix[2, 1]*rot_states[:, 0])
+        J_matrix[:, 0, 2] = f_zz_sq*(rot_matrix[0, 2]*zz - rot_matrix[2, 2]*rot_states[:, 0])
+        # Second row
+        J_matrix[:, 1, 0] = f_zz_sq*(rot_matrix[1, 0]*zz - rot_matrix[2, 0]*rot_states[:, 1])
+        J_matrix[:, 1, 1] = f_zz_sq*(rot_matrix[1, 1]*zz - rot_matrix[2, 1]*rot_states[:, 1])
+        J_matrix[:, 1, 2] = f_zz_sq*(rot_matrix[1, 2]*zz - rot_matrix[2, 2]*rot_states[:, 1])
+        # Third row
+        J_matrix[:, 2, :] = baseline/zz_sq[:,np.newaxis]*rot_matrix[2, :]
+        
+        return J_matrix
+    
+    def observation_px_jacobian_partial(self, np.ndarray[double, ndim=2] states not None):
+        cdef int num_states
+        cdef np.ndarray[double, ndim=2] proj_matrix_l, proj_matrix_r, rot_matrix, rot_states
+        cdef np.ndarray[double, ndim=1] zz, zz_sq, f_zz, f_zz_sq
+        cdef np.ndarray[double, ndim=3] J_matrix
+        num_states = states.shape[0]
+        proj_matrix_l, proj_matrix_r = self.projection_matrix()
+        
+        f = proj_matrix_l[0, 0]
+        baseline = proj_matrix_r[0, 3]
+        rot_matrix = self.inv_rotation_matrix()
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = states[:, 2]
+        zz_sq = zz**2
+        f_zz = f/zz
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.zeros((num_states, 3, 3))
+        # First row
+        J_matrix[:, 0, 0] = f_zz*rot_matrix[0, 0]
+        J_matrix[:, 0, 1] = f_zz*rot_matrix[0, 1]
+        
+        # Second row
+        J_matrix[:, 1, 0] = f_zz*rot_matrix[1, 0]
+        J_matrix[:, 1, 1] = f_zz*rot_matrix[1, 1]
+        
+        # Third row
+        J_matrix[:, 2, :] = baseline/zz_sq[:,np.newaxis]
+        
+        return J_matrix
 
 
 class _CameraFeatureDetector_(object):
@@ -761,7 +880,9 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             pass
         try:
             try:
-                self.set_detector_num_features(np.min([num_features*10, 2000]))
+                #self.set_detector_num_features(np.min([num_features*10, 2000]))
+                self.set_detector_num_features(2000)
+                print "Could not set number of features"
             except UnboundLocalError:
                 pass
             """

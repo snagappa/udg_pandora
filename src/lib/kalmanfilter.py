@@ -203,8 +203,62 @@ def ukf_predict(states, covs, ctrl_input, proc_noise, predict_fn,
     # Predicted covariance is weighted mean of sigma covariance + proc_noise
     pred_cov = _sigma_cov_(sigma_x_pred, pred_state, wt_cv, 0)
     return pred_state, pred_cov
+
+def ukf_update_cov(states, covs, obs_noise, obsfn, obsfn_args=(), _alpha=1e-3, _beta=2, _kappa=0, INPLACE=True):
+    assert states.ndim == 2, "states must be 2D"
+    assert covs.ndim == 3, "covs must be 3D"
+    assert 2 <= obs_noise.ndim <= 3, "obs_noise must be 2D or 3D"
     
-def sigma_pts(x, x_cov, _alpha=1e-3, _beta=2, _kappa=0):
+    kalman_info = lambda:0
+    
+    num_states, state_dim = states.shape
+    num_sigma_pts = 2*state_dim + 1
+    
+    # Redraw sigma points
+    (x_sigma, x_weight, p_weight) = sigma_pts(states, covs, _alpha, _beta, _kappa)
+    # predicted mean x - same as current x?
+    predicted_x = (x_weight[np.newaxis, :, np.newaxis]*x_sigma).sum(axis=1)
+    
+    # Generate observations for predicted sigma points
+    x_sigma_flat = np.reshape(x_sigma, (num_states*num_sigma_pts, x_sigma.shape[2]))
+    z_sigma_flat = obsfn(x_sigma_flat, *obsfn_args)
+    z_dim = z_sigma_flat.shape[1]
+    z_sigma = np.reshape(z_sigma_flat, (num_states, num_sigma_pts, z_dim))
+    predicted_z = (x_weight[np.newaxis, :, np.newaxis]*z_sigma).sum(axis=1)
+    
+    # Observation covariance
+    z_diff_flat = np.asarray(np.reshape(z_sigma - predicted_z[:, np.newaxis, :],
+                             (num_states*num_sigma_pts, z_dim)), order='C')
+    
+    # Innovation covariance - used to compute the likelihood
+    cov_wts = (p_weight * np.ones((num_states, 1))).ravel()
+    zz_sigma_cov = np.asarray(
+        np.reshape(blas.dsyr('l', z_diff_flat, cov_wts),
+                   (num_states, num_sigma_pts, z_dim, z_dim)).sum(axis=1) + obs_noise, order='C')
+    blas.symmetrise(zz_sigma_cov, 'l')
+    
+    # Compute cross covariance
+    x_diff_flat = np.reshape(x_sigma - predicted_x[:, np.newaxis, :],
+                             (num_states*num_sigma_pts, x_sigma.shape[2]))
+    xz_sigma_cov = (
+        np.reshape(blas.dger(x_diff_flat, z_diff_flat, cov_wts),
+                   (num_states, num_sigma_pts, state_dim, z_dim)).sum(axis=1))
+    
+    # Kalman gain
+    kalman_gain = blas.dgemm(xz_sigma_cov, blas.inverse(zz_sigma_cov, 'C', False))
+    
+    cov_update_term = blas.dgemm(kalman_gain, blas.dgemm(zz_sigma_cov, kalman_gain, TRANSPOSE_B=True))
+    if INPLACE:
+        covs -= cov_update_term
+    else:
+        covs = covs - cov_update_term
+    
+    kalman_info.S = zz_sigma_cov
+    kalman_info.kalman_gain = kalman_gain
+    return covs, predicted_z, kalman_info
+    
+
+def np_sigma_pts(x, x_cov, _alpha=1e-3, _beta=2, _kappa=0):
     # State dimensions
     _L = x.shape[0]
     # UKF parameters
@@ -230,3 +284,36 @@ def _sigma_cov_(sigma_x, x_hat, wt_cv, proc_noise):
     blas.symmetrise(sigma_cov, 'l')
     sigma_cov = sigma_cov[0] + proc_noise
 
+def sigma_pts(states, covs, _alpha=1e-3, _beta=2, _kappa=0):
+    assert states.ndim == 2, "states must be 2D"
+    assert covs.ndim == 3, "covs must be 3D"
+    
+    num_states, state_dim = states.shape
+    _L = state_dim
+    _lambda = _alpha**2*(_L + _kappa) - _L
+    _L_plus_lambda = _L + _lambda
+    
+    # Vectors are stored row-wise and page-wise for each state-cov pair
+    sigma_vecs = np.zeros((num_states, 2*state_dim+1, state_dim))
+    sqrt_covs = blas.dpotrf(_L_plus_lambda*covs, INPLACE=False)
+    
+    sigma_vecs[:, 0, :] = states
+    sigma_vecs[:, 1:_L+1, :] = states[:, np.newaxis] + sqrt_covs
+    sigma_vecs[:, _L+1:, :] = states[:, np.newaxis] - sqrt_covs
+    wts_mn = 1./(2*_L_plus_lambda)*np.ones(2*state_dim+1)
+    wts_mn[0] = _lambda/_L_plus_lambda
+    wts_cv = wts_mn.copy()
+    wts_cv[0] += (1 - _alpha**2 + _beta)
+    return sigma_vecs, wts_mn, wts_cv
+    
+
+
+def evalSigmaCovariance(self, wt_vector, sigma_x1, x1, sigma_x2=None, x2=None):
+    difference1 = [np.matrix(_sigma_x1 - x1) for _sigma_x1 in sigma_x1]
+    if not (sigma_x2 is None):
+        difference2 = [np.matrix(_sigma_x2 - x2) for _sigma_x2 in sigma_x2]
+    else:
+        difference2 = difference1
+    
+    sigma_cov = [this_wt_vector*_diff1.T*_diff2 for (this_wt_vector,_diff1, _diff2) in zip(wt_vector, difference1, difference2)]
+    return np.add.reduce(sigma_cov)
