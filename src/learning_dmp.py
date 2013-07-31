@@ -11,6 +11,7 @@ from scipy import interpolate
 #value to show all the numbers in a matrix
 # numpy.set_printoptions(threshold=100000)
 
+
 class learningDmp:
 
     def __init__(self, name):
