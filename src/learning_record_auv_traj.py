@@ -70,7 +70,7 @@ class LearningRecord:
         try:
 		for mark in landMarkMap.landmark :
                     if self.landmark_id == mark.landmark_id :
-			self.goalPose = mark.position			
+			self.goalPose = mark.position
 			try:
                         #Try to read the original pose detected with the visual detector
 				trans, rot = self.tflistener.lookupTransform("world", self.frame_goal_id, self.tflistener.getLatestCommonTime("world",self.frame_goal_id))
@@ -105,6 +105,16 @@ class LearningRecord:
 
 if __name__ == '__main__':
     try:
+        #Load the configuration file
+        import subprocess
+        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_record_auv.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            rospy.logerr( "Could not locate learning_record_auv.yaml")
+
+
         rospy.init_node('learning_record_auv_traj')
         learning_record = LearningRecord( rospy.get_name() )
         rospy.spin()

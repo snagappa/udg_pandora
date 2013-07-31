@@ -1,14 +1,12 @@
 learning/reproductor/parameters : learned_data.txt
-learning/reproductor/alpha : 2
+learning/reproductor/alpha : 1
 learning/reproductor/s : 1
-learning/reproductor/nbVar : 3
+learning/reproductor/nbVar : 6
 learning/reproductor/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
-learning/reproductor/interval_time : 0.01 #10Hz
+learning/reproductor/interval_time : 0.1 #10Hz
 learning/reproductor/simulation : 0
 learning/reproductor/nbDataRepro : 500 
 learning/reproductor/exportFile : trajectoryPlayed.cvs
-learning/reproductor/demonstration_file : trajectory_demonstration_arm
-learning/reproductor/demonstrations : [ 0, 1, 2, 3, 4, 5, 7 ]
 learning/reproductor/frame_id_goal : 'valve2'
 #en el mon Valve2 x:0.11 y:0.0 z:-0.2 
 learning/reproductor/poseGoal_x : 0.0
@@ -16,3 +14,8 @@ learning/reproductor/poseGoal_y : 0.2
 learning/reproductor/poseGoal_z : 0.11
 learning/reproductor/name_pub_demonstrate : '/learning/trajectory_demonstrated'
 learning/reproductor/name_pub_done : '/learning/trajectory'
+#Work Around
+learning/reproductor/quaternion_x : -0.4860164345566604
+learning/reproductor/quaternion_y : 0.5165734730384907
+learning/reproductor/quaternion_z : -0.4793320976915157
+learning/reproductor/quaternion_w : 0.5168951657893834

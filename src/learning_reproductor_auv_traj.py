@@ -111,25 +111,25 @@ class learningReproductor :
 #        self.loadDemonstration()
 
     def getConfig(self) :
-        param_dict = {'reproductor_parameters': 'learning/reproductor/parameters',
-                      'alpha': 'learning/reproductor/alpha',
-                      's': 'learning/reproductor/s',
-                      'nbVar': 'learning/reproductor/nbVar',
-                      'interval_time': 'learning/reproductor/interval_time',
-                      'landmark_id': 'learning/reproductor/landmark_id',
-                      'interval_time': 'learning/reproductor/interval_time',
-                      'simulation': 'learning/reproductor/simulation',
-                      'nbDataRepro': 'learning/reproductor/nbDataRepro',
-                      'exportFile': 'learning/reproductor/exportFile',
-                      'demonstration_file': 'learning/reproductor/demonstration_file',
-                      'demonstrations': 'learning/reproductor/demonstrations',
-                      'frame_id_goal': 'learning/reproductor/frame_id_goal',
-                      'name_pub_demonstrate': 'learning/reproductor/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/name_pub_done',
-                      'quaternion_x': 'learning/reproductor/quaternion_x',
-                      'quaternion_y': 'learning/reproductor/quaternion_y',
-                      'quaternion_z': 'learning/reproductor/quaternion_z',
-                      'quaternion_w': 'learning/reproductor/quaternion_w'
+        param_dict = {'reproductor_parameters': 'learning/reproductor/auv/parameters',
+                      'alpha': 'learning/reproductor/auv/alpha',
+                      's': 'learning/reproductor/auv/s',
+                      'nbVar': 'learning/reproductor/auv/nbVar',
+                      'interval_time': 'learning/reproductor/auv/interval_time',
+                      'landmark_id': 'learning/reproductor/auv/landmark_id',
+                      'interval_time': 'learning/reproductor/auv/interval_time',
+                      'simulation': 'learning/reproductor/auv/simulation',
+                      'nbDataRepro': 'learning/reproductor/auv/nbDataRepro',
+                      'exportFile': 'learning/reproductor/auv/exportFile',
+                      'demonstration_file': 'learning/reproductor/auv/demonstration_file',
+                      'demonstrations': 'learning/reproductor/auv/demonstrations',
+                      'frame_id_goal': 'learning/reproductor/auv/frame_id_goal',
+                      'name_pub_demonstrate': 'learning/reproductor/auv/name_pub_demonstrate',
+                      'name_pub_done': 'learning/reproductor/auv/name_pub_done',
+                      'quaternion_x': 'learning/reproductor/auv/quaternion_x',
+                      'quaternion_y': 'learning/reproductor/auv/quaternion_y',
+                      'quaternion_z': 'learning/reproductor/auv/quaternion_z',
+                      'quaternion_w': 'learning/reproductor/auv/quaternion_w'
 }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time) )
@@ -437,7 +437,16 @@ class learningReproductor :
 
 if __name__ == '__main__':
     try:
-        rospy.init_node('learning_reproductor')
+        #Load the configuration file
+        import subprocess
+        config_file_list = roslib.packages.find_resource("udg_pandora", "learning_reproductor_auv.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            rospy.logerr( "Could not locate learning_record_auv.yaml")
+
+        rospy.init_node('learning_reproductor_auv_traj')
         learning_reproductor = learningReproductor( rospy.get_name() )
         learning_reproductor.play()
 #        rospy.spin()

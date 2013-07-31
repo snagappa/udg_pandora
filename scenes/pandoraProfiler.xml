@@ -68,90 +68,11 @@
     </lookAt>
   </camera>
 
-  <vehicle>
-      <name>valve00</name>
-      <file>scenes/valvePanel.urdf</file>
-      <jointValues>
-          <joint> 0.0 </joint>
-      </jointValues>
-      <position>
-          <x> -1.8 </x>
-          <y> -0.09 </y>
-          <z> 2.925 </z>
-      </position>
-      <orientation>
-          <r>0</r>
-          <p>0</p>
-          <y>0</y>
-      </orientation>
-  </vehicle>
-
-  <vehicle>
-      <name>valve01</name>
-      <file>scenes/valvePanel.urdf</file>
-      <jointValues>
-          <joint> 0.0 </joint>
-      </jointValues>
-      <position>
-          <x> -1.8 </x>
-          <y> -0.34 </y>
-          <z> 2.68 </z>
-      </position>
-      <orientation>
-          <r>0</r>
-          <p>0</p>
-          <y>0</y>
-      </orientation>
-  </vehicle>
-
-  <vehicle>
-      <name>valve02</name>
-      <file>scenes/valvePanel.urdf</file>
-      <jointValues>
-          <joint> 0.0 </joint>
-      </jointValues>
-      <position>
-          <x> -1.8 </x>
-          <y> -0.34 </y>
-          <z> 2.925 </z>
-      </position>
-      <orientation>
-          <r>0</r>
-          <p>0</p>
-          <y>0</y>
-      </orientation>
-  </vehicle>
-
-  <vehicle>
-      <name>valve03</name>
-      <file>scenes/valvePanel.urdf</file>
-      <jointValues>
-          <joint> 0.0 </joint>
-      </jointValues>
-      <position>
-          <x> -1.8 </x>
-          <y> -0.59 </y>
-          <z> 2.925 </z>
-      </position>
-      <orientation>
-          <r>0</r>
-          <p>0</p>
-          <y>0</y>
-      </orientation>
-  </vehicle>
-
-
-
-
-  <vehicle>
+   <vehicle>
     <name>girona500</name>
-    <file>scenes/g500ARMPandora.urdf</file>
+    <file>scenes/g500Test.urdf</file>
     <jointValues>
-      <joint> -0.00 </joint> <!--1.46 -->
-      <joint> -0.15 </joint> <!--1.07-->
-      <joint> 0.30  </joint> <!---1.175-->
-      <joint> 1.57 </joint>
-      <joint> 0.0</joint>
+      <joint> 0.0 </joint>
     </jointValues>
     <position>
       <x> 0.0 </x>
@@ -164,23 +85,42 @@
       <y>0</y>
     </orientation>
 
-    <virtualCamera>
-      <name>hand_camera</name>
-      <relativeTo>palm</relativeTo>
-      <resw> 720 </resw>
-      <resh> 540 </resh>
+       <virtualCamera>
+      <name>left_down</name>
+      <relativeTo>base_link</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
       <position>
-        <x>0.0</x>
-        <y>0.0</y>
-        <z>0.0</z> <!-- -0.7 -->
+        <x>0.5</x>
+        <y>-0.06</y>
+        <z>0.4</z>
       </position>
       <orientation>
-        <r>-1.57</r>
+        <r>-3.14159</r>
+        <p>0</p>
+        <y>1.57</y>
+      </orientation>
+      <baseline> 0.0 </baseline>
+      <frameId> /g500/stereo_down </frameId>
+    </virtualCamera>
+
+    <virtualCamera>
+      <name>right_down</name>
+      <relativeTo>base_link</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.5</x>
+        <y>0.06</y>
+        <z>0.4</z>
+      </position>
+      <orientation>
+        <r>-3.14159</r>
         <p>0</p>
         <y>1.57</y>
       </orientation>
     <baseline>0.12</baseline>
-    <frameId> /g500/hand_camera</frameId>
+    <frameId> /g500/stereo_down </frameId>
     </virtualCamera>
 
 
@@ -222,50 +162,11 @@
     <frameId> /g500/stereo_front </frameId>
     </virtualCamera>
 
-    <virtualCamera>
-      <name>left_down</name>
-      <relativeTo>base_link</relativeTo>
-      <resw> 640 </resw>
-      <resh> 480 </resh>
-      <position>
-        <x>0.5</x>
-        <y>-0.06</y>
-        <z>0.4</z>
-      </position>
-      <orientation>
-        <r>-3.14159</r>
-        <p>0</p>
-        <y>1.57</y>
-      </orientation>
-      <baseline> 0.0 </baseline>
-      <frameId> /g500/stereo_down </frameId>
-    </virtualCamera>
-
-    <virtualCamera>
-      <name>right_down</name>
-      <relativeTo>base_link</relativeTo>
-      <resw> 640 </resw>
-      <resh> 480 </resh>
-      <position>
-        <x>0.5</x>
-        <y>0.06</y>
-        <z>0.4</z>
-      </position>
-      <orientation>
-        <r>-3.14159</r>
-        <p>0</p>
-        <y>1.57</y>
-      </orientation>
-    <baseline>0.12</baseline>
-    <frameId> /g500/stereo_down </frameId>
-    </virtualCamera>
-
-
 <rangeSensor>
       <name>sonar</name>
-      <relativeTo>base</relativeTo>
+      <relativeTo>profiler</relativeTo>
       <range>10</range>
-      <visible>0</visible>
+      <visible>1</visible>
       <position>
         <x>-1.2</x>
         <y>0</y>
@@ -406,63 +307,15 @@
       <vehicleName> girona500 </vehicleName>
     </PATToROSOdom>
     <ArmToROSJointState>
-	<topic>/uwsim/joint_state</topic>
+	<topic>/uwsim/profiler_state</topic>
 	<vehicleName> girona500 </vehicleName>
     </ArmToROSJointState>
-    <ArmToROSJointState>
-	<topic>/uwsim/valve00</topic>
-	<vehicleName> valve00 </vehicleName>
-    </ArmToROSJointState>
-    <ArmToROSJointState>
-	<topic>/uwsim/valve01</topic>
-	<vehicleName> valve01 </vehicleName>
-    </ArmToROSJointState>
-    <ArmToROSJointState>
-	<topic>/uwsim/valve02</topic>
-	<vehicleName> valve02 </vehicleName>
-    </ArmToROSJointState>
-    <ArmToROSJointState>
-	<topic>/uwsim/valve03</topic>
-	<vehicleName> valve03 </vehicleName>
-    </ArmToROSJointState>
-
+ 
     <ROSJointStateToArm>
-	<topic>/uwsim/joint_state_command</topic>
+	<topic>/uwsim/profiler_state_command</topic>
 	<vehicleName> girona500 </vehicleName>
     </ROSJointStateToArm>
-    <ROSJointStateToArm>
-	<topic>/uwsim/valve00_command</topic>
-	<vehicleName> valve00 </vehicleName>
-    </ROSJointStateToArm>
-    <ROSJointStateToArm>
-	<topic>/uwsim/valve01_command</topic>
-	<vehicleName> valve01 </vehicleName>
-    </ROSJointStateToArm>
-    <ROSJointStateToArm>
-	<topic>/uwsim/valve02_command</topic>
-	<vehicleName> valve02 </vehicleName>
-    </ROSJointStateToArm>
-    <ROSJointStateToArm>
-	<topic>/uwsim/valve03_command</topic>
-	<vehicleName> valve03 </vehicleName>
-    </ROSJointStateToArm>
-
-    <VirtualCameraToROSImage>
-      <cameraName>hand_camera</cameraName>
-      <imageTopic>/g500/hand_camera/image_raw  </imageTopic>
-      <infoTopic>/g500/hand_camera/camera_info </infoTopic>
-    </VirtualCameraToROSImage>
-
-    <VirtualCameraToROSImage>
-      <cameraName>right_front</cameraName>
-      <imageTopic> /g500/stereo_front/right/image_raw </imageTopic>
-      <infoTopic> /g500/stereo_front/right/camera_info </infoTopic>
-    </VirtualCameraToROSImage>
-    <VirtualCameraToROSImage>
-      <cameraName>left_front</cameraName>
-      <imageTopic>/g500/stereo_front/left/image_raw  </imageTopic>
-      <infoTopic>/g500/stereo_front/left/camera_info </infoTopic>
-    </VirtualCameraToROSImage>
+  
 
     <VirtualCameraToROSImage>
       <cameraName>right_down</cameraName>
@@ -473,6 +326,18 @@
       <cameraName>left_down</cameraName>
       <imageTopic>/g500/stereo_down/left/image_raw  </imageTopic>
       <infoTopic>/g500/stereo_down/left/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+
+
+    <VirtualCameraToROSImage>
+      <cameraName>right_front</cameraName>
+      <imageTopic> /g500/stereo_front/right/image_raw </imageTopic>
+      <infoTopic> /g500/stereo_front/right/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+    <VirtualCameraToROSImage>
+      <cameraName>left_front</cameraName>
+      <imageTopic>/g500/stereo_front/left/image_raw  </imageTopic>
+      <infoTopic>/g500/stereo_front/left/camera_info </infoTopic>
     </VirtualCameraToROSImage>
 
     <RangeSensorToROSRange>
