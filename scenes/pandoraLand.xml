@@ -10,9 +10,9 @@
     <depth> 1000 </depth>
     <reflectionDamping> 0.35 </reflectionDamping>
     <waveScale> 1e-7 </waveScale>
-    <isNotChoppy> 0 </isNotChoppy>
-    <choppyFactor> 2.5 </choppyFactor>
-    <crestFoamHeight> 2.2 </crestFoamHeight>
+    <isNotChoppy> 1 </isNotChoppy>
+    <choppyFactor> 0.0 </choppyFactor>
+    <crestFoamHeight> 0.0 </crestFoamHeight>
     <oceanSurfaceHeight> 0 </oceanSurfaceHeight>
     <fog>
       <density> 0.1 </density>
@@ -155,7 +155,7 @@
     <position>
       <x> 0.0 </x>
       <y> 0.0 </y>
-      <z> 0.0 </z>
+      <z> 2.0 </z>
     </position>
     <orientation>
       <r>0</r>
@@ -166,6 +166,7 @@
     <virtualCamera>
       <name>hand_camera</name>
       <relativeTo>palm</relativeTo>
+
       <resw> 720 </resw>
       <resh> 540 </resh>
       <position>
@@ -177,6 +178,9 @@
         <r>-1.57</r>
         <p>0</p>
         <y>1.57</y>
+        <!-- <r>-1.57</r> -->
+        <!-- <p>0</p> -->
+        <!-- <y>1.57</y> -->
       </orientation>
     <baseline>0.12</baseline>
     <frameId> /g500/hand_camera</frameId>
@@ -189,12 +193,13 @@
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.6</x>
-        <y>-0.06</y> <!-- -0.06 -->
-        <z>0.0</z> <!-- -0.7-->
+        <!--<x>0.6</x>-->
+        <x>0.45</x>
+        <y>-0.06</y>
+        <z>-0.12</z>
       </position>
       <orientation>
-        <r>-1.57</r>
+        <r>-1.831</r>
         <p>0</p>
         <y>1.57</y>
       </orientation>
@@ -208,12 +213,12 @@
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.6</x>
-        <y>0.06</y>
-        <z>0.0</z> <!-- -0.7 -->
+        <x>0.45</x>
+        <y>0.06</y> <!-- -0.06 -->
+        <z>-0.12</z> <!-- -0.7-->
       </position>
       <orientation>
-        <r>-1.57</r>
+        <r>-1.831</r>
         <p>0</p>
         <y>1.57</y>
       </orientation>
@@ -257,6 +262,26 @@
       </orientation>
     <baseline>0.12</baseline>
     <frameId> /g500/stereo_down </frameId>
+    </virtualCamera>
+
+
+    <virtualCamera>
+      <name>check_tf</name>
+      <relativeTo>base_link</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.0</x>
+        <y>2.0</y> <!-- -0.06 -->
+        <z>0.0</z> <!-- -0.7-->
+      </position>
+      <orientation>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>0</y>
+      </orientation>
+      <baseline> 0.0 </baseline>
+      <frameId> /g500/check_tf </frameId>
     </virtualCamera>
 
 
@@ -323,15 +348,20 @@
   <object>
     <name> panel </name>
 	<file>data2/objects2/new_panel3.osg</file>
+    <!--<relativeTo>base_link</relativeTo>-->
     <position>
-      <x> -1.9 </x>
-      <y> -0.35 </y>
-      <z> 2.8 </z>
+      <x> 1.5 </x>
+      <y> 0.0 </y>
+      <z> 0.5 </z>
+      <!-- <x> -1.9 </x> -->
+      <!-- <y> -0.35 </y> -->
+      <!-- <z> 2.8 </z> -->
     </position>
     <orientation>
+      <!-- <r>1.57</r> -->
       <r>1.57</r>
       <p>0</p>
-      <y>0.0</y>
+      <y>3.14</y>
     </orientation>
   </object>
 
@@ -472,6 +502,12 @@
       <cameraName>left_down</cameraName>
       <imageTopic>/g500/stereo_down/left/image_raw  </imageTopic>
       <infoTopic>/g500/stereo_down/left/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+
+    <VirtualCameraToROSImage>
+      <cameraName>check_tf</cameraName>
+      <imageTopic>/g500/check_tf/image_raw  </imageTopic>
+      <infoTopic>/g500/check_tf/camera_info </infoTopic>
     </VirtualCameraToROSImage>
 
     <RangeSensorToROSRange>
