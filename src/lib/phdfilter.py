@@ -19,7 +19,7 @@ pyximport.install(reload_support=True)
 # Custom imports
 import misctools, blas
 import cameramodels
-from kalmanfilter import kf_update_cov, kf_update_x, ukf_update_cov
+from kalmanfilter import kf_update_cov, kf_update_x, ukf_update_cov, sigma_pts
 from misctools import STRUCT
 from rfs_merge import rfs_merge
 
@@ -50,8 +50,9 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
     """
     
     log_likelihood = 1.
-    num_observations = observations.shape[0] if ( not observations.shape[1]==0) else 0
-    z_dim = observations.shape[1]
+    num_observations = (observations.shape[0] 
+                        if ( not observations.shape[1]==0) else 0)
+    #z_dim = observations.shape[1]
     
     if not weights.shape[0]:
         #print "nothing to update"
@@ -90,24 +91,31 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                     # rotation of the parent
                     # With 3D point observations
                     if not USE_UKF:
-                        h_mat = np.asarray(camera.observation_jacobian()[np.newaxis], order='C')
+                        h_mat = np.asarray(
+                            camera.observation_jacobian()[np.newaxis],
+                            order='C')
                         pred_z = camera.observations(detected_states)[0]
                     clutter_pdf = camera.pdf_clutter(observations)
-                    clutter_intensity = filter_vars.clutter_intensity*clutter_pdf
+                    clutter_intensity = (
+                        filter_vars.clutter_intensity*clutter_pdf)
                 else:
                     # With pixel observations
                     if not USE_UKF:
                         h_mat = camera.observation_px_jacobian_full(detected_states)
                         pred_z = camera.observations_px(detected_states)
+                    from IPython import embed
+                    embed()
                     clutter_pdf = camera.pdf_clutter_disparity(observations)
-                    clutter_intensity = filter_vars.clutter_intensity*clutter_pdf
+                    clutter_intensity = (
+                        filter_vars.clutter_intensity*clutter_pdf)
                 
                 # Do a single covariance update if equal observation noise
                 this_observation_noise = observation_noise[0]
                 try:
                     if not USE_UKF:
                         _this_detected_covs_, kalman_info = kf_update_cov(
-                            detected_covs, h_mat, this_observation_noise, INPLACE=False)
+                            detected_covs, h_mat, this_observation_noise,
+                            INPLACE=False)
                     else:
                         if USE_3D:
                             obsfn = camera.observations
@@ -115,9 +123,11 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                         else:
                             obsfn = camera.observations_px
                             obsfn_args = ()
-                        _this_detected_covs_, pred_z, kalman_info = ukf_update_cov(
-                            detected_states, detected_covs, this_observation_noise,
-                            obsfn, obsfn_args, _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
+                        (_this_detected_covs_, pred_z, 
+                         kalman_info) = ukf_update_cov(
+                            detected_states, detected_covs,
+                            this_observation_noise, obsfn, obsfn_args,
+                            _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
                 except:
                     print "Error in kf_update_cov: Saved data to dbg"
                     dbg = STRUCT()
@@ -131,8 +141,8 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                     dbg.observations = np.asarray(observations)
                     dbg.observation_noise = np.asarray(observation_noise)
                     print "Error in kf_update_cov"
-                    code.interact(local=locals())
-                this_detected_covs = _this_detected_covs_
+                    
+                #this_detected_covs = _this_detected_covs_
             # We need to update the states and find the updated weights
             for obs_count in range(num_observations):
                 _observation_ = observations[obs_count]
@@ -247,7 +257,8 @@ def camera_birth_disparity(camera, birth_intensity,
             features_rel, features_cv, _alpha=0.5)
         
         # Generate observations for predicted sigma points
-        x_sigma_flat = np.reshape(x_sigma, (num_states*num_sigma_pts, x_sigma.shape[2]))
+        x_sigma_flat = np.reshape(x_sigma, (num_states*num_sigma_pts,
+                                            x_sigma.shape[2]))
         
         img_pts_l = x_sigma_flat[:, :2]
         img_pts_r = x_sigma_flat[:, :2].copy()
@@ -262,14 +273,16 @@ def camera_birth_disparity(camera, birth_intensity,
         predicted_z = (x_weight[np.newaxis, :, np.newaxis]*z_sigma).sum(axis=1)
         
         # Observation covariance
-        z_diff_flat = np.asarray(np.reshape(z_sigma - predicted_z[:, np.newaxis, :],
-                                 (num_states*num_sigma_pts, z_dim)), order='C')
+        z_diff_flat = np.asarray(
+            np.reshape(z_sigma - predicted_z[:, np.newaxis, :],
+            (num_states*num_sigma_pts, z_dim)), order='C')
         
         # Innovation covariance - used to compute the likelihood
         cov_wts = (p_weight * np.ones((num_states, 1))).ravel()
         zz_sigma_cov = np.asarray(
             np.reshape(blas.dsyr('l', z_diff_flat, cov_wts),
-                       (num_states, num_sigma_pts, z_dim, z_dim)).sum(axis=1), order='C')
+                       (num_states, num_sigma_pts, z_dim, z_dim)).sum(axis=1),
+                        order='C')
         blas.symmetrise(zz_sigma_cov, 'l')
         
         birth_features = predicted_z
@@ -298,7 +311,8 @@ def camera_birth(camera, birth_intensity, features_rel, features_cv):
     birth_wt = np.empty(0)
     birth_st = np.empty((0, 3))
     birth_cv = np.empty((0, 3, 3))
-    num_features = features_rel.shape[0] if (not features_rel.shape[1]==0) else 0
+    num_features = (features_rel.shape[0]
+                    if (not features_rel.shape[1]==0) else 0)
     
     if num_features:
         #covs = ([0.01, 0.01, 0.01]*np.eye(3)[np.newaxis])*np.ones((num_features, 1, 1))
@@ -359,7 +373,8 @@ def merge_fov(camera, weights, states, covs, merge_threshold,
         covs = covs[detected_idx]
         #num_remaining_components = self.weights.shape[0]
         
-        merged_wts, merged_sts, merged_cvs = rfs_merge(weights, states, covs, merge_threshold)
+        merged_wts, merged_sts, merged_cvs = rfs_merge(weights, states, 
+                                                       covs, merge_threshold)
         merged_wts = np.hstack((unmerged_wts, merged_wts))
         merged_sts = np.vstack((unmerged_sts, merged_sts))
         merged_cvs = np.vstack((unmerged_cvs, merged_cvs))
@@ -466,9 +481,9 @@ class GMPHD(object):
         self.estimate()
     
     def fromCameraInfo(self, camera_info_left, camera_info_right):
-        self._camera_.fromCameraInfo(camera_info_left, camera_info_right)
-        left_tf_frame = "slam_sensor"
-        right_tf_frame = "slam_sensor_right"
+        self.camera.fromCameraInfo(camera_info_left, camera_info_right)
+        left_tf_frame = camera_info_left.header.frame_id
+        right_tf_frame = left_tf_frame+"_right"
         self.camera.set_tf_frame(left_tf_frame, right_tf_frame)
         fov_far = rospy.get_param("slam_feature_detector/fov/far")
         self.camera.set_near_far_fov(fov_far=fov_far)

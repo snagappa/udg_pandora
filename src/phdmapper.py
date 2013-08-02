@@ -37,7 +37,8 @@ import sys, traceback
 # Custom imports
 from lib.misctools import STRUCT, message_buffer, camera_buffer, pcl_xyz_cov
 from lib import phdfilter
-
+from tf.transformations import quaternion_from_euler
+from tf import TransformBroadcaster
 
 PHDMAPPER_ROOT = "phdmapper/"
 PHDFILTER_ROOT = PHDMAPPER_ROOT + "filter/"
@@ -120,6 +121,34 @@ class PHDMAPPER(object):
         # slam_feature_detector node
         self.callback_id = self.features_buffer.register_callback(
             self.update_features)
+        
+        # Get camera details
+        self.tf_info = STRUCT()
+        cam_info_msg = camera.get_camera_info(0)[0]
+        self.tf_info.frame_id = cam_info_msg.header.frame_id
+        self.tf_info.position = tuple(rospy.get_param(
+            "phdmapper/camera_position"))
+        self.tf_info.orientation = quaternion_from_euler(
+            *rospy.get_param("phdmapper/camera_orientation"))
+        self.tf_info.baseline = tuple(rospy.get_param(
+            "phdmapper/camera_baseline"))
+        self.tf_info.baseline_orientation = quaternion_from_euler(
+            *rospy.get_param("phdmapper/camera_baseline_orientation"))
+        self.tf_broadcaster = TransformBroadcaster()
+#        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
+        print "Completed initialisation."
+    
+    def publish_transforms(self, *args, **kwargs):
+        timestamp = rospy.Time.now()
+        tf_br = self.tf_broadcaster
+        tf_info = self.tf_info
+        frame_id = tf_info.frame_id
+        
+        # Don't publish the left frame if already being published
+        tf_br.sendTransform(tf_info.position, tf_info.orientation,
+                            timestamp, frame_id, 'girona500')
+        tf_br.sendTransform(tf_info.baseline, tf_info.baseline_orientation,
+                            timestamp, frame_id+'_right', frame_id)
     
     def read_config(self):
         """PHDMAPPER.read_config()
@@ -205,7 +234,7 @@ if __name__ == '__main__':
         import subprocess
         # Load ROS parameters
         config_file_list = roslib.packages.find_resource("udg_pandora",
-            "visual_detector.yaml")
+            "phdmapper.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
