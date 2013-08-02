@@ -135,7 +135,7 @@ class PHDMAPPER(object):
         self.tf_info.baseline_orientation = quaternion_from_euler(
             *rospy.get_param("phdmapper/camera_baseline_orientation"))
         self.tf_broadcaster = TransformBroadcaster()
-#        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
+        rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         print "Completed initialisation."
     
     def publish_transforms(self, *args, **kwargs):
@@ -145,8 +145,8 @@ class PHDMAPPER(object):
         frame_id = tf_info.frame_id
         
         # Don't publish the left frame if already being published
-        tf_br.sendTransform(tf_info.position, tf_info.orientation,
-                            timestamp, frame_id, 'girona500')
+#        tf_br.sendTransform(tf_info.position, tf_info.orientation,
+#                            timestamp, frame_id, 'girona500')
         tf_br.sendTransform(tf_info.baseline, tf_info.baseline_orientation,
                             timestamp, frame_id+'_right', frame_id)
     
@@ -207,6 +207,8 @@ class PHDMAPPER(object):
             exc_info = sys.exc_info()
             print "phdmapper:UPDATE_FEATURES\n", traceback.print_tb(exc_info[2])
             traceback.print_tb(exc_info[2])
+        else:
+            self.publish_map()
     
     def publish_map(self, *args, **kwargs):
         """PHDMAPPER.publish_map()

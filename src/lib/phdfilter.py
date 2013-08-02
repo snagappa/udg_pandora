@@ -22,7 +22,7 @@ import cameramodels
 from kalmanfilter import kf_update_cov, kf_update_x, ukf_update_cov, sigma_pts
 from misctools import STRUCT
 from rfs_merge import rfs_merge
-
+from IPython import embed
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -103,8 +103,7 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                     if not USE_UKF:
                         h_mat = camera.observation_px_jacobian_full(detected_states)
                         pred_z = camera.observations_px(detected_states)
-                    from IPython import embed
-                    embed()
+                    
                     clutter_pdf = camera.pdf_clutter_disparity(observations)
                     clutter_intensity = (
                         filter_vars.clutter_intensity*clutter_pdf)
@@ -385,7 +384,7 @@ def merge_fov(camera, weights, states, covs, merge_threshold,
         raise
 
 def phd_iterate(weights, states,covs, filter_vars, camera, observations,
-            obs_noise, USE_3D, USE_UKF=False, DISPLAY=False):
+            obs_noise, USE_3D, USE_UKF=False, DISPLAY=-1):
     """phd.iterate(observations, obs_noise)
     Perform a single iteration of the filter:
         predict()
@@ -489,7 +488,7 @@ class GMPHD(object):
         self.camera.set_near_far_fov(fov_far=fov_far)
     
     def update_features(self, features, USE_3D=False, USE_UKF=True,
-                        DISPLAY=False):
+                        DISPLAY=-1):
         if features.shape[0]:
             features_pos = features[:, :3].copy()
             features_noise = np.array([np.diag(features[i, 3:6]) 

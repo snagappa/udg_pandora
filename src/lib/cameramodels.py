@@ -11,7 +11,7 @@ import rospy
 import blas
 import misctools
 import image_feature_extractor
-from misctools import STRUCT, rotation_matrix, FlannMatcher
+from misctools import STRUCT, rotation_matrix, FlannMatcher, sample_mn_cv
 import cv2
 import copy
 import code
@@ -502,10 +502,11 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         new_camera.set_tf_frame(self.left.tfFrame, self.right.tfFrame)
         return new_camera
     
-    def fromCameraInfo(self, left_msg, right_msg):
+    def fromCameraInfo(self, left_msg, right_msg, **kwargs):
         self._camera_info_ = (left_msg, right_msg)
         super(StereoCameraModel, self).fromCameraInfo(left_msg, right_msg)
         self.tfFrame = left_msg.header.frame_id
+        self._compute_observation_volume_disparity_(**kwargs)
     
     def camera_matrix(self):
         return self.left.camera_matrix()
@@ -526,6 +527,7 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         """
         self.left.set_near_far_fov(fov_near, fov_far)
         self.right.set_near_far_fov(fov_near, fov_far)
+        self._compute_observation_volume_disparity_()
     
     def set_const_pd(self, pd=0.9):
         """set_const_pd(self, pd=0.9)
@@ -575,6 +577,32 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             replace_idx = clutter_l < clutter_r
             clutter_l[replace_idx] = clutter_r[replace_idx]
         return clutter_l
+    
+    def _compute_observation_volume_disparity_(self, num_samples=2000):
+        """Statistically compute the minimum/maximum disparity that is achieved
+        using the specified near and far FoV. Disparity-based clutter assumes
+        a uniform distribution over the range.
+        """
+        # Sample points in the space
+        pts_3d = np.random.random((num_samples, 3))*(
+            [2*self.fov_far, 2*self.fov_far, self.fov_far])
+        pts_3d[:, :2] -= self.fov_far
+        # Determine which points are in the FoV
+        within_fov = self.is_visible_relative2sensor(pts_3d)
+        pts_l, pts_r = self.project3dToPixel(pts_3d)
+        disparity = pts_l[:, 0] - pts_r[:, 0]
+        disparity_wts = np.ones(disparity.shape[0])/disparity.shape[0]
+        disparity_wts[np.logical_not(within_fov)] = 0
+        disparity_mn, disparity_cv = sample_mn_cv(
+            disparity[:, np.newaxis], disparity_wts)
+        min_disparity = disparity[within_fov].min()
+        max_disparity = disparity_mn + 6*disparity_cv**0.5
+        disparity_range = max_disparity - min_disparity
+        self.observation_volume_disparity = np.squeeze(
+            self.get_width()*self.get_height()*disparity_range)
+    
+    def pdf_clutter_disparity(self, points, **kwargs):
+        return (1.0/self.observation_volume_disparity)*np.ones(points.shape[0])
     
     def triangulate(self, pts_left, pts_right):
         """triangulate(self, pts_left, pts_right) -> points3d
