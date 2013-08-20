@@ -3,7 +3,7 @@ learning/reproductor/alpha : 1
 learning/reproductor/s : 1
 learning/reproductor/nbVar : 6
 learning/reproductor/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
-learning/reproductor/interval_time : 0.2 #10Hz
+learning/reproductor/interval_time : 0.1 #0.2 10Hz
 learning/reproductor/simulation : 0
 learning/reproductor/nbDataRepro : 500 
 learning/reproductor/exportFile : trajectoryPlayed.cvs
