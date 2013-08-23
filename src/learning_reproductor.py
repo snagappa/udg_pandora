@@ -33,6 +33,9 @@ import tf
 #use to normalize the angle
 import cola2_lib
 
+#use to call the service to a disred position
+from cola2_control.srv import EFPose
+
 
 class learningReproductor:
 
@@ -63,7 +66,7 @@ class learningReproductor:
         self.currPosSim[2] = 0.8
         self.currNbDataRepro = 0
         self.action = 1
-
+        self.retracting = False
         if self.simulation:
             self.file = open(self.exportFile, 'w')
         else:
@@ -114,7 +117,8 @@ class learningReproductor:
                       'poseGoal_z': 'learning/reproductor/poseGoal_z',
                       'name_pub_demonstrate':
                       'learning/reproductor/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/name_pub_done'
+                      'name_pub_done': 'learning/reproductor/name_pub_done',
+                      'safe_pose_ef': 'learning/reproductor/safe_pose_ef'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -254,7 +258,9 @@ class learningReproductor:
 
     def generateNewPose(self):
         #rospy.loginfo('Action value ' + str(self.action))
-        if self.action == 1:
+        if self.action > 0.0:
+            if self.retracting:
+                self.retracting = False
             t = -math.log(self.s)/self.alpha
             # for each atractor or state obtain the weigh
             #rospy.loginfo('Time :' + str(t) )
@@ -293,9 +299,22 @@ class learningReproductor:
             #self.s = (self.s + (-self.alpha*self.s)
             #          * self.interval_time*self.action)
             self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        elif self.action == 0.0:
+            if self.retracting:
+                self.retracting = False
+            # stop the arm 
+            #self.desPos = self.
+            self.stopTheArm()
+            pass
         else:
-            self.retractArm()
-            self.s = 1
+            if not self.retracting:
+                self.retractArm()
+                self.s = 1
+            else:
+                s = (repr(self.currPos[0]) + " " + repr(self.currPos[1]) +
+                     " " + repr(self.currPos[2]) + "\n")
+                self.fileTraj.write(s)
+
 
     def publishJoyMessage(self):
         joyCommand = Joy()
@@ -406,10 +425,27 @@ class learningReproductor:
 
     #Retract the Arm sending the command -x
     def retractArm(self):
+        rospy.wait_for_service('/cola2_control/setPoseEF')
+        try:
+            poseEF_srv = rospy.ServiceProxy('/cola2_control/setPoseEF', EFPose)
+            success = poseEF_srv(self.safe_pose_ef)
+            if success:
+                self.retracting = True
+            else:
+                rospy.logerr('The safe position is not reachable by the arm')
+        except rospy.ServiceException, e:
+            print "Service call failed: %s" %e
+
+        s = (repr(self.currPos[0]) + " " + repr(self.currPos[1]) +
+             " " + repr(self.currPos[2]) + "\n")
+        self.fileTraj.write(s)
+
+    #Stop the arm in the current postion
+    def stopTheArm(self):
         joyCommand = Joy()
-        joyCommand.axes.append(-999)
-        joyCommand.axes.append(-999)
-        joyCommand.axes.append(-999)
+        joyCommand.axes.append(0.0)
+        joyCommand.axes.append(0.0)
+        joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)

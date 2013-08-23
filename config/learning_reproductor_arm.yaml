@@ -14,3 +14,4 @@ learning/reproductor/poseGoal_y : 0.2
 learning/reproductor/poseGoal_z : 0.11
 learning/reproductor/name_pub_demonstrate : '/learning/trajectory_demonstrated'
 learning/reproductor/name_pub_done : '/learning/trajectory'
+learning/reproductor/safe_pose_ef : [0.26, 0.28, 0.0046, 0.0, 0.0, 0.0]                              
