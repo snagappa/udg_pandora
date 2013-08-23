@@ -19,7 +19,7 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
 
 # include the message of the ekf giving the position of the robot
-from nav_msgs.msg import Odometry
+nnfrom nav_msgs.msg import Odometry
 
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
@@ -37,6 +37,10 @@ from nav_msgs.msg import Path
 import math
 import numpy
 #from scipy import interpolate
+
+#To enable or disable the service
+from std_srvs.srv import Empty, EmptyResponse
+from std_msgs.msg import Float64
 
 import threading
 import tf
@@ -76,7 +80,8 @@ class learningReproductor:
         self.currPosSim[2] = 0.8
         self.currPosSim[3] = 2.1
         self.currNbDataRepro = 0
-
+        self.enabled = True
+        self.initial_s = self.s
         if self.simulation:
             self.file = open(self.exportFile, 'w')
         else:
@@ -114,6 +119,22 @@ class learningReproductor:
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
         self.tflistener = tf.TransformListener()
+
+        self.enable_srv = rospy.Service(
+            '/learning/enable_reproductor_auv_traj',
+            Empty,
+            self.enableSrv)
+
+        self.disable_srv = rospy.Service(
+            '/learning/disable_reproductor_auv_traj',
+            Empty,
+            self.disableSrv)
+
+        self.enable_with_s_srv = rospy.Service(
+            '/learning/enable_reproductor_auv_traj_with_s',
+            Float64,
+            self.enableWithSSrv)
+
 #        self.loadDemonstration()
 
     def getConfig(self):
@@ -249,19 +270,39 @@ class learningReproductor:
         finally:
             self.lock.release()
 
+    def enableSrv(self, req):
+        self.enabled = True
+        rospy.loginfo('%s Enabled', self.name)
+        return EmptyResponse()
+
+    def enableWithSSrv(self, req):
+        self.s = req
+        self.enabled = True
+        rospy.loginfo('%s Enabled', self.name)
+        return EmptyResponse()
+
+    def disableSrv(self, req):
+        self.enabled = False
+        self.s = self.initial_s
+        rospy.loginfo('%s Disabled', self.name)
+        return EmptyResponse()
+
     def play(self):
 #        pub = rospy.Publisher('arm', )
         while not rospy.is_shutdown():
             self.lock.acquire()
             try:
-                if not self.simulation:
-                    if self.dataReceived > 1:
-                        self.generateNewPose()
-                else:
-                    self.simulatedNewPose()
-                    if self.currNbDataRepro >= self.nbDataRepro:
-                        rospy.loginfo('Finish !!!!')
-                        rospy.signal_shutdown('The reproduction has finish')
+                if self.enabled:
+                    if not self.simulation:
+                        if self.dataReceived > 1:
+                            self.generateNewPose()
+                    else:
+                        self.simulatedNewPose()
+                        if self.currNbDataRepro >= self.nbDataRepro:
+                            rospy.loginfo('Finish !!!!')
+                            self.enabled = False
+                            self.s = self.initial_s
+                            rospy.signal_shutdown('The reproduction has finish')
             finally:
                 self.lock.release()
             rospy.sleep(self.interval_time)
