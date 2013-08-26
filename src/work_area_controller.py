@@ -28,6 +28,8 @@ from pose_ekf_slam.msg import Map
 #include the message to send velocities to the robot
 from auv_msgs.msg import BodyVelocityReq
 
+from std_srvs.srv import Empty, EmptyResponse
+
 #import to use mutex
 import threading
 import tf
@@ -58,11 +60,22 @@ class WorkAreaController:
 #        self.arm_pose_init = False
         self.robot_pose_init = False
         self.goal_pose_init = False
+        self.enabled = False
 
         self.distance_goal = 0.0
         self.gamma = 0.0
         self.alpha = 0.0
         self.beta = 0.0
+
+        self.enable_srv = rospy.Service(
+            '/learning/enable_work_area',
+            Empty,
+            self.enableSrv)
+
+        self.disable_srv = rospy.Service(
+            '/learning/disable_work_area',
+            Empty,
+            self.disableSrv)
 
     def getConfig(self):
         param_dict = {'limit_distance_goal': 'work_area/distance_goal',
@@ -130,6 +143,16 @@ class WorkAreaController:
         finally:
             self.lock.release()
 
+    def enableSrv(self, req):
+        self.enabled = True
+        rospy.loginfo('%s Enabled', self.name)
+        return EmptyResponse()
+
+    def disableSrv(self, req):
+        self.enabled = False
+        rospy.loginfo('%s Disabled', self.name)
+        return EmptyResponse()
+
 #Not need for the moment. Only use the valve an
 
     # def updateArmPose(self, armPose):
@@ -151,7 +174,7 @@ class WorkAreaController:
                      self.goalPose.position.y, 2) +
             np.power(self.robotPose.pose.pose.position.z -
                      self.goalPose.position.z, 2))
-#        rospy.loginfo('Distance :' + str(self.distance_goal) )
+        #rospy.loginfo('Distance :' + str(self.distance_goal))
         try:
             #compute the angle gamma
             trans_p, rot_p = self.tflistener.lookupTransform(
@@ -335,15 +358,15 @@ class WorkAreaController:
 
     def run(self):
         while not rospy.is_shutdown():
-            if self.robot_pose_init and self.goal_pose_init:
-                self.computePosition()
-                safe_rate = self.evaluatePosition()
-                #publish the rate to modify the behaviour 
-                #of the learning program
-                self.pub_decision.publish(safe_rate)
-            else:
-                rospy.loginfo('Waiting to initialize all the positions')
-
+            if self.enabled:
+                if self.robot_pose_init and self.goal_pose_init:
+                    self.computePosition()
+                    safe_rate = self.evaluatePosition()
+                    #publish the rate to modify the behaviour 
+                    #of the learning program
+                    self.pub_decision.publish(safe_rate)
+                else:
+                    rospy.loginfo('Waiting to initialize all the positions')
             rospy.sleep(self.period)
 
 

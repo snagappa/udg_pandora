@@ -23,12 +23,15 @@ from geometry_msgs.msg import Pose
 from sensor_msgs.msg import Joy
 #include message to move forward or backward the arm
 from std_msgs.msg import Float64
+from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 import threading
 import tf
 #import warnings
 #value to show all the numbers in a matrix
 # np.set_printoptions(threshold=100000)
+
+from std_srvs.srv import Empty, EmptyResponse
 
 #use to normalize the angle
 import cola2_lib
@@ -67,6 +70,8 @@ class learningReproductor:
         self.currNbDataRepro = 0
         self.action = 1
         self.retracting = False
+        self.enabled = False
+        self.initial_s = self.s
         if self.simulation:
             self.file = open(self.exportFile, 'w')
         else:
@@ -85,6 +90,8 @@ class learningReproductor:
             "/arm/desired_position", PoseStamped)
         self.pub_arm_command = rospy.Publisher(
             "/cola2_control/joystick_arm_ef", Joy)
+        self.pub_arm_finish = rospy.Publisher(
+            "learning/arm_finish", Bool)
 
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
@@ -97,6 +104,16 @@ class learningReproductor:
                          Float64,
                          self.updateAction)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
+        self.enable_srv = rospy.Service(
+            '/learning/enable_reproductor_arm',
+            Empty,
+            self.enableSrv)
+
+        self.disable_srv = rospy.Service(
+            '/learning/disable_reproductor_arm',
+            Empty,
+            self.disableSrv)
+
         self.tflistener = tf.TransformListener()
 
     def getConfig(self):
@@ -193,19 +210,31 @@ class learningReproductor:
         finally:
             self.lock.release()
 
+    def enableSrv(self, req):
+        self.enabled = True
+        rospy.loginfo('%s Enabled', self.name)
+        return EmptyResponse()
+
+    def disableSrv(self, req):
+        self.enabled = False
+        self.s = self.initial_s
+        rospy.loginfo('%s Disabled', self.name)
+        return EmptyResponse()
+
     def play(self):
 #        pub = rospy.Publisher('arm', )
         while not rospy.is_shutdown():
             self.lock.acquire()
             try:
-                if not self.simulation:
-                    if self.dataReceived > 1:
-                        self.generateNewPose()
-                else:
-                    self.simulatedNewPose()
-                    if self.currNbDataRepro >= self.nbDataRepro:
-                        rospy.loginfo('Finish !!!!')
-                        rospy.signal_shutdown('The reproduction has finish')
+                if self.enabled:
+                    if not self.simulation:
+                        if self.dataReceived > 1:
+                            self.generateNewPose()
+                    else:
+                        self.simulatedNewPose()
+                        if self.currNbDataRepro >= self.nbDataRepro:
+                            rospy.loginfo('Finish !!!!')
+                            rospy.signal_shutdown('The reproduction has finish')
             finally:
                 self.lock.release()
             rospy.sleep(self.interval_time)
@@ -299,6 +328,14 @@ class learningReproductor:
             #self.s = (self.s + (-self.alpha*self.s)
             #          * self.interval_time*self.action)
             self.s = self.s + (-self.alpha*self.s)*self.interval_time
+
+            #rospy.loginfo(' Value s ' + str(self.s))
+            if (self.s < 1E-48):
+                rospy.loginfo('!!!!!!!! Arm trajectory Finish !!!!!!!!!')
+                self.enabled = False
+                self.pub_arm_finish.publish(True)
+                self.s = self.initial_s
+
         elif self.action == 0.0:
             if self.retracting:
                 self.retracting = False
@@ -309,12 +346,11 @@ class learningReproductor:
         else:
             if not self.retracting:
                 self.retractArm()
-                self.s = 1
+                self.s = self.initial_s
             else:
                 s = (repr(self.currPos[0]) + " " + repr(self.currPos[1]) +
                      " " + repr(self.currPos[2]) + "\n")
                 self.fileTraj.write(s)
-
 
     def publishJoyMessage(self):
         joyCommand = Joy()

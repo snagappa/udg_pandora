@@ -1,0 +1,6 @@
+# Rotate the wrist joint and the gripper joint
+float32 error
+---
+# Return the state of operation
+bool result
+

@@ -19,7 +19,7 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
 
 # include the message of the ekf giving the position of the robot
-nnfrom nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry
 
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
@@ -41,6 +41,9 @@ import numpy
 #To enable or disable the service
 from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Float64
+from std_msgs.msg import Bool
+
+from udg_pandora.srv import WorkAreaError
 
 import threading
 import tf
@@ -80,7 +83,7 @@ class learningReproductor:
         self.currPosSim[2] = 0.8
         self.currPosSim[3] = 2.1
         self.currNbDataRepro = 0
-        self.enabled = True
+        self.enabled = False
         self.initial_s = self.s
         if self.simulation:
             self.file = open(self.exportFile, 'w')
@@ -99,6 +102,10 @@ class learningReproductor:
             "/arm/desired_position", PoseStamped)
         self.pub_auv_vel = rospy.Publisher(
             "/cola2_control/body_velocity_req", BodyVelocityReq)
+
+        self.pub_auv_finish = rospy.Publisher(
+            "learning/auv_finish", Bool)
+
         self.list_demos = []
         for i in range(len(self.demonstrations)):
             self.list_demos.append(
@@ -132,7 +139,7 @@ class learningReproductor:
 
         self.enable_with_s_srv = rospy.Service(
             '/learning/enable_reproductor_auv_traj_with_s',
-            Float64,
+            WorkAreaError,
             self.enableWithSSrv)
 
 #        self.loadDemonstration()
@@ -276,10 +283,10 @@ class learningReproductor:
         return EmptyResponse()
 
     def enableWithSSrv(self, req):
-        self.s = req
+        self.s = req.error
         self.enabled = True
         rospy.loginfo('%s Enabled', self.name)
-        return EmptyResponse()
+        return True
 
     def disableSrv(self, req):
         self.enabled = False
@@ -391,6 +398,13 @@ class learningReproductor:
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         self.s = self.s + (-self.alpha*self.s)*self.interval_time
+
+        #rospy.loginfo('Value of S ' + str(self.s))
+        if (self.s < 1E-18):
+            rospy.loginfo('!!!!!!!! AUV trajectory Finish !!!!!!!!!')
+            self.enabled = False
+            self.pub_auv_finish.publish(True)
+            self.s = self.initial_s
 
     def publishVelocityAUV(self):
         trans, rot = self.tflistener.lookupTransform(
