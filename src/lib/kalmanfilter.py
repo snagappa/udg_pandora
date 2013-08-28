@@ -204,6 +204,52 @@ def ukf_predict(states, covs, ctrl_input, proc_noise, predict_fn,
     pred_cov = _sigma_cov_(sigma_x_pred, pred_state, wt_cv, 0)
     return pred_state, pred_cov
 
+
+def np_ukf_update_cov(state, cov, obs_noise, obsfn, obsfn_args=(), _alpha=1e-3, _beta=2, _kappa=0, INPLACE=True):
+    assert state.ndim == 1, "state must be 1D"
+    assert cov.ndim == 2, "cov must be 2D"
+    assert obs_noise.ndim == 2, "obs_noise must be 2D"
+    
+    kalman_info = lambda:0
+    
+    state_dim = state.shape[0]
+    num_sigma_pts = 2*state_dim + 1
+    
+    # Generate the sigma points
+    (x_sigma, wt_mn, wt_cv) = np_sigma_pts(state, cov, _alpha, _beta, _kappa)
+    # predicted mean x - same as current x?
+    predicted_x = (wt_mn[:, np.newaxis]*x_sigma).sum(axis=0)
+    
+    # Generate observations for predicted sigma points
+    z_sigma = np.ascontiguousarray(obsfn(x_sigma, *obsfn_args))
+    # predicted mean z
+    predicted_z = (wt_mn[:, np.newaxis]*z_sigma).sum(axis=0)
+    
+    # Innovation covariance - used to compute the likelihood
+    z_residual = z_sigma - predicted_z
+    zz_sigma_cov = np.asarray(
+        [wt_cv[count]*np.dot(z_residual[[count]].T, z_residual[[count]]) 
+        for count in range(num_sigma_pts)]).sum(axis=0) + obs_noise
+    
+    x_residual = x_sigma - predicted_x
+    xz_sigma_cov = np.asarray(
+        [wt_cv[count]*np.dot(x_residual[[count]].T, z_residual[[count]]) 
+        for count in range(num_sigma_pts)]).sum(axis=0)
+    
+    # Kalman gain
+    kalman_gain = np.dot(xz_sigma_cov, np.linalg.inv(zz_sigma_cov))
+    
+    cov_update_term = np.dot(kalman_gain, np.dot(zz_sigma_cov, kalman_gain.T))
+    if INPLACE:
+        cov -= cov_update_term
+    else:
+        cov = cov - cov_update_term
+    
+    kalman_info.S = zz_sigma_cov
+    kalman_info.kalman_gain = kalman_gain
+    return cov, predicted_z, kalman_info
+
+
 def ukf_update_cov(states, covs, obs_noise, obsfn, obsfn_args=(), _alpha=1e-3, _beta=2, _kappa=0, INPLACE=True):
     assert states.ndim == 2, "states must be 2D"
     assert covs.ndim == 3, "covs must be 3D"
@@ -252,8 +298,26 @@ def ukf_update_cov(states, covs, obs_noise, obsfn, obsfn_args=(), _alpha=1e-3, _
         covs -= cov_update_term
     else:
         covs = covs - cov_update_term
+    #try:
+    #    blas.dpotrf(covs, INPLACE=False)
+    #except:
+    #    print "Updated covariance is not positive definite"
+    #    from IPython import embed
+    #    embed()
+    
+    ## Compute the Cholesky decomposition
+    #chol_S = blas.dpotrf(zz_sigma_cov, False)
+    ## Select the lower triangle (set the upper triangle to zero)
+    #blas.mktril(chol_S)
+    ## Compute the determinant
+    #diag_vec = np.array([np.diag(chol_S[i]) for i in range(chol_S.shape[0])])
+    #det_S = diag_vec.prod(1)**2
+    ## Compute the inverse of the square root
+    #inv_sqrt_S = blas.dtrtri(chol_S, 'l')
     
     kalman_info.S = zz_sigma_cov
+    #kalman_info.inv_sqrt_S = inv_sqrt_S
+    #kalman_info.det_S = det_S
     kalman_info.kalman_gain = kalman_gain
     return covs, predicted_z, kalman_info
     
@@ -269,7 +333,7 @@ def np_sigma_pts(x, x_cov, _alpha=1e-3, _beta=2, _kappa=0):
     sqrt_cov = _gamma*np.linalg.cholesky(x_cov)
     
     # Array of the sigma points
-    sigma_x = np.vstack((x, x-sqrt_cov.T, x+sqrt_cov.T))
+    sigma_x = np.vstack((x, x+sqrt_cov.T, x-sqrt_cov.T))
     
     # Array of the weights for each sigma point
     wt_mn = 0.5*np.ones(1+2*_L)/(_L+_lambda)
@@ -296,6 +360,8 @@ def sigma_pts(states, covs, _alpha=1e-3, _beta=2, _kappa=0):
     # Vectors are stored row-wise and page-wise for each state-cov pair
     sigma_vecs = np.zeros((num_states, 2*state_dim+1, state_dim))
     sqrt_covs = blas.dpotrf(_L_plus_lambda*covs, INPLACE=False)
+    # Use upper triangular since we want the transpose
+    blas.mktriu(sqrt_covs)
     
     sigma_vecs[:, 0, :] = states
     sigma_vecs[:, 1:_L+1, :] = states[:, np.newaxis] + sqrt_covs

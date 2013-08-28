@@ -49,14 +49,13 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
     observation_noise - numpy array of size Nx3x3
     """
     
-    log_likelihood = 1.
     num_observations = (observations.shape[0] 
                         if ( not observations.shape[1]==0) else 0)
     #z_dim = observations.shape[1]
     
     if not weights.shape[0]:
         #print "nothing to update"
-        return weights, states, covs, log_likelihood
+        return weights, states, covs
     
     detection_probability = camera.pdf_detection(states, margin=0)
     
@@ -76,11 +75,6 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                              detection_probability[detected_indices] )
         detected_states = prev_states[detected_indices]
         detected_covs = prev_covs[detected_indices]
-        #ZZ SLAM,  step 1:
-        exp_sum__pd_predwt = np.exp(-detected_weights.sum())
-        
-        # SLAM, prep for step 2:
-        sum__clutter_with_pd_updwt = np.zeros(num_observations)
         
         if detected_weights.shape[0]:
             # Covariance update part of the Kalman update is common to all 
@@ -110,38 +104,25 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                 
                 # Do a single covariance update if equal observation noise
                 this_observation_noise = observation_noise[0]
-                try:
-                    if not USE_UKF:
-                        _this_detected_covs_, kalman_info = kf_update_cov(
-                            detected_covs, h_mat, this_observation_noise,
-                            INPLACE=False)
+                if not USE_UKF:
+                    _this_detected_covs_, kalman_info = kf_update_cov(
+                        detected_covs, h_mat, this_observation_noise,
+                        INPLACE=False)
+                else:
+                    if USE_3D:
+                        obsfn = camera.observations
+                        obsfn_args = (1,)
                     else:
-                        if USE_3D:
-                            obsfn = camera.observations
-                            obsfn_args = (1,)
-                        else:
-                            obsfn = camera.observations_px
-                            obsfn_args = ()
-                        (_this_detected_covs_, pred_z, 
-                         kalman_info) = ukf_update_cov(
-                            detected_states, detected_covs,
-                            this_observation_noise, obsfn, obsfn_args,
-                            _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
-                except:
-                    print "Error in kf_update_cov: Saved data to dbg"
-                    dbg = STRUCT()
-                    dbg.detected_states = detected_states
-                    dbg.detected_covs = detected_covs
-                    dbg.this_observation_noise = this_observation_noise
-                    if USE_UKF:
-                        dbg.h_mat = "not required"
-                    else:
-                        dbg.h_mat = h_mat
-                    dbg.observations = np.asarray(observations)
-                    dbg.observation_noise = np.asarray(observation_noise)
-                    print "Error in kf_update_cov"
+                        obsfn = camera.observations_px
+                        obsfn_args = ()
+                    (_this_detected_covs_, pred_z, 
+                     kalman_info) = ukf_update_cov(
+                        detected_states, detected_covs,
+                        this_observation_noise, obsfn, obsfn_args,
+                        _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
                     
-                #this_detected_covs = _this_detected_covs_
+                    
+                this_detected_covs = _this_detected_covs_
             # We need to update the states and find the updated weights
             for obs_count in range(num_observations):
                 _observation_ = observations[obs_count]
@@ -162,35 +143,28 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                                          #self.vars.birth_intensity +
                                          upd_weights.sum() )
                 upd_weights /= normalisation_factor
-                # SLAM, step 2:
-                sum__clutter_with_pd_updwt[obs_count] = normalisation_factor
                 
                 # Create new state with new_x and P to add to _states_
                 valid_idx = upd_weights > prune_threshold
                 if np.count_nonzero(valid_idx):
                     updated_weights += [upd_weights[valid_idx]]
                     updated_states += [upd_states[valid_idx]]
-                    updated_covs += [detected_covs[valid_idx]]
+                    updated_covs += [this_detected_covs[valid_idx]]
                 
-                if DISPLAY == 0:
+                if DISPLAY == True:
+                    print "\nUpdated weights:"
                     print upd_weights[valid_idx]
-                #    code.interact(local=locals())
-        else:
-            sum__clutter_with_pd_updwt = np.ones(num_observations)
         
         updated_weights = np.concatenate(updated_weights)
         updated_states = np.concatenate(updated_states)
         updated_covs = np.concatenate(updated_covs)
         
-        # SLAM, finalise:
-        log_likelihood = (np.log(exp_sum__pd_predwt) +
-            np.log(sum__clutter_with_pd_updwt).sum())
     except:
         print "error in update"
         exc_info = sys.exc_info()
         print "GMPHD:UPDATE():\n", traceback.print_tb(exc_info[2])
         raise
-    return updated_weights, updated_states, updated_covs, log_likelihood
+    return updated_weights, updated_states, updated_covs
 
 def phd_prune(weights, states, covs,
               prune_threshold=-1, max_num_components=-1):
@@ -417,7 +391,7 @@ def phd_iterate(weights, states,covs, filter_vars, camera, observations,
     
     # Birth
     if USE_3D:
-        (birth_wt, birth_st, birth_cv) = camera_birth( #camera_birth_disparity(
+        (birth_wt, birth_st, birth_cv) = camera_birth(
             camera, filter_vars.birth_intensity, observations, obs_noise)
     else:
         (birth_wt, birth_st, birth_cv) = camera_birth_disparity(
@@ -497,7 +471,7 @@ class GMPHD(object):
             features_pos = np.empty((0, 3))
             features_noise = np.empty((0, 3, 3))
         
-        weights, states, covs, slam_weight_log_update = phd_iterate(
+        weights, states, covs = phd_iterate(
             self.map.weights, self.map.states, self.map.covs, self.filter_vars,
             self.camera, features_pos, features_noise, USE_3D,
             USE_UKF, DISPLAY)

@@ -14,7 +14,6 @@ import image_feature_extractor
 from misctools import STRUCT, rotation_matrix, FlannMatcher, sample_mn_cv
 import cv2
 import copy
-import code
 from geometry_msgs.msg import PointStamped
 import sys
 import traceback
@@ -485,6 +484,48 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.tfFrame,)
     
+    def observation_px_jacobian(self, states):
+        num_states = states.shape[0]
+        proj_matrix = self.projection_matrix()
+        f = proj_matrix[0, 0]
+        rot_matrix = self.inv_rotation_matrix()
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = rot_states[:, 2]
+        zz_sq = zz**2
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.empty((num_states, 3, 3))
+        # Set last row to zero for all states
+        J_matrix[:, 2, :] = 0
+        # First row
+        J_matrix[:, 0, 0] = f_zz_sq*(rot_matrix[0, 0]*zz - rot_matrix[2, 0]*rot_states[:, 0])
+        J_matrix[:, 0, 1] = f_zz_sq*(rot_matrix[0, 1]*zz - rot_matrix[2, 1]*rot_states[:, 0])
+        J_matrix[:, 0, 2] = f_zz_sq*(rot_matrix[0, 2]*zz - rot_matrix[2, 2]*rot_states[:, 0])
+        # Second row
+        J_matrix[:, 1, 0] = f_zz_sq*(rot_matrix[1, 0]*zz - rot_matrix[2, 0]*rot_states[:, 1])
+        J_matrix[:, 1, 1] = f_zz_sq*(rot_matrix[1, 1]*zz - rot_matrix[2, 1]*rot_states[:, 1])
+        J_matrix[:, 1, 2] = f_zz_sq*(rot_matrix[1, 2]*zz - rot_matrix[2, 2]*rot_states[:, 1])
+        
+        return J_matrix
+#        u = proj_matrix[0, 2]
+#        v = proj_matrix[1, 2]
+#        J_matrix = self.inv_rotation_matrix()
+#        J_matrix[:2, :2] *= f
+#        J_matrix[0, :] += u*J_matrix[2, :]
+#        J_matrix[1, :] += v*J_matrix[2, :]
+#        J_matrix[:, 2] = 0
+#        z = states[:, 2, np.newaxis, np.newaxis] # (num_states x 1 x 1 ndarray)
+#        J_matrix = J_matrix/z
+#        return J_matrix
+#        
+#        #rot_matrix[0, :] *= proj_matrix[0, 0]
+#        rot_matrix[:, 0, :]
+#        rot_matrix[0, :] += proj_matrix[0, 2]/f*rot_matrix[2, :]
+#        #rot_matrix[1, :] *= proj_matrix[1, 1]
+#        rot_matrix[1, :] += proj_matrix[1, 2]/f*rot_matrix[2, :]
+#        return rot_matrix
+        
 
 class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def __init__(self):
@@ -637,8 +678,13 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.left.tfFrame, self.right.tfFrame)
     
-    def observations(self, states):
+    def observations(self, states, idx=None):
         rel_states = self.from_world_coords(states)
+        assert idx in [0, 1], "idx must be 0 or 1"
+        if idx == 0:
+            rel_states = rel_states[0]
+        elif idx == 1:
+            rel_states = rel_states[1]
         return rel_states
     
     def observations_px(self, states):
@@ -651,6 +697,62 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             disparity_obs = np.empty((0, 3))
         return disparity_obs
     
+    def observation_px_jacobian_full(self, states):
+        num_states = states.shape[0]
+        proj_matrix_l, proj_matrix_r = self.projection_matrix()
+        
+        f = proj_matrix_l[0, 0]
+        baseline = proj_matrix_r[0, 3]
+        rot_matrix = self.inv_rotation_matrix()
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = rot_states[:, 2]
+        zz_sq = zz**2
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.empty((num_states, 3, 3))
+        # First row
+        J_matrix[:, 0, 0] = f_zz_sq*(rot_matrix[0, 0]*zz - rot_matrix[2, 0]*rot_states[:, 0])
+        J_matrix[:, 0, 1] = f_zz_sq*(rot_matrix[0, 1]*zz - rot_matrix[2, 1]*rot_states[:, 0])
+        J_matrix[:, 0, 2] = f_zz_sq*(rot_matrix[0, 2]*zz - rot_matrix[2, 2]*rot_states[:, 0])
+        # Second row
+        J_matrix[:, 1, 0] = f_zz_sq*(rot_matrix[1, 0]*zz - rot_matrix[2, 0]*rot_states[:, 1])
+        J_matrix[:, 1, 1] = f_zz_sq*(rot_matrix[1, 1]*zz - rot_matrix[2, 1]*rot_states[:, 1])
+        J_matrix[:, 1, 2] = f_zz_sq*(rot_matrix[1, 2]*zz - rot_matrix[2, 2]*rot_states[:, 1])
+        # Third row
+        J_matrix[:, 2, :] = baseline/zz_sq[:,np.newaxis]*rot_matrix[2, :]
+        
+        return J_matrix
+    
+    def observation_px_jacobian_partial(self, states):
+        num_states = states.shape[0]
+        proj_matrix_l, proj_matrix_r = self.projection_matrix()
+        
+        f = proj_matrix_l[0, 0]
+        baseline = proj_matrix_r[0, 3]
+        rot_matrix = self.inv_rotation_matrix()
+        #rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = states[:, 2]
+        zz_sq = zz**2
+        f_zz = f/zz
+        #f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.zeros((num_states, 3, 3))
+        # First row
+        J_matrix[:, 0, 0] = f_zz*rot_matrix[0, 0]
+        J_matrix[:, 0, 1] = f_zz*rot_matrix[0, 1]
+        
+        # Second row
+        J_matrix[:, 1, 0] = f_zz*rot_matrix[1, 0]
+        J_matrix[:, 1, 1] = f_zz*rot_matrix[1, 1]
+        
+        # Third row
+        J_matrix[:, 2, :] = baseline/zz_sq[:,np.newaxis]
+        
+        return J_matrix
+    
+
 class _CameraFeatureDetector_(object):
     def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
         self._flann_matcher_ = None
