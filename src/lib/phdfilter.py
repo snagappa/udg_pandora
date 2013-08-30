@@ -4,6 +4,7 @@
 import roslib
 roslib.load_manifest("udg_pandora")
 import rospy
+from tf import LookupException, ExtrapolationException
 # Python imports
 import numpy as np
 import sys, traceback
@@ -37,7 +38,7 @@ SAMPLE = namedtuple("SAMPLE", "weight state covariance")
 tiny = np.finfo(np.double).tiny
 log_tiny = np.log(tiny)
 
-def phd_update(weights, states, covs, filter_vars, camera, observations,
+def phd_update(weights, states, covs, timestamp, filter_vars, camera, observations,
                observation_noise, USE_3D, USE_UKF, prune_threshold=0,
                DISPLAY=False):
 #def phd_update(weights, states, covs, filter_vars, camera,
@@ -57,7 +58,7 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
         #print "nothing to update"
         return weights, states, covs
     
-    detection_probability = camera.pdf_detection(states, margin=0)
+    detection_probability = camera.pdf_detection(states, timestamp, margin=0)
     
     try:
         # Account for missed detection
@@ -86,17 +87,20 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                     # With 3D point observations
                     if not USE_UKF:
                         h_mat = np.asarray(
-                            camera.observation_jacobian()[np.newaxis],
+                            camera.observation_jacobian(timestamp)[np.newaxis],
                             order='C')
-                        pred_z = camera.observations(detected_states)[0]
-                    clutter_pdf = camera.pdf_clutter(observations)
+                        pred_z = camera.observations(detected_states,
+                                                     timestamp)[0]
+                    clutter_pdf = camera.pdf_clutter(observations, timestamp)
                     clutter_intensity = (
                         filter_vars.clutter_intensity*clutter_pdf)
                 else:
                     # With pixel observations
                     if not USE_UKF:
-                        h_mat = camera.observation_px_jacobian_full(detected_states)
-                        pred_z = camera.observations_px(detected_states)
+                        h_mat = camera.observation_px_jacobian_full(
+                            detected_states, timestamp)
+                        pred_z = camera.observations_px(detected_states,
+                                                        timestamp)
                     
                     clutter_pdf = camera.pdf_clutter_disparity(observations)
                     clutter_intensity = (
@@ -105,24 +109,25 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                 # Do a single covariance update if equal observation noise
                 this_observation_noise = observation_noise[0]
                 if not USE_UKF:
-                    _this_detected_covs_, kalman_info = kf_update_cov(
+                    this_updated_covs, kalman_info = kf_update_cov(
                         detected_covs, h_mat, this_observation_noise,
                         INPLACE=False)
                 else:
                     if USE_3D:
                         obsfn = camera.observations
-                        obsfn_args = (1,)
+                        obsfn_args = (timestamp, 1,)
                     else:
                         obsfn = camera.observations_px
-                        obsfn_args = ()
-                    (_this_detected_covs_, pred_z, 
-                     kalman_info) = ukf_update_cov(
-                        detected_states, detected_covs,
-                        this_observation_noise, obsfn, obsfn_args,
-                        _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
-                    
-                    
-                this_detected_covs = _this_detected_covs_
+                        obsfn_args = (timestamp,)
+                    try:
+                        (this_updated_covs, pred_z, 
+                         kalman_info) = ukf_update_cov(
+                            detected_states, detected_covs,
+                            this_observation_noise, obsfn, obsfn_args,
+                            _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
+                    except:
+                        from IPython import embed
+                        embed()
             # We need to update the states and find the updated weights
             for obs_count in range(num_observations):
                 _observation_ = observations[obs_count]
@@ -149,7 +154,7 @@ def phd_update(weights, states, covs, filter_vars, camera, observations,
                 if np.count_nonzero(valid_idx):
                     updated_weights += [upd_weights[valid_idx]]
                     updated_states += [upd_states[valid_idx]]
-                    updated_covs += [this_detected_covs[valid_idx]]
+                    updated_covs += [this_updated_covs[valid_idx]]
                 
                 if DISPLAY == True:
                     print "\nUpdated weights:"
@@ -205,7 +210,7 @@ def phd_prune(weights, states, covs,
         raise
 
 def camera_birth_disparity(camera, birth_intensity,
-                           features_rel, features_cv):
+                           features_rel, features_cv, timestamp=None):
     """phd.camera_birth(parent_ned, parent_rpy, features_rel, 
         features_cv=None) -> birth_weights, birth_states, birth_covariances
     Create birth components using features visible from the camera.
@@ -239,8 +244,20 @@ def camera_birth_disparity(camera, birth_intensity,
         
         # Convert the sigma points from disparity space to 3D space
         z_sigma_flat = camera.triangulate(img_pts_l, img_pts_r)
-        z_sigma_flat = camera.to_world_coords(z_sigma_flat)
-        z_dim = z_sigma_flat.shape[1]
+        try:
+            z_sigma_flat = camera.to_world_coords(z_sigma_flat, timestamp,
+                                              rethrow_exception=True)
+        except (LookupException, ExtrapolationException) as exc_msg:
+            print "Could not compute tranformation, ignoring timestamp and trying again"
+            print exc_msg
+            z_sigma_flat = camera.to_world_coords(z_sigma_flat,
+                                                  rethrow_exception=False)
+        if z_sigma_flat.shape[0]:
+            z_dim = z_sigma_flat.shape[1]
+        else:
+            print "Failed to generate birth terms. Aborting birth."
+            return birth_wt, birth_st, birth_cv
+        
         z_sigma = np.reshape(z_sigma_flat, (num_states, num_sigma_pts, z_dim))
         
         predicted_z = (x_weight[np.newaxis, :, np.newaxis]*z_sigma).sum(axis=1)
@@ -271,7 +288,8 @@ def camera_birth_disparity(camera, birth_intensity,
                 raise
     return (birth_wt, birth_st, birth_cv)
 
-def camera_birth(camera, birth_intensity, features_rel, features_cv):
+def camera_birth(camera, birth_intensity, features_rel, features_cv,
+                 timestamp=None):
     """phd.camera_birth(parent_ned, parent_rpy, features_rel, 
         features_cv=None) -> birth_weights, birth_states, birth_covariances
     Create birth components using features visible from the camera.
@@ -294,18 +312,23 @@ def camera_birth(camera, birth_intensity, features_rel, features_cv):
         birth_features = features_rel
         if birth_features.shape[0]:
             try:
+                birth_st = camera.to_world_coords(birth_features,
+                    timestamp, rethrow_exception=True)
+            except (LookupException, ExtrapolationException) as exc_msg:
+                print "Could not compute tranformation, ignoring timestamp and trying again"
+                print exc_msg
+                birth_st = camera.to_world_coords(birth_features,
+                    rethrow_exception=True)
+                if not birth_st.shape[0]:
+                    print "Failed to generate birth terms. Aborting birth."
+                    return birth_wt, birth_st, birth_cv
+            else:
                 birth_wt = birth_intensity*np.ones(birth_features.shape[0])
-                birth_st = camera.to_world_coords(birth_features)
                 birth_cv = covs
-            except:
-                print "tf conversion to world coords failed!"
-                exc_info = sys.exc_info()
-                print "GMPHD:CAMERA_BIRTH():\n", traceback.print_tb(exc_info[2])
-                raise
     return (birth_wt, birth_st, birth_cv)
 
 def merge_fov(camera, weights, states, covs, merge_threshold,
-              detection_threshold=0.3):
+              timestamp=None, detection_threshold=0.3):
     """phd.merge_fov(detection_threshold=0.5)
     Merge Gaussian components which are in the field of view or which
     satisfy a probability of detection given by detection_threshold.
@@ -322,7 +345,7 @@ def merge_fov(camera, weights, states, covs, merge_threshold,
             # Convert states to camera coordinate system
             try:
                 # Stereo camera - get relative position for left and right
-                detected_idx = camera.pdf_detection(states)
+                detected_idx = camera.pdf_detection(states, timestamp)
             except:
                 exc_info = sys.exc_info()
                 print "Error merging states"
@@ -357,8 +380,8 @@ def merge_fov(camera, weights, states, covs, merge_threshold,
         print "GMPHD:MERGE_FOV():\n", traceback.print_tb(exc_info[2])
         raise
 
-def phd_iterate(weights, states,covs, filter_vars, camera, observations,
-            obs_noise, USE_3D, USE_UKF=False, DISPLAY=-1):
+def phd_iterate(weights, states,covs, timestamp, filter_vars, camera,
+                observations, obs_noise, USE_3D, USE_UKF=False, DISPLAY=False):
     """phd.iterate(observations, obs_noise)
     Perform a single iteration of the filter:
         predict()
@@ -371,11 +394,21 @@ def phd_iterate(weights, states,covs, filter_vars, camera, observations,
     #cdef np.ndarray[double, ndim=3] updated_covs, birth_cv
     #cdef double parent_log_likelihood
     
+    # Birth
+    if USE_3D:
+        (birth_wt, birth_st, birth_cv) = camera_birth(
+            camera, filter_vars.birth_intensity, observations, obs_noise,
+            timestamp)
+    else:
+        (birth_wt, birth_st, birth_cv) = camera_birth_disparity(
+            camera, filter_vars.birth_intensity, observations, obs_noise,
+            timestamp)
+    
     # Update
-    updated_weights, updated_states, updated_covs, parent_log_likelihood = (
-        phd_update(weights, states, covs, filter_vars, camera, observations,
-                   obs_noise, USE_3D, USE_UKF, filter_vars.prune_threshold,
-                   DISPLAY))
+    updated_weights, updated_states, updated_covs = (
+        phd_update(weights, states, covs, timestamp, filter_vars, camera,
+                   observations, obs_noise, USE_3D, USE_UKF,
+                   filter_vars.prune_threshold, DISPLAY))
     # Prune
     updated_weights, updated_states, updated_covs = phd_prune(
         updated_weights, updated_states, updated_covs,
@@ -389,13 +422,6 @@ def phd_iterate(weights, states,covs, filter_vars, camera, observations,
             updated_weights, updated_states, updated_covs,
             filter_vars.prune_threshold, filter_vars.max_num_components)
     
-    # Birth
-    if USE_3D:
-        (birth_wt, birth_st, birth_cv) = camera_birth(
-            camera, filter_vars.birth_intensity, observations, obs_noise)
-    else:
-        (birth_wt, birth_st, birth_cv) = camera_birth_disparity(
-            camera, filter_vars.birth_intensity, observations, obs_noise)
     if birth_wt.shape[0]:
         updated_weights = np.hstack((updated_weights, birth_wt))
         updated_states = np.vstack((updated_states, birth_st))
@@ -403,8 +429,9 @@ def phd_iterate(weights, states,covs, filter_vars, camera, observations,
     # Merge over field of view
     updated_weights, updated_states, updated_covs = merge_fov(
         camera, updated_weights, updated_states, updated_covs,
-        filter_vars.merge_threshold, detection_threshold=1e-6)
-    return updated_weights, updated_states, updated_covs, parent_log_likelihood
+        filter_vars.merge_threshold, timestamp=timestamp,
+        detection_threshold=1e-6)
+    return updated_weights, updated_states, updated_covs
 
 def phd_estimate(weights, states, covs, USE_INTENSITY=True):
     """phd.estimate -> (weights, states, covariances)
@@ -461,8 +488,8 @@ class GMPHD(object):
         fov_far = rospy.get_param("slam_feature_detector/fov/far")
         self.camera.set_near_far_fov(fov_far=fov_far)
     
-    def update_features(self, features, USE_3D=False, USE_UKF=True,
-                        DISPLAY=-1):
+    def update_features(self, features, timestamp=None, USE_3D=False, USE_UKF=True,
+                        DISPLAY=False):
         if features.shape[0]:
             features_pos = features[:, :3].copy()
             features_noise = np.array([np.diag(features[i, 3:6]) 
@@ -472,22 +499,22 @@ class GMPHD(object):
             features_noise = np.empty((0, 3, 3))
         
         weights, states, covs = phd_iterate(
-            self.map.weights, self.map.states, self.map.covs, self.filter_vars,
-            self.camera, features_pos, features_noise, USE_3D,
-            USE_UKF, DISPLAY)
+            self.map.weights, self.map.states, self.map.covs, timestamp,
+            self.filter_vars, self.camera, features_pos, features_noise,
+            USE_3D, USE_UKF, DISPLAY)
         self.map.weights = weights
         self.map.states = states
         self.map.covs = covs
     
-    def map_to_image_points(self):
+    def map_to_image_points(self, timestamp=None):
         camera = self.camera
         weights = self.map.weights
         states = self.map.states
         
-        is_visible = camera.is_visible(states)
+        is_visible = camera.is_visible(states, timestamp)
         is_visible[weights < 0.4] = False
         if is_visible.shape[0]:
-            camera_points = camera.from_world_coords(states[is_visible])
+            camera_points = camera.from_world_coords(states[is_visible], timestamp)
             img_points = camera.project3dToPixel(camera_points[0])
         else:
             img_points = (np.empty(0), np.empty(0))

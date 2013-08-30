@@ -7,6 +7,7 @@ Created on Tue Oct 30 12:20:27 2012
 from image_geometry import cameramodels as ros_cameramodels
 import numpy as np
 import tf
+from tf import LookupException, ExtrapolationException
 import rospy
 import blas
 import misctools
@@ -37,11 +38,19 @@ def get_transform(target_frame, source_frame, timestamp=None):
         point.header.stamp = timestamp
     point.header.frame_id = source_frame
     
-    mat44 = tflistener.asMatrix(target_frame, point.header)
+    try:
+        mat44 = tflistener.asMatrix(target_frame, point.header)
+    except (LookupException, ExtrapolationException) as exc_msg:
+        print "get_transform(): LookupException occurred."
+        print "Transformation from %s to %s failed" % (source_frame, 
+                                                       target_frame)
+        print exc_msg
+        raise
     return mat44
 
 def transform_numpy_array(target_frame, source_frame, numpy_points,
-                          timestamp=None, ROTATE_BEFORE_TRANSLATE=True):
+                          timestamp=None, ROTATE_BEFORE_TRANSLATE=True,
+                          rethrow_exception=False):
     assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
             (np.prod(numpy_points.shape) == 0)), (
             "Points must be Nx3 numpy array")
@@ -51,10 +60,13 @@ def transform_numpy_array(target_frame, source_frame, numpy_points,
     arr_len = numpy_points.shape[0]
     try:
         mat44 = get_transform(target_frame, source_frame, timestamp)
-    except:
-        sys_exc = sys.exc_info()
+    except (LookupException, ExtrapolationException) as exc_msg:
+        #sys_exc = sys.exc_info()
         print "Error converting from %s to %s" % (source_frame, target_frame)
-        print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", traceback.print_tb(sys_exc[2])
+        #print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", traceback.print_tb(sys_exc[2])
+        print exc_msg
+        if rethrow_exception:
+            raise
         return np.empty(0, dtype=numpy_points.dtype)
     
     if ROTATE_BEFORE_TRANSLATE:
@@ -170,22 +182,22 @@ class _FoV_(object):
                           euclid_distance < self.fov_far)] = self.pd
         return pd
     
-    def pdf_detection(self, points, **kwargs):
+    def pdf_detection(self, points, timestamp=None, **kwargs):
         """pdf_detection(self, points) -> pd
         Returns the probability of detection for points specified according to 
         world co-ordinates.
         """
         if points.shape[0] == 0:
             return np.empty(0)
-        rel_points = self.from_world_coords(points)[0]
+        rel_points = self.from_world_coords(points, timestamp)[0]
         return self._pdf_detection_(rel_points, **kwargs)
     
-    def is_visible(self, points, **kwargs):
+    def is_visible(self, points, timestamp=None, **kwargs):
         """is_visible(self, points) -> bool_vector
         """
         if points.shape[0] == 0:
             return np.empty(0, dtype=np.bool)
-        pd = self.pdf_detection(points, **kwargs)
+        pd = self.pdf_detection(points, timestamp, **kwargs)
         return (pd > 0)
     
     def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
@@ -207,8 +219,9 @@ class _FoV_(object):
     def set_tf_frame(self, frame_id):
         self.tfFrame = frame_id
     
-    def to_world_coords(self, numpy_points):
-        """to_world_coords(self, numpy_points)->world_points
+    def to_world_coords(self, numpy_points, timestamp=None,
+                        rethrow_exception=False):
+        """to_world_coords(self, numpy_points, timestamp=None)->world_points
         Convert Nx3 numpy array of points from camera coordinate system to
         world coordinates"""
         #pcl_points = self._nparray_to_pcl_(numpy_points, self.tfFrame)
@@ -216,30 +229,32 @@ class _FoV_(object):
         target_frame = "world"
         source_frame = self.tfFrame
         return transform_numpy_array(target_frame, source_frame, numpy_points,
-                                     ROTATE_BEFORE_TRANSLATE=True)
+                                     timestamp, True, rethrow_exception)
     
-    def from_world_coords(self, numpy_points):
-        """from_world_coords(self, numpy_points)->(camera_points,)
+    def from_world_coords(self, numpy_points, timestamp=None,
+                          rethrow_exception=False):
+        """from_world_coords(self, numpy_points, timestamp=None)->(camera_points,)
         Convert Nx3 numpy array of points from world coordinate system to
         camera coordinates"""
         #pcl_points = self._nparray_to_pcl_(numpy_points, "world")
         #return self.from_world_coords_pcl(pcl_points, True)
         target_frame = self.tfFrame
         source_frame = "world"
+        # Must return a tuple
         return (transform_numpy_array(target_frame, source_frame, numpy_points,
-                                     ROTATE_BEFORE_TRANSLATE=True),)
+                                     timestamp, True, rethrow_exception), )
     
-    def rotation_matrix(self):
+    def rotation_matrix(self, timestamp=None):
         """rotation_matrix(self) -> rot_mat
         returns the 3x3 rotation matrix of the sensor with respect to the world
         """
-        return get_transform(self.tfFrame, "world")[:3, :3]
+        return get_transform(self.tfFrame, "world", timestamp)[:3, :3]
     
-    def inv_rotation_matrix(self):
+    def inv_rotation_matrix(self, timestamp=None):
         """rotation_matrix(self) -> rot_mat
         returns the 3x3 rotation matrix of the world with respect to the sensor
         """
-        return get_transform("world", self.tfFrame)[:3, :3]
+        return get_transform("world", self.tfFrame, timestamp)[:3, :3]
     
     def relative(self, target_coord_XYZ, target_coord_RPY, world_points_XYZ):
         if not world_points_XYZ.shape[0]: return np.empty(0)
@@ -255,12 +270,12 @@ class _FoV_(object):
                              source_coord_XYZ)
         return absolute_position
     
-    def observations(self, points):
-        rel_states = self.from_world_coords(points)
+    def observations(self, points, timestamp=None):
+        rel_states = self.from_world_coords(points, timestamp)
         return rel_states
     
-    def observation_jacobian(self):
-        return self.inv_rotation_matrix()
+    def observation_jacobian(self, timestamp=None):
+        return self.inv_rotation_matrix(timestamp)
     
 
 class SphericalCamera(_FoV_):
@@ -484,11 +499,11 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.tfFrame,)
     
-    def observation_px_jacobian(self, states):
+    def observation_px_jacobian(self, states, timestamp=None):
         num_states = states.shape[0]
         proj_matrix = self.projection_matrix()
         f = proj_matrix[0, 0]
-        rot_matrix = self.inv_rotation_matrix()
+        rot_matrix = self.inv_rotation_matrix(timestamp)
         rot_states = np.dot(rot_matrix, states.T).T
         # Need to divide by new (rotated) z to get image points
         zz = rot_states[:, 2]
@@ -583,19 +598,19 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         else:
             return np.empty((0, 2))
     
-    def pdf_detection(self, points, **kwargs):
+    def pdf_detection(self, points, timestamp=None, **kwargs):
         """pdf_detection(self, points) -> pd
         Calculate the probability of detection for the points
         """
         # Convert points to left reference frame
-        rel_points = self.left.from_world_coords(points)[0]
+        rel_points = self.left.from_world_coords(points, timestamp)
         l_pdf = self.left._pdf_detection_(rel_points, **kwargs)
         r_pdf = self.right._pdf_detection_(rel_points, **kwargs)
         l_pdf = np.vstack((l_pdf, r_pdf))
         return np.min(l_pdf, axis=0)
     
-    def is_visible(self, points, **kwargs):
-        return (self.pdf_detection(points, **kwargs) > 0).astype(np.bool)
+    def is_visible(self, points, timestamp=None, **kwargs):
+        return (self.pdf_detection(points, timestamp, **kwargs) > 0).astype(np.bool)
     
     def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
         if rel_points1.shape[0] == 0:
@@ -662,13 +677,14 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         points3d = np.asarray((points4d[0:3, :]).T, dtype=np.float, order='C')
         return points3d
     
-    def from_world_coords(self, numpy_points):
+    def from_world_coords(self, numpy_points, timestamp=None):
         """from_world_coords(self, numpy_points)
             -> (camera_points_l, camera_points_r)
         Convert Nx3 numpy array of points from world coordinate system to
         camera coordinates"""
-        return (self.left.from_world_coords(numpy_points)[0],
-                self.right.from_world_coords(numpy_points)[0])
+        # Pinhole camera from_world_coords returns a tuple - selct idx 0
+        return (self.left.from_world_coords(numpy_points, timestamp)[0],
+                self.right.from_world_coords(numpy_points, timestamp)[0])
     
     def set_tf_frame(self, left_frame_id, right_frame_id):
         self.tfFrame = left_frame_id
@@ -678,8 +694,8 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.left.tfFrame, self.right.tfFrame)
     
-    def observations(self, states, idx=None):
-        rel_states = self.from_world_coords(states)
+    def observations(self, states, idx=None, timestamp=None):
+        rel_states = self.from_world_coords(states, timestamp)
         assert idx in [0, 1], "idx must be 0 or 1"
         if idx == 0:
             rel_states = rel_states[0]
@@ -687,8 +703,8 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             rel_states = rel_states[1]
         return rel_states
     
-    def observations_px(self, states):
-        rel_states_l, rel_states_r = self.from_world_coords(states)
+    def observations_px(self, states, timestamp=None):
+        rel_states_l, rel_states_r = self.from_world_coords(states, timestamp)
         img_pts_l = self.left.project3dToPixel(rel_states_l)
         img_pts_r = self.right.project3dToPixel(rel_states_l)
         if img_pts_l.shape[0]:
@@ -697,13 +713,13 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             disparity_obs = np.empty((0, 3))
         return disparity_obs
     
-    def observation_px_jacobian_full(self, states):
+    def observation_px_jacobian_full(self, states, timestamp=None):
         num_states = states.shape[0]
         proj_matrix_l, proj_matrix_r = self.projection_matrix()
         
         f = proj_matrix_l[0, 0]
         baseline = proj_matrix_r[0, 3]
-        rot_matrix = self.inv_rotation_matrix()
+        rot_matrix = self.inv_rotation_matrix(timestamp)
         rot_states = np.dot(rot_matrix, states.T).T
         # Need to divide by new (rotated) z to get image points
         zz = rot_states[:, 2]
@@ -724,13 +740,13 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         
         return J_matrix
     
-    def observation_px_jacobian_partial(self, states):
+    def observation_px_jacobian_partial(self, states, timestamp=None):
         num_states = states.shape[0]
         proj_matrix_l, proj_matrix_r = self.projection_matrix()
         
         f = proj_matrix_l[0, 0]
         baseline = proj_matrix_r[0, 3]
-        rot_matrix = self.inv_rotation_matrix()
+        rot_matrix = self.inv_rotation_matrix(timestamp)
         #rot_states = np.dot(rot_matrix, states.T).T
         # Need to divide by new (rotated) z to get image points
         zz = states[:, 2]

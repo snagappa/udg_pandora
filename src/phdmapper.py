@@ -200,8 +200,12 @@ class PHDMAPPER(object):
             #slam_features = pointclouds.pointcloud2_to_xyz_array(pcl_msg)
             slam_features = self.pcl_convertor.from_pcl(pcl_msg)
             # We can now access the points as slam_features[i]
-            self.phd_map.update_features(slam_features)
+            self.phd_map.update_features(slam_features, self.last_update_time,
+                self.mapper_config.use_3d, self.mapper_config.use_ukf,
+                DISPLAY=False)
             self.map_estimate = self.phd_map.estimate()
+            rospy.loginfo("Updated map with %d features" % slam_features.shape[0])
+            rospy.loginfo("Map size: %d points" % self.map_estimate.state.shape[0])
         except:
             print "Error occurred in"
             exc_info = sys.exc_info()
