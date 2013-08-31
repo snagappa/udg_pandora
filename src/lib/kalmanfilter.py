@@ -305,19 +305,19 @@ def ukf_update_cov(states, covs, obs_noise, obsfn, obsfn_args=(), _alpha=1e-3, _
     #    from IPython import embed
     #    embed()
     
-    ## Compute the Cholesky decomposition
-    #chol_S = blas.dpotrf(zz_sigma_cov, False)
-    ## Select the lower triangle (set the upper triangle to zero)
-    #blas.mktril(chol_S)
-    ## Compute the determinant
-    #diag_vec = np.array([np.diag(chol_S[i]) for i in range(chol_S.shape[0])])
-    #det_S = diag_vec.prod(1)**2
-    ## Compute the inverse of the square root
-    #inv_sqrt_S = blas.dtrtri(chol_S, 'l')
+    # Compute the Cholesky decomposition
+    chol_S = blas.dpotrf(zz_sigma_cov, False)
+    # Select the lower triangle (set the upper triangle to zero)
+    blas.mktril(chol_S)
+    # Compute the determinant
+    diag_vec = np.array([np.diag(chol_S[i]) for i in range(chol_S.shape[0])])
+    det_S = diag_vec.prod(1)**2
+    # Compute the inverse of the square root
+    inv_sqrt_S = blas.dtrtri(chol_S, 'l')
     
     kalman_info.S = zz_sigma_cov
-    #kalman_info.inv_sqrt_S = inv_sqrt_S
-    #kalman_info.det_S = det_S
+    kalman_info.inv_sqrt_S = inv_sqrt_S
+    kalman_info.det_S = det_S
     kalman_info.kalman_gain = kalman_gain
     return covs, predicted_z, kalman_info
     

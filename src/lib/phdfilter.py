@@ -52,7 +52,7 @@ def phd_update(weights, states, covs, timestamp, filter_vars, camera, observatio
     
     num_observations = (observations.shape[0] 
                         if ( not observations.shape[1]==0) else 0)
-    #z_dim = observations.shape[1]
+    z_dim = observations.shape[1]
     
     if not weights.shape[0]:
         #print "nothing to update"
@@ -126,7 +126,6 @@ def phd_update(weights, states, covs, timestamp, filter_vars, camera, observatio
                             this_observation_noise, obsfn, obsfn_args,
                             _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
                     except:
-                        from IPython import embed
                         embed()
             # We need to update the states and find the updated weights
             for obs_count in range(num_observations):
@@ -137,11 +136,11 @@ def phd_update(weights, states, covs, timestamp, filter_vars, camera, observatio
                     kalman_info.kalman_gain, INPLACE=False)
                 # Calculate the weight of the Gaussians for this observation
                 # Calculate term in the exponent
-                #x_pdf = np.exp(-0.5*np.power(
-                #    blas.dgemv(kalman_info.inv_sqrt_S, 
-                #               residuals, TRANSPOSE_A=True), 2).sum(axis=1))/ \
-                #    np.sqrt(kalman_info.det_S*(2*np.pi)**z_dim)
-                x_pdf = misctools.mvnpdf(_observation_, pred_z, kalman_info.S)
+                x_pdf = np.exp(-0.5*np.power(
+                    blas.dgemv(kalman_info.inv_sqrt_S, 
+                               residuals, TRANSPOSE_A=True), 2).sum(axis=1))/ \
+                    np.sqrt(kalman_info.det_S*(2*np.pi)**z_dim)
+                #x_pdf = misctools.mvnpdf(_observation_, pred_z, kalman_info.S)
                 upd_weights = detected_weights*x_pdf
                 # Normalise the weights
                 normalisation_factor = ( clutter_intensity[obs_count] + 

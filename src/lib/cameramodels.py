@@ -603,7 +603,7 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         Calculate the probability of detection for the points
         """
         # Convert points to left reference frame
-        rel_points = self.left.from_world_coords(points, timestamp)
+        rel_points = self.left.from_world_coords(points, timestamp)[0]
         l_pdf = self.left._pdf_detection_(rel_points, **kwargs)
         r_pdf = self.right._pdf_detection_(rel_points, **kwargs)
         l_pdf = np.vstack((l_pdf, r_pdf))
