@@ -78,6 +78,9 @@ class learningReproductor:
             self.fileTraj = open('real_traj.csv', 'w')
             self.desTraj = open('des_traj.csv', 'w')
 
+        self.fileValvePose = open('valve_pose.csv', 'w')
+        self.fileEFPose = open('ef_pose.csv', 'w')
+
         #Debugging
         # self.filePub = open( 'pub_arm_pose.csv', 'w' )
         # self.fileDistance = open( 'distance.csv', 'w')
@@ -190,6 +193,19 @@ class learningReproductor:
                              self.goalPose.orientation.z,
                              self.goalPose.orientation.w])
                     self.dataGoalReceived = True
+
+                    eul = euler_from_quaternion(
+                        [self.goalPose.orientation.x,
+                         self.goalPose.orientation.y,
+                         self.goalPose.orientation.z,
+                         self.goalPose.orientation.w])
+                    s = (repr(self.goalPose.position.x) + " " +
+                         repr(self.goalPose.position.y) + " " +
+                         repr(self.goalPose.position.z) + " " +
+                         repr(eul[0]) + " " +
+                         repr(eul[1]) + " " +
+                         repr(eul[2]) + "\n")
+                    self.fileValvePose.write(s)
         finally:
             self.lock.release()
 
@@ -330,7 +346,7 @@ class learningReproductor:
             self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
             #rospy.loginfo(' Value s ' + str(self.s))
-            if (self.s < 1E-48):
+            if (self.s < 1E-120):
                 rospy.loginfo('!!!!!!!! Arm trajectory Finish !!!!!!!!!')
                 self.enabled = False
                 self.pub_arm_finish.publish(True)
@@ -507,6 +523,13 @@ class learningReproductor:
                 self.tflistener.getLatestCommonTime("world", "end_effector"))
             self.armPose = arm_pose_tf
             self.armOrientation = euler_from_quaternion(rot)
+            s = (repr(self.armPose[0]) + " " +
+                 repr(self.armPose[1]) + " " +
+                 repr(self.armPose[2]) + " " +
+                 repr(self.armOrientation[0]) + " " +
+                 repr(self.armOrientation[1]) + " " +
+                 repr(self.armOrientation[2]) + "\n")
+            self.fileEFPose.write(s)
             #In the angles between the end EE and the valve are changed
             # Roll is the difference between Pitch in the world
             # Pitch is the difference between Roll in the world

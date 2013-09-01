@@ -89,6 +89,8 @@ class learningReproductor:
             self.file = open(self.exportFile, 'w')
         else:
             self.fileTraj = open('real_traj.csv', 'w')
+        self.fileAUVPose = open('auv_pose.csv', 'w')
+        self.fileValvePose = open('panel_pose.csv', 'w')
 
         #Debugging
         # self.filePub = open( 'pub_arm_pose.csv', 'w' )
@@ -159,11 +161,7 @@ class learningReproductor:
                       'demonstrations': 'learning/reproductor/auv/demonstrations',
                       'frame_id_goal': 'learning/reproductor/auv/frame_id_goal',
                       'name_pub_demonstrate': 'learning/reproductor/auv/name_pub_demonstrate',
-                      'name_pub_done': 'learning/reproductor/auv/name_pub_done',
-                      'quaternion_x': 'learning/reproductor/auv/quaternion_x',
-                      'quaternion_y': 'learning/reproductor/auv/quaternion_y',
-                      'quaternion_z': 'learning/reproductor/auv/quaternion_z',
-                      'quaternion_w': 'learning/reproductor/auv/quaternion_w'}
+                      'name_pub_done': 'learning/reproductor/auv/name_pub_done'}
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time))
 
@@ -176,6 +174,18 @@ class learningReproductor:
                 if self.landmark_id == mark.landmark_id:
                     self.goalPose = mark.pose.pose
                     self.dataGoalReceived = True
+                    eul = euler_from_quaternion(
+                        [self.goalPose.orientation.x,
+                         self.goalPose.orientation.y,
+                         self.goalPose.orientation.z,
+                         self.goalPose.orientation.w])
+                    s = (repr(self.goalPose.position.x) + " " +
+                         repr(self.goalPose.position.y) + " " +
+                         repr(self.goalPose.position.z) + " " +
+                         repr(eul[0]) + " " +
+                         repr(eul[1]) + " " +
+                         repr(eul[2]) + "\n")
+                    self.fileValvePose.write(s)
         finally:
             self.lock.release()
 
@@ -183,6 +193,19 @@ class learningReproductor:
         self.lock.acquire()
         try:
             self.robotPose = odometry
+            eul = euler_from_quaternion(
+                [odometry.pose.pose.orientation.x,
+                 odometry.pose.pose.orientation.y,
+                 odometry.pose.pose.orientation.z,
+                 odometry.pose.pose.orientation.w])
+            s = (repr(odometry.pose.pose.position.x) + " " +
+                 repr(odometry.pose.pose.position.y) + " " +
+                 repr(odometry.pose.pose.position.z) + " " +
+                 repr(eul[0]) + " " +
+                 repr(eul[1]) + " " +
+                 repr(eul[2]) + "\n")
+            self.fileAUVPose.write(s)
+
             if not self.dataRobotReceived:
                 rospy.loginfo('Odometry Initialised')
                 self.dataRobotReceived = True
