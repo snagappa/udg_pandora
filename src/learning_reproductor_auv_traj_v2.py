@@ -216,41 +216,52 @@ class learningReproductor:
                 rospy.loginfo('Odometry Initialised')
                 self.dataRobotReceived = True
             if self.dataGoalReceived:
+                trans_mat = tf.transformations.quaternion_matrix(
+                    [odometry.pose.pose.orientation.x,
+                     odometry.pose.pose.orientation.y,
+                     odometry.pose.pose.orientation.z,
+                     odometry.pose.pose.orientation.w])
+
+                # trans_mat = tf.transformations.translation_matrix(
+                #     [odometry.pose.pose.position.x,
+                #      odometry.pose.pose.position.y,
+                #      -odometry.pose.pose.position.z,
+                #      1])
+
+                trans_mat[0, 3] = odometry.pose.pose.position.x
+                trans_mat[1, 3] = odometry.pose.pose.position.y
+                trans_mat[2, 3] = odometry.pose.pose.position.z
+
+                #invert Matrix
+                inv_mat = np.zeros([4, 4])
+                inv_mat[3, 3] = 1.0
+                inv_mat[0:3, 0:3] = np.transpose(trans_mat[0:3, 0:3])
+                inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
+                                         trans_mat[0:3, 3])
+                panelPose = np.array([self.goalPose.position.x,
+                                      self.goalPose.position.y,
+                                      self.goalPose.position.z,
+                                      1])
+                trans_pose = np.dot(inv_mat, panelPose)
+
+                rospy.loginfo('Distance ' + str(trans_pose[0:3]))
+
+                self.currPos[0:3] = trans_pose[0:3]
+                #Yaw
+                goalYaw = euler_from_quaternion(
+                    [self.goalPose.orientation.x,
+                     self.goalPose.orientation.y,
+                     self.goalPose.orientation.z,
+                     self.goalPose.orientation.w])[2]
+                robotYaw = euler_from_quaternion(
+                    [odometry.pose.pose.orientation.x,
+                     odometry.pose.pose.orientation.y,
+                     odometry.pose.pose.orientation.z,
+                     odometry.pose.pose.orientation.w])[2]
+                self.currPos[3] = cola2_lib.normalizeAngle(
+                    robotYaw - goalYaw)
+
                 if self.dataReceived == 0:
-                    rot_mat = tf.transformations.quaternion_matrix(
-                        [odometry.pose.pose.orientation.x,
-                         odometry.pose.pose.orientation.y,
-                         odometry.pose.pose.orientation.z,
-                         odometry.pose.pose.orientation.w])
-
-                    trans_mat = tf.transformations.translation_matrix(
-                        [odometry.pose.pose.position.x,
-                         odometry.pose.pose.position.y,
-                         -odometry.pose.pose.position.z,
-                         1])
-
-                    robotPose = np.array([self.goalPose.position.x,
-                                          self.goalPose.position.y,
-                                          self.goalPose.position.z,
-                                          1])
-
-                    rot_pose = np.dot(rot_mat, robotPose)
-                    trans_pose = np.dot(trans_mat, rot_pose)
-
-                    self.currPos[0:3] = trans_pose[0:3]
-                    #Yaw
-                    goalYaw = euler_from_quaternion(
-                        [self.goalPose.orientation.x,
-                         self.goalPose.orientation.y,
-                         self.goalPose.orientation.z,
-                         self.goalPose.orientation.w])[2]
-                    robotYaw = euler_from_quaternion(
-                        [odometry.pose.pose.orientation.x,
-                         odometry.pose.pose.orientation.y,
-                         odometry.pose.pose.orientation.z,
-                         odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = cola2_lib.normalizeAngle(
-                        robotYaw - goalYaw)
                     self.currTime = (odometry.header.stamp.secs +
                                      (odometry.header.stamp.nsecs*1E-9))
                     self.dataReceived += 1
@@ -258,95 +269,18 @@ class learningReproductor:
                 elif self.dataReceived == 1:
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-
-                    rot_mat = tf.transformations.quaternion_matrix(
-                        [odometry.pose.pose.orientation.x,
-                         odometry.pose.pose.orientation.y,
-                         odometry.pose.pose.orientation.z,
-                         odometry.pose.pose.orientation.w])
-
-                    trans_mat = tf.transformations.translation_matrix(
-                        [odometry.pose.pose.position.x,
-                         odometry.pose.pose.position.y,
-                         -odometry.pose.pose.position.z,
-                         1])
-
-                    robotPose = np.array([self.goalPose.position.x,
-                                          self.goalPose.position.y,
-                                          self.goalPose.position.z,
-                                          1])
-
-                    rot_pose = np.dot(rot_mat, robotPose)
-                    trans_pose = np.dot(trans_mat, rot_pose)
-
-                    self.currPos[0:3] = trans_pose[0:3]
-                    #Yaw
-                    goalYaw = euler_from_quaternion(
-                        [self.goalPose.orientation.x,
-                         self.goalPose.orientation.y,
-                         self.goalPose.orientation.z,
-                         self.goalPose.orientation.w])[2]
-                    robotYaw = euler_from_quaternion(
-                        [odometry.pose.pose.orientation.x,
-                         odometry.pose.pose.orientation.y,
-                         odometry.pose.pose.orientation.z,
-                         odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = cola2_lib.normalizeAngle(
-                        robotYaw - goalYaw)
                     self.currTime = (odometry.header.stamp.secs +
                                      (odometry.header.stamp.nsecs*1E-9))
                     self.currVel = ((self.currPos - self.prevPos)
                                     / (self.currTime - self.prevTime))
-
                     self.dataReceived += 1
-
                 else:
                     self.prevPos = self.currPos
                     self.prevTime = self.currTime
-
-                    rot_mat = tf.transformations.quaternion_matrix(
-                        [odometry.pose.pose.orientation.x,
-                         odometry.pose.pose.orientation.y,
-                         odometry.pose.pose.orientation.z,
-                         odometry.pose.pose.orientation.w])
-
-                    trans_mat = tf.transformations.translation_matrix(
-                        [odometry.pose.pose.position.x,
-                         odometry.pose.pose.position.y,
-                         -odometry.pose.pose.position.z,
-                         1])
-
-                    robotPose = np.array([self.goalPose.position.x,
-                                          self.goalPose.position.y,
-                                          self.goalPose.position.z,
-                                          1])
-
-                    rot_pose = np.dot(rot_mat, robotPose)
-                    trans_pose = np.dot(trans_mat, rot_pose)
-
-                    self.currPos[0:3] = trans_pose[0:3]
-
-                    #Yaw
-                    goalYaw = euler_from_quaternion(
-                        [self.goalPose.orientation.x,
-                         self.goalPose.orientation.y,
-                         self.goalPose.orientation.z,
-                         self.goalPose.orientation.w])[2]
-                    robotYaw = euler_from_quaternion(
-                        [odometry.pose.pose.orientation.x,
-                         odometry.pose.pose.orientation.y,
-                         odometry.pose.pose.orientation.z,
-                         odometry.pose.pose.orientation.w])[2]
-                    self.currPos[3] = cola2_lib.normalizeAngle(
-                        robotYaw - goalYaw)
-
                     self.currTime = (odometry.header.stamp.secs +
                                      (odometry.header.stamp.nsecs*1E-9))
                     self.currVel = ((self.currPos - self.prevPos) /
                                     (self.currTime - self.prevTime))
-                    # rospy.loginfo('Distance ' + str(self.currPos[0])
-                    #               + ' ' + str(self.currPos[1])
-                    #               + ' ' + str(self.currPos[2]))
             else:
                 rospy.loginfo(
                     'Waiting to initialise the valve and robot position')
@@ -500,9 +434,9 @@ class learningReproductor:
              -self.desVel[1],
              -self.desVel[2]])
 
-        rospy.loginfo('Velocity ' + str(self.desVel[0])
-                      + ' ' + str(self.desVel[1])
-                      + ' ' + str(self.desVel[2]))
+        rospy.loginfo('Velocity ' + str(-self.desVel[0])
+                      + ' ' + str(-self.desVel[1])
+                      + ' ' + str(-self.desVel[2]))
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()

@@ -91,25 +91,43 @@ class LearningRecord:
             #                       odometry.pose.pose.position.y,
             #                       odometry.pose.pose.position.z])
 
-            rot_mat = tf.transformations.quaternion_matrix(
+            trans_mat = tf.transformations.quaternion_matrix(
                 [odometry.pose.pose.orientation.x,
                  odometry.pose.pose.orientation.y,
                  odometry.pose.pose.orientation.z,
                  odometry.pose.pose.orientation.w])
 
-            trans_mat = tf.transformations.translation_matrix(
-                [odometry.pose.pose.position.x,
-                 odometry.pose.pose.position.y,
-                 -odometry.pose.pose.position.z,
-                 1])
+            # trans_mat = tf.transformations.translation_matrix(
+            #     [odometry.pose.pose.position.x,
+            #      odometry.pose.pose.position.y,
+            #      odometry.pose.pose.position.z])
 
-            robotPose = np.array([self.goalPose.position.x,
+            trans_mat[0, 3] = odometry.pose.pose.position.x
+            trans_mat[1, 3] = odometry.pose.pose.position.y
+            trans_mat[2, 3] = odometry.pose.pose.position.z
+
+            #invert Matrix
+            inv_mat = np.zeros([4, 4])
+            inv_mat[3, 3] = 1.0
+            inv_mat[0:3, 0:3] = np.transpose(trans_mat[0:3, 0:3])
+            inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]), trans_mat[0:3, 3])
+
+            panelPose = np.array([self.goalPose.position.x,
                                   self.goalPose.position.y,
                                   self.goalPose.position.z,
                                   1])
 
-            rot_pose = np.dot(rot_mat, robotPose)
-            trans_pose = np.dot(trans_mat, rot_pose)
+            rospy.loginfo('Robot Pose ' + str([odometry.pose.pose.position.x,
+                                               odometry.pose.pose.position.y,
+                                               odometry.pose.pose.position.z]))
+
+            rospy.loginfo('Panel Pose ' + str([self.goalPose.position.x,
+                                               self.goalPose.position.y,
+                                               self.goalPose.position.z]))
+
+            rospy.loginfo('Inverse Trans ' + str(np.dot(inv_mat, panelPose)))
+
+            trans_pose = np.dot(trans_mat, panelPose)
 
             goalYaw = tf.transformations.euler_from_quaternion(
                 [self.goalPose.orientation.x,
