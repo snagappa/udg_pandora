@@ -55,9 +55,9 @@ class valveTurningMission:
         self.enable_ntua_srv = rospy.ServiceProxy(
             '/ntua_control_g500/enable_valve_controller', Empty)
         rospy.wait_for_service(
-            '/ntua_control_g500/enable_valve_controller')
+            '/ntua_control_g500/disable_valve_controller')
         self.disable_ntua_srv = rospy.ServiceProxy(
-            '/ntua_control_g500/enable_valve_controller', Empty)
+            '/ntua_control_g500/disable_valve_controller', Empty)
 
         rospy.loginfo('NTUA Services loaded')
 
@@ -86,32 +86,34 @@ class valveTurningMission:
         rospy.loginfo('Work Area Services loaded')
 
         #Sevice Turn 90
-        # rospy.wait_for_service(
-        #     '/arm/turn_90_degres')
-        # self.turn_90_degres_srv = rospy.ServiceProxy(
-        #     '/arm/turn_90_degres', Empty)
+        rospy.wait_for_service(
+            '/cola2_control/turn90Degrees')
+        self.turn_90_degres_srv = rospy.ServiceProxy(
+            '/cola2_control/turn90Degrees', Empty)
 
     # def getConfig(self):
     #     param_dict = {}
     #     cola2_ros_lib.getRosParams(self, param_dict)
 
     def updateWorkArea(self, evaluation):
-        if evaluation < 0 and not self.RecoveringWorkArea:
+        ev = float(evaluation.data)
+        if ev < 0 and not self.RecoveringWorkArea:
             rospy.loginfo('Outsite the working area')
             try:
                 self.disable_ntua_srv()
-                s_value = WorkAreaError()
-                s_value.error = -1*evaluation
-                self.enable_auv_traj_s_srv(s_value)
-                self.disable_ntua_srv()
+                self.disable_work_area_srv()
+                self.disable_arm_srv()
+                self.enable_auv_traj_s_srv(-1.0*ev)
+                self.RecoveringWorkArea = True
                 rospy.loginfo('The AUV is moving toward The Valve Panel')
             except rospy.ServiceException, e:
                 print "Service call failed: %s" %e
 
     def updateArmFinish(self, data):
         if data:
+            rospy.loginfo('Valve grasped and Turning 90 Degrees')
             self.disable_arm_srv()
-            #self.turn_90_degres()
+            self.turn_90_degres_srv()
 
     def updateAuvFinish(self, data):
         if data:
@@ -120,7 +122,7 @@ class valveTurningMission:
                 self.enable_ntua_srv()
                 rospy.loginfo('Auv Finis, The NTUA controller Enabled')
                 #TODO:: Sleep
-                rospy.sleep(5.0)
+                rospy.sleep(30.0)
                 self.enable_work_area_srv()
                 self.enable_arm_srv()
                 rospy.loginfo('The Grasping has started')
