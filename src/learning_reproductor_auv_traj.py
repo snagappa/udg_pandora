@@ -185,6 +185,9 @@ class learningReproductor:
                          repr(eul[0]) + " " +
                          repr(eul[1]) + " " +
                          repr(eul[2]) + "\n")
+                    # rospy.loginfo('Valve Pose ' + str(self.goalPose.position.x) +
+                    #               ' ' + str(self.goalPose.position.y) +
+                    #               ' ' + str(self.goalPose.position.z))
                     self.fileValvePose.write(s)
         finally:
             self.lock.release()
@@ -205,6 +208,9 @@ class learningReproductor:
                  repr(eul[1]) + " " +
                  repr(eul[2]) + "\n")
             self.fileAUVPose.write(s)
+            # rospy.loginfo('AUV Pose ' + str(odometry.pose.pose.position.x) +
+            #               ' ' + str(odometry.pose.pose.position.y) +
+            #               ' ' + str(odometry.pose.pose.position.z))
 
             if not self.dataRobotReceived:
                 rospy.loginfo('Odometry Initialised')
@@ -235,7 +241,7 @@ class learningReproductor:
                     self.dataReceived += 1
 
                 elif self.dataReceived == 1:
-                    self.prevPos = self.currPos
+                    self.prevPos = numpy.copy(self.currPos)
                     self.prevTime = self.currTime
 
                     self.currPos[0] = (odometry.pose.pose.position.x -
@@ -266,7 +272,7 @@ class learningReproductor:
                     self.dataReceived += 1
 
                 else:
-                    self.prevPos = self.currPos
+                    self.prevPos = numpy.copy(self.currPos)
                     self.prevTime = self.currTime
 
                     self.currPos[0] = (odometry.pose.pose.position.x -
@@ -294,6 +300,9 @@ class learningReproductor:
                                      (odometry.header.stamp.nsecs*1E-9))
                     self.currVel = ((self.currPos - self.prevPos) /
                                     (self.currTime - self.prevTime))
+                # rospy.loginfo('Diff ' + str(self.currPos[0]) +
+                #               ' ' + str(self.currPos[1]) +
+                #               ' ' + str(self.currPos[2]))                
             else:
                 rospy.loginfo(
                     'Waiting to initialise the valve and robot position')

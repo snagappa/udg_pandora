@@ -117,17 +117,17 @@ class LearningRecord:
                                   self.goalPose.position.z,
                                   1])
 
-            rospy.loginfo('Robot Pose ' + str([odometry.pose.pose.position.x,
-                                               odometry.pose.pose.position.y,
-                                               odometry.pose.pose.position.z]))
+            # rospy.loginfo('Robot Pose ' + str([odometry.pose.pose.position.x,
+            #                                    odometry.pose.pose.position.y,
+            #                                    odometry.pose.pose.position.z]))
 
-            rospy.loginfo('Panel Pose ' + str([self.goalPose.position.x,
-                                               self.goalPose.position.y,
-                                               self.goalPose.position.z]))
+            # rospy.loginfo('Panel Pose ' + str([self.goalPose.position.x,
+            #                                    self.goalPose.position.y,
+            #                                    self.goalPose.position.z]))
 
-            rospy.loginfo('Inverse Trans ' + str(np.dot(inv_mat, panelPose)))
+            # rospy.loginfo('Inverse Trans ' + str(np.dot(inv_mat, panelPose)))
 
-            trans_pose = np.dot(trans_mat, panelPose)
+            trans_pose = np.dot(inv_mat, panelPose)
 
             goalYaw = tf.transformations.euler_from_quaternion(
                 [self.goalPose.orientation.x,

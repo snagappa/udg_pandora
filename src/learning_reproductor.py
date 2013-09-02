@@ -346,7 +346,7 @@ class learningReproductor:
             self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
             #rospy.loginfo(' Value s ' + str(self.s))
-            if (self.s < 1E-120):
+            if (self.s < 1E-110):
                 rospy.loginfo('!!!!!!!! Arm trajectory Finish !!!!!!!!!')
                 self.enabled = False
                 self.pub_arm_finish.publish(True)
