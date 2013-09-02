@@ -398,9 +398,9 @@ class learningReproductor:
         # command_yaw = cola2_lib.normalizeAngle(
         #     self.desPos[5] - self.currPos[5])
 
-        joyCommand.axes.append(command_x)
-        joyCommand.axes.append(command_y)
-        joyCommand.axes.append(command_z)
+        joyCommand.axes.append(-command_x)
+        joyCommand.axes.append(-command_y)
+        joyCommand.axes.append(-command_z)
         joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)
