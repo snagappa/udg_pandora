@@ -72,7 +72,7 @@ class LearningRecord:
                          armPose.pose.orientation.z,
                          armPose.pose.orientation.w])
 
-                    trans_goal, rot_goal = self.tflistener.lookupTransform(
+                    trans_base, rot_base = self.tflistener.lookupTransform(
                         "world", "base_arm",
                         self.tflistener.getLatestCommonTime(
                             "world", "base_arm"))
@@ -82,18 +82,26 @@ class LearningRecord:
                          self.goalPose.position.y,
                          self.goalPose.position.z,
                          1])
-                    trans_g_mat = tf.transformations.translation_matrix(
-                        [trans_goal[0],
-                         trans_goal[1],
-                         -trans_goal[2]])
-                    rot_g_matrix = tf.transformations.quaternion_matrix(
-                        rot_goal)
-                    goalRotate = np.dot(rot_g_matrix, goalPose)
-                    goalTrans = np.dot(trans_g_mat, goalRotate)
+
+                    trans_matrix = tf.transformations.quaternion_matrix(
+                        rot_base)
+
+                    trans_matrix[0, 3] = trans_base[0]
+                    trans_matrix[1, 3] = trans_base[1]
+                    trans_matrix[2, 3] = trans_base[2]
+
+                    #invert Matrix
+                    inv_mat = np.zeros([4, 4])
+                    inv_mat[3, 3] = 1.0
+                    inv_mat[0:3, 0:3] = np.transpose(trans_matrix[0:3, 0:3])
+                    inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
+                                             trans_matrix[0:3, 3])
+
+                    goalTrans = np.dot(inv_mat, goalPose)
 
                     s = (repr(goalTrans[0] - armPose.pose.position.x) + " " +
-                         repr(armPose.pose.position.y - goalTrans[1]) + " " +
-                         repr(armPose.pose.position.z - goalTrans[2]) + " " +
+                         repr(goalTrans[1] - armPose.pose.position.y) + " " +
+                         repr(goalTrans[2] - armPose.pose.position.z) + " " +
                          repr(cola2_lib.normalizeAngle(arm_ori[1] -
                                                        self.goalOrientation[1]))
                          + " " +
@@ -106,9 +114,9 @@ class LearningRecord:
                                                        self.goalOrientation[2]))
                          + "\n")
                     self.file.write(s)
-                    # rospy.loginfo('Dist ' + str(goalTrans[0] - armPose.pose.position.x)
-                    #               + ' ' + str(armPose.pose.position.y - goalTrans[1])
-                    #               + ' ' + str(armPose.pose.position.z - goalTrans[2]))
+                    rospy.loginfo('Dist ' + str(goalTrans[0] - armPose.pose.position.x)
+                                  + ' ' + str(goalTrans[1] - armPose.pose.position.y)
+                                  + ' ' + str(goalTrans[2] - armPose.pose.position.z))
                 except tf.Exception:
                     rospy.loginfo(
                         'Error in the TF using the last arm pose published')

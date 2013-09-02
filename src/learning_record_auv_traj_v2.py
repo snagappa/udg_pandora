@@ -106,7 +106,7 @@ class LearningRecord:
             trans_mat[1, 3] = odometry.pose.pose.position.y
             trans_mat[2, 3] = odometry.pose.pose.position.z
 
-            #invert Matrix
+            #invert Translation Matrix
             inv_mat = np.zeros([4, 4])
             inv_mat[3, 3] = 1.0
             inv_mat[0:3, 0:3] = np.transpose(trans_mat[0:3, 0:3])
