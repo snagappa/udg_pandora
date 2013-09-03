@@ -19,7 +19,7 @@ import cameramodels
 from kalmanfilter import kf_update_cov, kf_update_x, ukf_update_cov, sigma_pts
 from misctools import STRUCT
 from rfs_merge import rfs_merge
-from IPython import embed
+import code
 
 DEBUG = True
 blas.SET_DEBUG(False)
@@ -44,9 +44,6 @@ def phd_update(np.ndarray[double, ndim=1] weights not None,
                np.ndarray[double, ndim=2] observations not None,
                np.ndarray[double, ndim=3] observation_noise not None,
                USE_3D, USE_UKF, prune_threshold=0, DISPLAY=None):
-#def phd_update(weights, states, covs, filter_vars, camera,
-#               observations, observation_noise, USE_3D, USE_UKF,
-#               prune_threshold=0, index=None):
     """phd.update(observations, observation_noise)
     Update the current landmarks using the new observations
     observations - numpy array of size Nx3
@@ -82,7 +79,6 @@ def phd_update(np.ndarray[double, ndim=1] weights not None,
         prev_weights = weights.copy()
         prev_states = states.copy()
         prev_covs = covs.copy()
-    
         updated_weights_list = [weights.copy()*(1-detection_probability)]
         updated_states_list = [states.copy()]
         updated_covs_list = [covs.copy()]
@@ -143,12 +139,12 @@ def phd_update(np.ndarray[double, ndim=1] weights not None,
                             this_observation_noise, obsfn, obsfn_args,
                             _alpha=1e-3, _beta=2, _kappa=0, INPLACE=False)
                     except:
-                        embed()
+                        code.interact(local=locals())
             # We need to update the states and find the updated weights
             for obs_count in range(num_observations):
                 _observation_ = observations[obs_count]
                 # Apply the Kalman update to get the new state
-                this_upd_states, residuals = kf_update_x(
+                this_updated_states, residuals = kf_update_x(
                     detected_states, pred_z, _observation_, 
                     kalman_info.kalman_gain, INPLACE=False)
                 # Calculate the weight of the Gaussians for this observation
@@ -158,23 +154,23 @@ def phd_update(np.ndarray[double, ndim=1] weights not None,
                                residuals, TRANSPOSE_A=True), 2).sum(axis=1))/ \
                     np.sqrt(kalman_info.det_S*(2*np.pi)**z_dim)
                 #x_pdf = misctools.mvnpdf(_observation_, pred_z, kalman_info.S)
-                this_upd_weights = detected_weights*x_pdf
+                this_updated_weights = detected_weights*x_pdf
                 # Normalise the weights
                 normalisation_factor = ( clutter_intensity[obs_count] + 
                                          #self.vars.birth_intensity +
-                                         upd_weights.sum() )
-                this_upd_weights /= normalisation_factor
+                                         this_updated_weights.sum() )
+                this_updated_weights /= normalisation_factor
                 
                 # Create new state with new_x and P to add to _states_
-                valid_idx = upd_weights > prune_threshold
+                valid_idx = this_updated_weights > prune_threshold
                 if np.count_nonzero(valid_idx):
-                    updated_weights_list += [this_upd_weights[valid_idx]]
-                    updated_states_list += [this_upd_states[valid_idx]]
+                    updated_weights_list += [this_updated_weights[valid_idx]]
+                    updated_states_list += [this_updated_states[valid_idx]]
                     updated_covs_list += [this_updated_covs[valid_idx]]
                 
                 if DISPLAY == True:
                     print "\nUpdated weights:"
-                    print upd_weights[valid_idx]
+                    print this_updated_weights[valid_idx]
         
         updated_weights = np.concatenate(updated_weights_list)
         updated_states = np.concatenate(updated_states_list)
@@ -192,7 +188,7 @@ def phd_update(np.ndarray[double, ndim=1] weights not None,
 def phd_prune(np.ndarray[double, ndim=1] weights,
               np.ndarray[double, ndim=2] states,
               np.ndarray[double, ndim=3] covs,
-              double prune_threshold=-1, int max_num_components=-1)
+              double prune_threshold=-1, int max_num_components=-1):
     """phd.prune()
     Remove landmarks in the map with low weights.
     """
@@ -232,6 +228,8 @@ def phd_prune(np.ndarray[double, ndim=1] weights,
         print "GMPHD:PRUNE():\n", traceback.print_tb(exc_info[2])
         raise
 
+#def camera_birth_disparity(camera, birth_intensity, features_rel, features_cv,
+#                           timestamp=None):
 def camera_birth_disparity(camera, double birth_intensity,
                            np.ndarray[double, ndim=2] features_rel not None,
                            np.ndarray[double,ndim=3] features_cv not None,
@@ -327,7 +325,7 @@ def camera_birth_disparity(camera, double birth_intensity,
 def camera_birth(camera, double birth_intensity,
                  np.ndarray[double, ndim=2] features_rel not None, 
                  np.ndarray[double, ndim=3] features_cv not None,
-                 timestamp=None)
+                 timestamp=None):
     """phd.camera_birth(parent_ned, parent_rpy, features_rel, 
         features_cv=None) -> birth_weights, birth_states, birth_covariances
     Create birth components using features visible from the camera.
@@ -441,7 +439,7 @@ def phd_iterate(np.ndarray[double, ndim=1] weights,
                 np.ndarray[double, ndim=3] covs, timestamp, filter_vars,
                 camera, np.ndarray[double, ndim=2] observations,
                 np.ndarray[double, ndim=3] obs_noise, USE_3D, USE_UKF=False,
-                DISPLAY=fALSE):
+                DISPLAY=False):
     """phd.iterate(observations, obs_noise)
     Perform a single iteration of the filter:
         predict()
@@ -506,7 +504,7 @@ def phd_estimate(np.ndarray[double, ndim=1] weights,
     if USE_INTENSITY:
         intensity = weights.sum()
         num_targets_soft = min((intensity, weights.shape[0]))
-        num_targets = int(round(num_targets))
+        num_targets = int(round(num_targets_soft))
     else:
         valid_targets = weights>0.5
         num_targets = valid_targets.sum()
@@ -552,6 +550,8 @@ class GMPHD(object):
         fov_far = rospy.get_param("slam_feature_detector/fov/far")
         self.camera.set_near_far_fov(fov_far=fov_far)
     
+#    def update_features(self, features, timestamp=None, USE_3D=False,
+#                        USE_UKF=True, DISPLAY=False):
     def update_features(self, np.ndarray[double, ndim=2] features not None,
                         timestamp=None, USE_3D=False, USE_UKF=True,
                         DISPLAY=False):

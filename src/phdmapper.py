@@ -215,6 +215,7 @@ class PHDMAPPER(object):
             self.map_estimate = self.phd_map.estimate()
             rospy.loginfo("Updated map with %d features" % slam_features.shape[0])
             rospy.loginfo("Map size: %d points" % self.map_estimate.state.shape[0])
+            rospy.loginfo("PHD GM size: %d" % self.phd_map.map.weights.shape[0])
         except:
             print "Error occurred in"
             exc_info = sys.exc_info()
