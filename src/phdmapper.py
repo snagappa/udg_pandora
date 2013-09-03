@@ -36,7 +36,16 @@ import copy
 import sys, traceback
 # Custom imports
 from lib.misctools import STRUCT, message_buffer, camera_buffer, pcl_xyz_cov
-from lib import phdfilter
+try:
+    import pyximport
+except ImportError:
+    print "Could not import 'pyximport'"
+    print "Please install package: cython\n\n\n"
+    print "Using normal python module instead"
+    from lib import phdfilter
+else:
+    pyximport.install(reload_support=True)
+    import lib.phdfilter_pyx as phdfilter
 from tf.transformations import quaternion_from_euler
 from tf import TransformBroadcaster
 
