@@ -410,7 +410,7 @@ class learningReproductor:
         self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
         #rospy.loginfo('Value of S ' + str(self.s))
-        if (self.s < 1E-18):
+        if (self.s < 1E-15):
             rospy.loginfo('!!!!!!!! AUV trajectory Finish !!!!!!!!!')
             self.enabled = False
             self.pub_auv_finish.publish(True)
