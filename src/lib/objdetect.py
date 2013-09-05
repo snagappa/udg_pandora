@@ -227,69 +227,53 @@ class Detector(object):
         log_im = cv2.filter2D(im, -1, self.filter_kernel)
         return log_im
     
-    def _detect_(self, im_scene, INVERT_DETECT_MATCH_ARGS=False,
-                 INVERT_HOMOGRAPHY_ARGS=False):
+    def _detect_(self, im_scene):
         if self._object_.template is None:
             print "object template is not set!"
             return None
+        #self._scene_ = copy.copy(im_scene)
         # Filter the scene
         proc_im_scene = self.process_images((im_scene,))[0]
-        (self._scene_.keypoints, self._scene_.descriptors) = (
+        (keypoints_scene, descriptors_scene) = (
             self.camera.get_features(proc_im_scene))
-        
-        if not INVERT_DETECT_MATCH_ARGS:
-            _obj_kp_ = self._object_.keypoints
-            _obj_desc_ = self._object_.descriptors
-            _scn_kp_ = self._scene_.keypoints
-            _scn_desc_ = self._scene_.descriptors
-        else:
-            _obj_kp_ = self._scene_.keypoints
-            _obj_desc_ = self._scene_.descriptors
-            _scn_kp_ = self._object_.keypoints
-            _scn_desc_ = self._object_.descriptors
-        
-        dam_result = self.camera.detect_and_match(_obj_kp_,  _obj_desc_,
-            _scn_kp_, _scn_desc_, self.flann_ratio_threshold)
+        #for _kp_ in keypoints_scene:
+        #    self._scene_[_kp_.pt[1], _kp_.pt[0]] = 255
+        dam_result = self.camera.detect_and_match(self._object_.keypoints,
+                                                  self._object_.descriptors,
+                                                  keypoints_scene,
+                                                  descriptors_scene,
+                                                  self.flann_ratio_threshold)
         pts_obj, pts_scn = dam_result[0:2]
-        if not INVERT_DETECT_MATCH_ARGS:
-            self._object_.pts_obj = pts_obj
-            self._object_.pts_scn = pts_scn
-        else:
-            self._object_.pts_obj = pts_scn
-            self._object_.pts_scn = pts_obj
-        
-        if not INVERT_HOMOGRAPHY_ARGS:
-            _pts_obj_, _pts_scn_ = pts_obj, pts_scn
-        else:
-            _pts_obj_, _pts_scn_ = pts_scn, pts_obj
+        self._object_.pts_obj = pts_obj
+        self._object_.pts_scn = pts_scn
+        #self._object_.kp_scn = np.asarray([_kp_.pt for _kp_ in keypoints_scene])
+        # ORIGINAL,  h_mat = inv(h_mat)
         status, h_mat, num_inliers, inliers_status = (
-        self.camera.find_homography(_pts_obj_, _pts_scn_,
-            ransacReprojThreshold=1,
+        self.camera.find_homography(pts_obj, pts_scn, ransacReprojThreshold=1,
             min_inliers=self._object_.min_correspondences))
-        
         # Save only the inliers
-        inliers_status = inliers_status.astype(np.bool)
-        self._object_.pts_obj = pts_obj[inliers_status]
-        self._object_.pts_scn = pts_scn[inliers_status]
-        if INVERT_HOMOGRAPHY_ARGS:
-            try:
-                # Compute the inverse if findHomography(pts_scn, pts_obj)
-                h_mat = np.linalg.inv(h_mat)
-            except:
-                print "Error computing inverse of homography!"
-                h_mat = None
-                status = False
+        inliers_idx = inliers_status.astype(np.bool)
+        self._object_.pts_obj = pts_obj[inliers_idx]
+        self._object_.pts_scn = pts_scn[inliers_idx]
+        #try:
+        #    # Compute the inverse if findHomography(pts_scn, pts_obj)
+        #    h_mat = np.linalg.inv(h_mat)
+        #except:
+        #    print "Error computing inverse of homography!"
+        #    h_mat = None
+        #    status = False
+        #    #self._matches_.kp_obj = None
+        #    #self._matches_.kp_scn = None
         return status, h_mat, num_inliers, inliers_status
     
-    def detect(self, im_scene, *args, **kwargs):
+    def detect(self, im_scene, *dummy_args):
         """
         detect(self, im_scene) -> None
         Detects object by matching features and calculating the homography
         matrix from the template and current scene.
         """
-        self._scene_.image = im_scene
-        status, h_mat, num_inliers, inliers_status = (
-            self._detect_(im_scene, *args, **kwargs))
+        self._scene_ = im_scene
+        status, h_mat, num_inliers, inliers_status = self._detect_(im_scene)
         print '%d / %d  inliers/matched' % (num_inliers, len(inliers_status))
         self._object_.status = status
         self._object_.h_mat = h_mat
@@ -512,9 +496,9 @@ class Detector(object):
     
     def get_scene(self, idx=None):
         if not idx is None:
-            return (self._scene_.image,)[idx]
+            return (self._scene_,)[idx]
         else:
-            return (self._scene_.image,)
+            return (self._scene_,)
     
     def set_detector_num_features(self, num_features):
         self.camera.set_detector_num_features(num_features)
@@ -580,7 +564,7 @@ class Stereo_detector(Detector):
         self.obj_corners = np.empty(0)
 
         # Threshold the image
-        self._scene_.image = (im_scene_l, im_scene_r)
+        self._scene_ = self.process_images((im_scene_l, im_scene_r))
 
         if self._object_.template is None:
             print "object template is not set!"
