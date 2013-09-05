@@ -528,8 +528,10 @@ def mvnpdf(x, mu, sigma, LOG=False):
     #residual = x-mu
     chol_sigma = blas.dpotrf(sigma)
     # Compute the determinant
-    diag_vec = np.array([np.diag(chol_sigma[i]) 
-                        for i in range(chol_sigma.shape[0])])
+    diag_range = range(chol_sigma.shape[1])
+    diag_vec = chol_sigma[:, diag_range, diag_range]
+    #diag_vec = np.array([np.diag(chol_sigma[i]) 
+    #                    for i in range(chol_sigma.shape[0])])
     det_sigma = diag_vec.prod(1)**2
     
     # If same number of sigma and residuals, or only residual and many sigma
