@@ -691,7 +691,8 @@ class VisualDetector(object):
                     cvimage[0], valve_im_bbox, HoughMinLineLength=valve_length_px,
                     HoughThreshold=int(0.9*valve_length_px),
                     HIGHLIGHT_VALVE=True)
-                valve_detected = True
+                if not this_valve_orientation is None:
+                    valve_detected = True
             
             bbox_colour = (255, 255, 255)
             corners = detector.obj_corners.astype(np.int32)
@@ -710,9 +711,12 @@ class VisualDetector(object):
         print "Orientation = ", this_valve_orientation
         
         # Add offsets to get pose of the valve wrt camera
-        valve_centre = panel_centre + valves.centre[0]
-        valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
-        
+        if valve_detected:
+            valve_centre = panel_centre + valves.centre[0, :3]
+            valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
+        else:
+            valve_centre = np.zeros(3)
+            valve_rpy = np.zeros(3)
         # Publish end-effector detection message
         time_now = rospy.Time.now()
         detection_msg = self.endeffector.detection_msg

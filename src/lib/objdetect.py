@@ -236,6 +236,13 @@ class Detector(object):
         proc_im_scene = self.process_images((im_scene,))[0]
         (keypoints_scene, descriptors_scene) = (
             self.camera.get_features(proc_im_scene))
+        if descriptors_scene is None or descriptors_scene.shape[0] < self._object_.min_correspondences:
+            status = False
+            h_mat = None
+            num_inliers = 0
+            inliers_status = np.empty(0, dtype=np.uint8)
+            return status, h_mat, num_inliers, inliers_status
+        
         #for _kp_ in keypoints_scene:
         #    self._scene_[_kp_.pt[1], _kp_.pt[0]] = 255
         dam_result = self.camera.detect_and_match(self._object_.keypoints,
