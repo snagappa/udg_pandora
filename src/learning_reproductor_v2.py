@@ -117,6 +117,11 @@ class learningReproductor:
             Empty,
             self.disableSrv)
 
+        self.finish_srv = rospy.Service(
+            '/learning/finish_arm_traj',
+            Empty,
+            self.finishSrv)
+
         self.tflistener = tf.TransformListener()
 
     def getConfig(self):
@@ -228,13 +233,20 @@ class learningReproductor:
 
     def enableSrv(self, req):
         self.enabled = True
-        rospy.loginfo('%s Enabled', self.name)
+        rospy.loginfo('%s Enabled ', self.name)
         return EmptyResponse()
 
     def disableSrv(self, req):
         self.enabled = False
         self.s = self.initial_s
-        rospy.loginfo('%s Disabled', self.name)
+        rospy.loginfo('%s Disabled ', self.name)
+        return EmptyResponse()
+
+    def finishSrv(self, req):
+        self.enabled = False
+        self.s = self.initial_s
+        self.pub_arm_finish.publish(True)
+        rospy.loginfo('%s Finsih ', self.name)
         return EmptyResponse()
 
     def play(self):
@@ -398,9 +410,9 @@ class learningReproductor:
         # command_yaw = cola2_lib.normalizeAngle(
         #     self.desPos[5] - self.currPos[5])
 
-        joyCommand.axes.append(command_x)
-        joyCommand.axes.append(command_y)
-        joyCommand.axes.append(command_z)
+        joyCommand.axes.append(-command_x)
+        joyCommand.axes.append(-command_y)
+        joyCommand.axes.append(-command_z)
         joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)
         joyCommand.axes.append(0.0)
@@ -408,16 +420,16 @@ class learningReproductor:
         #joyCommand.axes.append(command_pitch/6.0)
         #joyCommand.axes.append(command_yaw/6.0)
 
-        rospy.loginfo('Desired Pose ' + str(self.desPos[0])
-                      + ' ' + str(self.desPos[1])
-                      + ' ' + str(self.desPos[2]))
-        rospy.loginfo('Current Pose ' + str(self.currPos[0])
-                      + ' ' + str(self.currPos[1])
-                      + ' ' + str(self.currPos[2]))
-        rospy.loginfo('Command ' + str(command_x)
-                      + ' ' + str(command_y)
-                      + ' ' + str(command_z)
-                      + ' ' + str(command_roll))
+        # rospy.loginfo('Desired Pose ' + str(self.desPos[0])
+        #               + ' ' + str(self.desPos[1])
+        #               + ' ' + str(self.desPos[2]))
+        # rospy.loginfo('Current Pose ' + str(self.currPos[0])
+        #               + ' ' + str(self.currPos[1])
+        #               + ' ' + str(self.currPos[2]))
+        # rospy.loginfo('Command ' + str(command_x)
+        #               + ' ' + str(command_y)
+        #               + ' ' + str(command_z)
+        #               + ' ' + str(command_roll))
 
         s = (repr(self.currPos[0]) + " " + repr(self.currPos[1]) + " " +
              repr(self.currPos[2]) + " " + repr(self.currPos[3]) + " " +
@@ -429,6 +441,18 @@ class learningReproductor:
              repr(self.desPos[4]) + " " + repr(self.desPos[5]) + "\n")
         self.desTraj.write(s)
         self.pub_arm_command.publish(joyCommand)
+
+        #rospy.loginfo(' Value s ' + str(self.s))
+        if (np.abs(self.currPos[0] - 0.0881) < 0.01
+            and
+            np.abs(self.currPos[1] - 0.038) < 0.01
+            and
+            np.abs(self.currPos[2] + 0.0304) < 0.01):
+            rospy.loginfo('!!!!!!!! Arm trajectory Finish By POSE  !!!!!!!!!')
+            self.enabled = False
+            self.pub_arm_finish.publish(True)
+            self.s = self.initial_s
+
 
     #Retract the Arm sending the command -x
     def retractArm(self):
@@ -565,9 +589,9 @@ class learningReproductor:
                     self.currVel = ((self.currPos-self.prevPos) /
                                     (self.currTime-self.prevTime))
 
-                rospy.loginfo('Diff ' + str(self.currPos[0])
-                              + ' ' + str(self.currPos[1])
-                              + ' ' + str(self.currPos[2]))
+                # rospy.loginfo('Diff ' + str(self.currPos[0])
+                #               + ' ' + str(self.currPos[1])
+                #               + ' ' + str(self.currPos[2]))
             else:
                 if not self.dataRobotReceived:
                     rospy.loginfo('Waiting to initialise the  robot position')

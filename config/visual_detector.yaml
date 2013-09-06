@@ -24,20 +24,41 @@ visual_detector/camera_baseline_orientation: [0., 0., 0.]
 
 # Panel detection
 # To select between the simulated and real templates
-visual_detector/panel/simulator: true
-visual_detector/panel/simulator_template: ["simulator_panel2.png"]
-#visual_detector/panel/simulator_template: ["docking_panel_simulator_template.png"]
-visual_detector/panel/simulator_template_mask: []
-visual_detector/panel/real_template: ["new_panel_template2.png"]
-visual_detector/panel/real_template_mask: []
+visual_detector/simulator: true
+
+# Stereo or monocular detection
+visual_detector/is_stereo: false
+
+# if is_stereo == true,
+#   will use camera_root/{left,right}/image_topic
+# otherwise,
+#   will use camera_root/image_topic
+
+# Simulator camera topics
+visual_detector/camera_root/simulator: "g500/stereo_front/left"
+visual_detector/image_topic/simulator: "image_raw"
+# Real camera topics
+visual_detector/camera_root/real: "/stereo_camera/left"
+visual_detector/image_topic/real: "image_rect_color"
+
+
+# Templates and masks for the simulator panel
+visual_detector/panel/template/simulator: ["simulator_panel2.png"]
+visual_detector/panel/mask/simulator: []
+# Templates and masks for the real panel
+visual_detector/panel/template/real: ["new_panel_template2.png"]
+visual_detector/panel/mask/real: []
+
+# Geometry
+visual_detector/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
+visual_detector/valves/radius: 0.05
+visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
+
 
 # Detection parameters
 visual_detector/panel/num_features: 4000
 visual_detector/panel/flann_ratio: 0.6
 visual_detector/valves/filter_length: 5
-
-# Stereo or monocular detection
-visual_detector/panel/is_stereo: false
 
 # Use Sturm method for pose estimation (experimental)
 visual_detector/panel/use_sturm: false
@@ -50,39 +71,30 @@ visual_detector/panel/verify_limit_m: 0.05
 # Maximum allowed variation in radians
 visual_detector/panel/verify_limit_rad: 0.035
 
-# if is_stereo == true,
-#   use camera_root/{left,right}/image_topic
-# otherwise,
-#   use camera_root/image_topic
-
-visual_detector/panel/camera_root: "/stereo_camera/left"
-visual_detector/panel/image_topic: "image_rect_color"
-
-# Simulator camera topics
-visual_detector/panel/sim_camera_root: "g500/stereo_front/left"
-visual_detector/panel/sim_image_topic: "image_raw"
-# Real camera topics
-visual_detector/panel/real_camera_root: "/stereo_camera/left"
-visual_detector/panel/real_image_topic: "image_rect_color"
-
 # Detection rate
 visual_detector/panel/rate: -1
-# Geometry
-visual_detector/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
-visual_detector/valves/radius: 0.05
-visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
 
+visual_detector/enable_endeffector: true
 # Parameters for end effector camera
-visual_detector/end_effector/camera_root: "/g500/hand_camera"
-visual_detector/end_effector/camera_image_topic: "image_raw"
+visual_detector/end_effector/camera_root/simulator: "/g500/hand_camera"
+visual_detector/end_effector/image_topic/simulator: "image_raw"
+visual_detector/end_effector/camera_root/real: "/camera"
+visual_detector/end_effector/image_topic/real: "image_rect_color"
+
+# Detector parameters
 visual_detector/end_effector/num_features: 1000
 visual_detector/end_effector/flann_ratio: 0.75
-#visual_detector/end_effector/sub_templates: ["valve_template_scaled_far.png", "valve_template_scaled_close.png"]
-#visual_detector/end_effector/sub_masks: ["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]
-#visual_detector/end_effector/sub_corners: [[[-0.105, 0.0754, 0], [0.105, 0.0754, 0], [0.105, -0.0754, 0], [-0.105, -0.0754, 0]]]
-visual_detector/end_effector/sub_templates: ["valve_template_close_sim.jpg"]
-visual_detector/end_effector/sub_masks: []
-visual_detector/end_effector/sub_corners: [[[-0.118, 0.088, 0], [0.118, 0.088, 0], [0.118, -0.088, 0], [-0.118, -0.088, 0]]]
-#visual_detector/end_effector/sub_corners: [[[-0.166, 0.104, 0], [0.166, 0.104, 0], [0.166, -0.104, 0], [-0.166, -0.104, 0]]]
-visual_detector/end_effector/sub_valve_centre: [[-0.0098, 0.0, 0.11]]
+visual_detector/end_effector/rate: -1
+
+# Templates, masks and measurements for the real panel
+visual_detector/end_effector/templates/real: [["valve_template_scaled_far.png", "valve_template_scaled_close.png"]]
+visual_detector/end_effector/masks/real: [["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]]
+visual_detector/end_effector/corners/real: [[[-0.221, 0.165, 0], [0.221, 0.165, 0], [0.221, -0.165, 0], [-0.221, -0.165, 0]]]
+visual_detector/end_effector/valve_centres/real: [[0.0, 0.052, 0.11]]
+
+# Templates, masks and measurements for the simulator
+visual_detector/end_effector/templates/simulator: [["valve_template_close_sim.png", "valve_template_close_sim2.png", "valve_template_close_sim3.png"]]
+visual_detector/end_effector/masks/simulator: [["valve_template_mask_close_sim.png", "valve_template_mask_close_sim2.png", "valve_template_mask_close_sim3.png"]]
+visual_detector/end_effector/corners/simulator: [[[-0.236, 0.177, 0], [0.236, 0.177, 0], [0.236, -0.177, 0], [-0.236, -0.177, 0]]]
+visual_detector/end_effector/valve_centres/simulator: [[0.118, 0.0512, 0.11]]
 
