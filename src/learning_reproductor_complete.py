@@ -523,9 +523,9 @@ class learningReproductor:
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_auv[0]/5.0
-        vel_com.twist.linear.y = vel_auv[1]/5.0
-        vel_com.twist.linear.z = 0.0 #vel_auv[2]/15.0
+        vel_com.twist.linear.x = vel_auv[0]/70.0
+        vel_com.twist.linear.y = vel_auv[1]/70.0
+        vel_com.twist.linear.z = vel_auv[2]/30.0
         vel_com.twist.angular.z = -self.desVel[3]/40.0
 
         #disabled_axis boby_velocity_req
@@ -537,15 +537,16 @@ class learningReproductor:
         vel_com.disable_axis.yaw = False
         #vel_com.disable_axis.yaw = True
 
+        self.pub_auv_vel.publish(vel_com)
         ##############################################
         # Compute the Arm velocity
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append(self.desVel[4]*3.)
-        joyCommand.axes.append(self.desVel[5]*3.)
-        joyCommand.axes.append(self.desVel[6]*3.)
-        joyCommand.axes.append(self.desVel[7]*0.0)
+        joyCommand.axes.append(self.desVel[4] * 6.)
+        joyCommand.axes.append(self.desVel[5] * 6.)
+        joyCommand.axes.append(self.desVel[6] * 6.)
+        joyCommand.axes.append(self.desVel[7] * 0.0)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
         self.pub_arm_command.publish(joyCommand)
@@ -561,8 +562,6 @@ class learningReproductor:
              repr(self.currPos[8]) + " " +
              repr(self.currPos[9]) + "\n")
         self.fileTraj.write(s)
-
-        self.pub_auv_vel.publish(vel_com)
 
     def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
