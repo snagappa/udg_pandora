@@ -62,7 +62,7 @@ class learningReproductor:
         self.getLearnedParameters()
         self.goalPose = Pose()
         self.robotPose = Pose()
-        self.armPose = PoseStamped()
+        self.armPose = np.zeros(3)
         self.prevPos = np.zeros(self.nbVar)
         self.prevTimeArm = 0.0
         self.currTimeArm = 0.0
@@ -554,9 +554,9 @@ class learningReproductor:
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_auv[0]/5.0
-        vel_com.twist.linear.y = vel_auv[1]/5.0
-        vel_com.twist.linear.z = 0.0 #vel_auv[2]/15.0
+        vel_com.twist.linear.x = vel_auv[0]/70.0
+        vel_com.twist.linear.y = vel_auv[1]/70.0
+        vel_com.twist.linear.z = vel_auv[2]/30.0
         vel_com.twist.angular.z = -self.desVel[3]/40.0
 
         #disabled_axis boby_velocity_req
@@ -573,9 +573,9 @@ class learningReproductor:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append(self.desVel[4]-self.desVel[0])
-        joyCommand.axes.append(self.desVel[5]-self.desVel[1])
-        joyCommand.axes.append(self.desVel[6]-self.desVel[2])
+        joyCommand.axes.append(self.desVel[0]-self.desVel[4])
+        joyCommand.axes.append(self.desVel[1]-self.desVel[5])
+        joyCommand.axes.append(self.desVel[2]-self.desVel[6])
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
