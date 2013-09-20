@@ -296,6 +296,16 @@ class Detector(object):
         """
         return self._object_.h_mat
     
+    def get_pixel_matches(self):
+        """
+        get_pixel_matches() -> (template_px, scene_px)
+        Returns the matched pixels in the template and the scene.
+        """
+        if self._object_.status:
+            return (self._object_.pts_obj, self._object_.pts_scn)
+        else:
+            return (None, None)
+    
     def location(self, USE_STURM=False, CROSS_VERIFY=False,
                  COMPUTE_FAKE_COV=False,
                  VERIFY_MAX_ERR_M=0.05, VERIFY_MAX_ERR_RAD=0.035):
