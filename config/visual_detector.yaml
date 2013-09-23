@@ -18,7 +18,7 @@ visual_detector/chain_position: [3.1, 1.0, 5.0]
 # stereo_front orientation: [1.57, 0.0, 1.57]
 # stereo_baseline: [0.12, 0.0, 0.0]
 visual_detector/camera_position: [0.45, -0.06, -0.12]
-visual_detector/camera_orientation: [1.309, 0.0, 1.57]
+visual_detector/camera_orientation: [1.4, 0.0, 1.57] #1.309
 visual_detector/camera_baseline: [0.12, 0.0, 0.0]
 visual_detector/camera_baseline_orientation: [0., 0., 0.]
 
