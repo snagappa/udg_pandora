@@ -582,18 +582,19 @@ class VisualDetector(object):
         time_now = rospy.Time.now()
         
         # Publish pixel matches
-        template_px, scene_px = panel.detector.get_pixel_matches()
-        if not template_px is None:
-            _template_points2d_ = [Point2D(_tpl_px_[0], _tpl_px_[1])
-                                  for _tpl_px_ in template_px]
-            _scene_points2d_ = [Point2D(_tpl_px_[0], _tpl_px_[1])
-                                  for _tpl_px_ in scene_px]
-            
-            panel.pixel_matches_msg.header.stamp = time_now
-            panel.pixel_matches_msg.img0 = _template_points2d_
-            panel.pixel_matches_msg.img1 = _scene_points2d_
-            
-            panel.pixel_matches.publish(panel.pixel_matches_msg)
+        if panel_detected:
+            template_px, scene_px = panel.detector.get_pixel_matches()
+            if not template_px is None:
+                _template_points2d_ = [Point2D(_tpl_px_[0], _tpl_px_[1])
+                                      for _tpl_px_ in template_px]
+                _scene_points2d_ = [Point2D(_tpl_px_[0], _tpl_px_[1])
+                                      for _tpl_px_ in scene_px]
+                
+                panel.pixel_matches_msg.header.stamp = time_now
+                panel.pixel_matches_msg.img0 = _template_points2d_
+                panel.pixel_matches_msg.img1 = _scene_points2d_
+                
+                panel.pixel_matches.publish(panel.pixel_matches_msg)
         
         # Publish panel detection message
         panel.detection_msg.header.stamp = time_now
