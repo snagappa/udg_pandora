@@ -878,10 +878,42 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
         """
-        margin_l, margin_r, margin_t, margin_b = image_margins
-        mask_margins = np.any(image_margins)
+        # Empty result if no matches
+        points3d = np.empty(0)
+        pts_l = np.empty(0)
+        pts_r = np.empty(0)
+        kp_l = np.empty(0)
+        kp_r = np.empty(0)
+        desc_l = np.empty(0)
+        desc_r = np.empty(0)
+        
+        #Get features from the left image
         (images[0].keypoints, images[0].descriptors) = (
             self.get_features(image_left))
+        # Increase the number of features detected (if possible) to facilitate
+        # matching
+        try:
+            num_features = self.get_detector_num_features()
+            self.set_detector_num_features(np.min([num_features*10, 2000]))
+        except UnboundLocalError:
+            pass
+        # Get features from the right image
+        (images[1].keypoints, images[1].descriptors) = (
+            self.get_features(image_right))
+        # Restore the original number of features to be detected
+        try:
+            self.set_detector_num_features(num_features)
+        except UnboundLocalError:
+            pass
+        
+        # Check if matching can be performed (require minimum of 2 matches)
+        if ((len(images[0].keypoints) < 3) or
+            (len(images[1].keypoints) < 3)):
+            return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
+        
+        margin_l, margin_r, margin_t, margin_b = image_margins
+        mask_margins = np.any(image_margins)
+        
         if mask_margins:
             this_img_keypoints = images[0].keypoints
             this_img_descriptors = images[0].descriptors
@@ -897,23 +929,14 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             images[0].keypoints = _masked_keypoints_
             images[0].descriptors = _masked_descriptors_
         
+        
         try:
-            num_features = self.get_detector_num_features()
-        except UnboundLocalError:
-            pass
-        try:
-            try:
-                self.set_detector_num_features(np.min([num_features*10, 2000]))
-            except UnboundLocalError:
-                pass
             """
             for (idx, _im_) in zip((0, 1), (image_left, image_right)):
                 #self.images[idx].raw = _im_.copy()
                 (images[idx].keypoints, images[idx].descriptors) = (
                 self.get_features(_im_))
             """
-            (images[1].keypoints, images[1].descriptors) = (
-                self.get_features(image_right))
             if mask_margins:
                 this_img_keypoints = images[1].keypoints
                 this_img_descriptors = images[1].descriptors
@@ -966,22 +989,11 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 # Triangulate the points now that they are matched
                 # Normalise the points
                 points3d = self.triangulate(pts_l, pts_r)
-            else:
-                points3d = np.empty(0)
-                kp_l = np.empty(0)
-                kp_r = np.empty(0)
-                desc_l = np.empty(0)
-                desc_r = np.empty(0)
         except:
             exc_info = sys.exc_info()
             print "STEREOCAMERAFEATUREDETECTOR: POINTS3D_FROM_IMG():"
             print traceback.print_tb(exc_info[2])
-            
-        finally:
-            try:
-                self.set_detector_num_features(num_features)
-            except UnboundLocalError:
-                pass
+        
         #print "Found (%s, %s) keypoints" % (len(images[0].keypoints), len(images[1].keypoints))
         return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
     

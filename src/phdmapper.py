@@ -243,6 +243,8 @@ class PHDMAPPER(object):
         pcl_msg.header.frame_id = "world"
         self.publisher.publish(pcl_msg)
     
+    def get_phdmap(self):
+        return self.phd_map.get_phd()
 
 
 if __name__ == '__main__':
@@ -259,7 +261,16 @@ if __name__ == '__main__':
             set_default_parameters()
         
         rospy.init_node('visual_detector')
-        pdhmapper_node = PHDMAPPER(rospy.get_name())
+        phdmapper_node = PHDMAPPER(rospy.get_name())
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
+    finally:
+        try:
+            weights, states, covs = phdmapper_node.get_phdmap()
+            from scipy.io import savemat
+            savemat("phdmap.mat",
+                    {"weights":weights, "states":states, "covs":covs})
+            print "Saved PHD map to 'phdmap.mat'."
+        except:
+            print "Failed to save result!"
