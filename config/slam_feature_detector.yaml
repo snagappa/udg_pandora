@@ -1,7 +1,7 @@
 slam_feature_detector/fov/near: 0.15
 slam_feature_detector/fov/far: 4.0
 slam_feature_detector/extractor_name: "Surf"
-slam_feature_detector/num_features: 50
+slam_feature_detector/num_features: 150
 slam_feature_detector/flann_ratio: 0.6
 #
 # Options for the surf extractor
@@ -33,4 +33,4 @@ slam_feature_detector/sigma_scale_factor/x: 0.08
 slam_feature_detector/sigma_scale_factor/y: 0.08
 slam_feature_detector/sigma_scale_factor/z: 0.08
 
-slam_feature_detector/pixel_std: 2
+slam_feature_detector/pixel_std: 3.
