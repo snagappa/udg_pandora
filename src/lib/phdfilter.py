@@ -529,3 +529,9 @@ class GMPHD(object):
                 self.map.states, self.map.covs)
         return self.map_estimate
     
+    def get_phd(self):
+        """get_map(self) -> (weights, states, covs)
+        Returns the Gaussian mixture approximation of the PHD.
+        """
+        return self.map.weights, self.map.states, self.map.covs
+    
