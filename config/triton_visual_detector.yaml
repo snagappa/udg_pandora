@@ -18,22 +18,21 @@ visual_detector/chain_position: [3.1, 1.0, 5.0]
 # stereo_front orientation: [1.57, 0.0, 1.57]
 # stereo_baseline: [0.12, 0.0, 0.0]
 visual_detector/camera_position: [0.45, -0.06, -0.12]
-visual_detector/camera_orientation: [1.4, 0.0, 1.57] #1.309
+visual_detector/camera_orientation: [1.309, 0.0, 1.57]
 visual_detector/camera_baseline: [0.12, 0.0, 0.0]
 visual_detector/camera_baseline_orientation: [0., 0., 0.]
 
 # Specify whether to use the end effector camera or not
 visual_detector/use_endeffector: false
-visual_detector/detect_valves: false
 
 # Panel detection
 # To select between the simulated and real templates
-visual_detector/panel/simulator: false
+visual_detector/panel/simulator: true
 #visual_detector/panel/simulator_template: ["simulator_panel2.png"]
 visual_detector/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
 visual_detector/panel/simulator_template_mask: []
-visual_detector/panel/real_template: ["docking_template1a.png", "docking_template1b.png", "docking_template1c.png"]
-visual_detector/panel/real_template_mask: ["docking_mask1a.png", "docking_mask1b.png", "docking_mask1c.png"]
+visual_detector/panel/real_template: ["new_panel_template2.png"]
+visual_detector/panel/real_template_mask: []
 
 # Detection parameters
 visual_detector/panel/num_features: 4000
@@ -72,7 +71,7 @@ visual_detector/panel/real_image_topic: "image_rect_color"
 # Detection rate
 visual_detector/panel/rate: -1
 # Geometry
-visual_detector/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
+visual_detector/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
 visual_detector/valves/radius: 0.05
 visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
 

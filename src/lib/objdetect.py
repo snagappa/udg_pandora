@@ -236,6 +236,13 @@ class Detector(object):
         proc_im_scene = self.process_images((im_scene,))[0]
         (keypoints_scene, descriptors_scene) = (
             self.camera.get_features(proc_im_scene))
+        if descriptors_scene is None or descriptors_scene.shape[0] < self._object_.min_correspondences:
+            status = False
+            h_mat = None
+            num_inliers = 0
+            inliers_status = np.empty(0, dtype=np.uint8)
+            return status, h_mat, num_inliers, inliers_status
+        
         #for _kp_ in keypoints_scene:
         #    self._scene_[_kp_.pt[1], _kp_.pt[0]] = 255
         dam_result = self.camera.detect_and_match(self._object_.keypoints,
@@ -288,6 +295,16 @@ class Detector(object):
         Return the estimated homography matrix
         """
         return self._object_.h_mat
+    
+    def get_pixel_matches(self):
+        """
+        get_pixel_matches() -> (template_px, scene_px)
+        Returns the matched pixels in the template and the scene.
+        """
+        if self._object_.status:
+            return (self._object_.pts_obj, self._object_.pts_scn)
+        else:
+            return (None, None)
     
     def location(self, USE_STURM=False, CROSS_VERIFY=False,
                  COMPUTE_FAKE_COV=False,
