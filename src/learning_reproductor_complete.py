@@ -210,7 +210,9 @@ class learningReproductor:
                             self.tflistener.getLatestCommonTime(
                                 "world", "valve2"))
                         self.valveOri = tf.transformations.euler_from_quaternion(rot)[2]
-                        self.valveOriInit = True
+                        #The Orientation of the valve is jumping
+                        #rospy.loginfo('valve2 Orientation ' + str(self.valveOri))
+                        #self.valveOriInit = True
                     except tf.Exception:
                         pass
         finally:
@@ -324,9 +326,10 @@ class learningReproductor:
             self.prevPos[4:10] = self.currPos[4:10]
             self.currPos[4:7] = self.armPose
             if self.valveOriInit:
-                self.currPos[7] = self.armOrientation[2] - self.valveOri
+                self.currPos[7] =  cola2_lib.normalizeAngle(self.valveOri - self.armOrientation[2])
             else:
                 self.currPos[7] = self.armOrientation[2]
+                #rospy.loginfo('Roll ' + str(self.armOrientation[2]))
             self.currPos[8:10] = self.armOrientation[1:3]
 
             if self.dataReceived == 0:
@@ -543,13 +546,18 @@ class learningReproductor:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append(self.desVel[4] * 6.)
-        joyCommand.axes.append(self.desVel[5] * 6.)
-        joyCommand.axes.append(self.desVel[6] * 6.)
-        joyCommand.axes.append(self.desVel[7] * 0.0)
+        joyCommand.axes.append(self.desVel[4]* 6.)
+        joyCommand.axes.append(self.desVel[5]* 6.)
+        joyCommand.axes.append(self.desVel[6]* 6.)
+        joyCommand.axes.append(-self.desVel[7]*0.0)#/20.)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
         self.pub_arm_command.publish(joyCommand)
+
+        # rospy.loginfo('Desired Roll ' + str(self.desPos[7]))
+        # rospy.loginfo('Current Roll ' + str(self.currPos[7]))
+        # rospy.loginfo('Vel Roll ' + str(-self.desVel[7]/10.0))
+        # rospy.loginfo('**************************************')
 
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +

@@ -123,7 +123,9 @@ class LearningRecord:
                             self.tflistener.getLatestCommonTime(
                                 "world", "valve2"))
                         self.valveOri = tf.transformations.euler_from_quaternion(rot)[2]
-                        self.valveOriInit = True
+                        #IT DOESN'T WORK CORRECTLY
+                        #rospy.loginfo('valve2 Orientation ' + str(self.valveOri))
+                        #self.valveOriInit = True
                     except tf.Exception:
                         pass
         finally:
@@ -203,6 +205,7 @@ class LearningRecord:
                     #WORK ARROUND
                     if self.valveOriInit:
                         roll = self.valveOri - armOri[2]
+                        rospy.loginfo('Computing diference in Roll')
                     else:
                         roll = armOri[2]
 
