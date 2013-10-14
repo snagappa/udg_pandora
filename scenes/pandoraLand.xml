@@ -189,13 +189,17 @@
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.6</x>
+        <x>0.45</x>
         <y>-0.06</y> <!-- -0.06 -->
-        <z>0.0</z> <!-- -0.7-->
+        <z>-0.12</z> <!-- -0.7-->
       </position>
       <orientation>
+        <!--
         <r>-1.831</r>
         <p>0</p>
+        <y>1.57</y> -->
+        <r>-1.74</r>
+        <p>0.0</p>
         <y>1.57</y>
       </orientation>
       <baseline> 0.0 </baseline>
@@ -208,12 +212,12 @@
       <resw> 640 </resw>
       <resh> 480 </resh>
       <position>
-        <x>0.6</x>
+        <x>0.45</x>
         <y>0.06</y>
-        <z>0.0</z> <!-- -0.7 -->
+        <z>-0.12</z> <!-- -0.7 -->
       </position>
       <orientation>
-        <r>-1.831</r>
+        <r>-1.74</r>
         <p>0</p>
         <y>1.57</y>
       </orientation>
@@ -327,11 +331,15 @@
       <x> -1.9 </x>
       <y> -0.35 </y>
       <z> 2.8 </z>
+<!--      <x> 1.5 </x>
+      <y> 0.0 </y>
+      <z> 0.5 </z> -->
     </position>
     <orientation>
       <r>1.57</r>
       <p>0</p>
       <y>0.0</y>
+      <!-- <y>3.14</y> -->
     </orientation>
   </object>
 
