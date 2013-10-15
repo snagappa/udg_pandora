@@ -24,13 +24,13 @@ visual_detector/camera_baseline_orientation: [0., 0., 0.]
 
 # Specify whether to use the end effector camera or not
 visual_detector/use_endeffector: false
-visual_detector/detect_valves: false
+visual_detector/detect_valves: true
 
 # Panel detection
 # To select between the simulated and real templates
-visual_detector/panel/simulator: false
-#visual_detector/panel/simulator_template: ["simulator_panel2.png"]
-visual_detector/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
+visual_detector/panel/simulator: true
+visual_detector/panel/simulator_template: ["simulator_panel2.png"]
+#visual_detector/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
 visual_detector/panel/simulator_template_mask: []
 visual_detector/panel/real_template: ["docking_template1a.png", "docking_template1b.png", "docking_template1c.png"]
 visual_detector/panel/real_template_mask: ["docking_mask1a.png", "docking_mask1b.png", "docking_mask1c.png"]
