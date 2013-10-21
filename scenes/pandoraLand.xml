@@ -263,6 +263,25 @@
     <frameId> /g500/stereo_down </frameId>
     </virtualCamera>
 
+    <virtualCamera>
+      <name>check_tf</name>
+      <relativeTo>base_link</relativeTo>
+      <resw> 640 </resw>
+      <resh> 480 </resh>
+      <position>
+        <x>0.5</x>
+        <y>2.0</y> <!-- -0.06 -->
+        <z>0.0</z> <!-- -0.7-->
+      </position>
+      <orientation>
+        <r>-1.57</r>
+        <p>0</p>
+        <y>0</y>
+      </orientation>
+      <baseline> 0.0 </baseline>
+      <frameId>/g500/check_tf</frameId>
+    </virtualCamera>
+
 
 <rangeSensor>
       <name>sonar</name>
@@ -480,6 +499,12 @@
       <cameraName>left_down</cameraName>
       <imageTopic>/g500/stereo_down/left/image_raw  </imageTopic>
       <infoTopic>/g500/stereo_down/left/camera_info </infoTopic>
+    </VirtualCameraToROSImage>
+
+    <VirtualCameraToROSImage>
+      <cameraName>check_tf</cameraName>
+      <imageTopic>/g500/check_tf/image_raw  </imageTopic>
+      <infoTopic>/g500/check_tf/camera_info </infoTopic>
     </VirtualCameraToROSImage>
 
     <RangeSensorToROSRange>
