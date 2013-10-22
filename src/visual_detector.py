@@ -780,12 +780,26 @@ class VisualDetector(object):
         print "Orientation = ", this_valve_orientation
 
         # Add offsets to get pose of the valve wrt camera
+        # Arnau Beginning
         if valve_detected:
-            valve_centre = panel_centre + valves.centre[0, :3]
+            # ULL D'on ve aquestes mesures
+            valve_centre = panel_centre + (valves.centre[0, :3]*[1., 1., -1.])
             valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
+        elif panel_detected:
+            # ULL D'on ve aquestes mesures
+            valve_centre = panel_centre + [0.0, 0.0, -0.11]
+            valve_rpy = panel_orientation
         else:
             valve_centre = np.zeros(3)
             valve_rpy = np.zeros(3)
+
+        # if valve_detected:
+        #     valve_centre = panel_centre + valves.centre[0, :3]
+        #     valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
+        # else:
+        #     valve_centre = np.zeros(3)
+        #     valve_rpy = np.zeros(3)
+
         # Publish end-effector detection message
 
         detection_msg = self.endeffector.detection_msg
