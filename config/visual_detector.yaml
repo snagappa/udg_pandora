@@ -72,7 +72,9 @@ visual_detector/panel/real_image_topic: "image_rect_color"
 # Detection rate
 visual_detector/panel/rate: -1
 # Geometry
-visual_detector/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
+# Geometry of the Triton panel
+#visual_detector/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
+visual_detector/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
 visual_detector/valves/radius: 0.05
 visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
 
