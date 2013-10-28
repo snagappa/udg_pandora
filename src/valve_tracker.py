@@ -13,6 +13,7 @@ from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
 from std_msgs.msg import Float64
 
@@ -45,6 +46,8 @@ class valveTracker():
         self.valve_publishers = []
         self.valve_poses = []
         self.valve_ori_pub = []
+        self.last_update_tf = []
+        time = rospy.Time.now()
         for i in xrange(self.num_valves):
             pub_name = '/valve_tracker/valve'+str(i)
             self.valve_publishers.append(rospy.Publisher(
@@ -53,7 +56,11 @@ class valveTracker():
             pub_name_ori = '/valve_tracker/valve_ori'+str(i)
             self.valve_ori_pub.append(rospy.Publisher(
                 pub_name_ori, Float64))
+            self.last_update_tf.append(time)
+        #subscrive to the Map where is the position of the center
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updatepanelpose)
+        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
+                         PoseWithCovarianceStamped, self.updatecovariance)
 
         self.lock = threading.Lock()
         self.panel_centre = Pose()
@@ -103,31 +110,53 @@ class valveTracker():
         """
         for i in xrange(self.num_valves):
             try:
+                # trans, rot = self.tflistener.lookupTransform(
+                #     'world', ('valve'+str(i)),
+                #     self.tflistener.getLatestCommonTime(
+                #         'world', 'valve'+str(i)))
                 trans, rot = self.tflistener.lookupTransform(
-                    'world', ('valve'+str(i)),
+                    '/panel_centre', ('valve'+str(i)),
                     self.tflistener.getLatestCommonTime(
-                        'world', 'valve'+str(i)))
+                        '/panel_centre', 'valve'+str(i)))
                 #yaw
                 #reading measurement
-                measurement = tf.transformations.euler_from_quaternion(
-                    rot)[2]
-                # if i == 2 :
-                #     rospy.loginfo('Measurement valve ' + str(i) + ' : ' + str(measurement))
-                #--------------Observation step----------------
-                #innovation = measurement_vector -
-                #             self.H*predicted_state_estimate
-                self.kf_innov[i] = (measurement -
-                                    self.kf_h[i] * self.kf_valves_ori_hat[i])
-                #innovation_covariance = self.H*predicted_prob_estimate*
-                #                        numpy.transpose(self.H) + self.R
-                self.kf_innov_cov[i] = (self.kf_h[i] * self.kf_p_hat[i] *
-                                        self.kf_h[i] + self.kf_r_error[i])
-
+                time = self.tflistener.getLatestCommonTime(
+                    '/panel_centre', 'valve'+str(i))
+                if self.last_update_tf[i] < time:
+                    self.last_update_tf[i] = time
+                    euler = tf.transformations.euler_from_quaternion(
+                        rot)
+                    measurement = tf.transformations.euler_from_quaternion(
+                        rot)[2]
+                    #rospy.loginfo('Measurement valve ' + str(i) + ' : ' + str(measurement))
+                    #rospy.loginfo('Euler valve ' + str(i) + ' : ' + str(euler))
+                    #rospy.loginfo('Time ' + str(i) +
+                    #              str(self.tflistener.getLatestCommonTime(
+                    #                  'world', 'valve'+str(i))))
+                    #--------------Observation step----------------
+                    #innovation = measurement_vector -
+                    #             self.H*predicted_state_estimate
+                    self.kf_innov[i] = (measurement -
+                                        self.kf_h[i] * self.kf_valves_ori_hat[i])
+                    #innovation_covariance = self.H*predicted_prob_estimate*
+                    #                        numpy.transpose(self.H) + self.R
+                    # if i == 2 :
+                    #     rospy.loginfo('***********************************************')
+                    #     rospy.loginfo('Innovation 2        = ' + str(self.kf_innov[i]) )
+                    #     rospy.loginfo('Predicted value 2   = ' + str(self.kf_valves_ori_hat[i]))
+                    #     rospy.loginfo('Measurement valve 2 = ' + str(measurement))
+                    #     rospy.loginfo('***********************************************')
+                    self.kf_innov_cov[i] = (self.kf_h[i] * self.kf_p_hat[i] *
+                                            self.kf_h[i] + self.kf_r_error[i])
+                else:
+                    self.kf_innov[i] = 0.0
+                    self.kf_innov_cov[i] = 0.0
             except tf.Exception:
                 self.kf_innov[i] = 0.0
                 self.kf_innov_cov[i] = 0.0
                 # rospy.logerr(
                 #     'Error reading the Transformation from world to EE')
+        #rospy.loginfo('***********************************************')
 
     def updatehandcameratf(self):
         """
@@ -192,6 +221,14 @@ class valveTracker():
         finally:
             self.lock.release()
 
+
+    def updatecovariance(self, msg):
+        """
+        This method recive the data published by the visual detector and obtain
+        the covariance of the position to use in the KF
+        """
+        self.kf_r_error = np.ones(self.num_valves) * msg.pose.covariance[0]
+
     def predictpose(self):
         """
         This method recive the data filtered from the ekf_map and publish the
@@ -228,6 +265,9 @@ class valveTracker():
                                          kalman_gain[i] * self.kf_innov[i])
                 self.kf_p[i] = (1-kalman_gain[i]*self.kf_h[i])*self.kf_p_hat[i]
             self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+            #rospy.loginfo('Valve Covariance ' + str(i) + ' : ' + str(self.kf_p[i]))
+            #rospy.loginfo('Valve Ori ' + str(i) + ' : ' + str(self.kf_valves_ori[i]))
+        #rospy.loginfo('********************************************')
 
     def run(self):
         """
