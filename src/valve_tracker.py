@@ -46,16 +46,20 @@ class valveTracker():
         self.valve_publishers = []
         self.valve_poses = []
         self.valve_ori_pub = []
+        self.valve_ori_cov = []
         self.last_update_tf = []
         time = rospy.Time.now()
         for i in xrange(self.num_valves):
             pub_name = '/valve_tracker/valve'+str(i)
             self.valve_publishers.append(rospy.Publisher(
-                pub_name, PoseStamped))
+                pub_name, PoseWithCovarianceStamped))
             self.valve_poses.append([0, 0, 0])
             pub_name_ori = '/valve_tracker/valve_ori'+str(i)
             self.valve_ori_pub.append(rospy.Publisher(
                 pub_name_ori, Float64))
+            pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
+            self.valve_ori_cov.append(rospy.Publisher(
+                pub_name_cov, Float64))
             self.last_update_tf.append(time)
         #subscrive to the Map where is the position of the center
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updatepanelpose)
@@ -63,6 +67,7 @@ class valveTracker():
                          PoseWithCovarianceStamped, self.updatecovariance)
 
         self.lock = threading.Lock()
+        self.lock_error = threading.Lock()
         self.panel_centre = Pose()
 
         #Linear Kalman Filter
@@ -146,8 +151,12 @@ class valveTracker():
                     #     rospy.loginfo('Predicted value 2   = ' + str(self.kf_valves_ori_hat[i]))
                     #     rospy.loginfo('Measurement valve 2 = ' + str(measurement))
                     #     rospy.loginfo('***********************************************')
-                    self.kf_innov_cov[i] = (self.kf_h[i] * self.kf_p_hat[i] *
-                                            self.kf_h[i] + self.kf_r_error[i])
+                    self.lock_error.acquire()
+                    try:
+                        self.kf_innov_cov[i] = (self.kf_h[i] * self.kf_p_hat[i] *
+                                                self.kf_h[i] + self.kf_r_error[i])
+                    finally:
+                        self.lock_error.release()
                 else:
                     self.kf_innov[i] = 0.0
                     self.kf_innov_cov[i] = 0.0
@@ -209,11 +218,12 @@ class valveTracker():
                         valve_pose = np.ones(4)
                         valve_pose[0:3] = self.valve_dist_centre[i]
                         self.valve_poses[i] = np.dot(trans_mat, valve_pose)
-                        v_pose = PoseStamped()
-                        v_pose.pose.position.x = self.valve_poses[i][0]
-                        v_pose.pose.position.y = self.valve_poses[i][1]
-                        v_pose.pose.position.z = self.valve_poses[i][2]
-                        v_pose.pose.orientation = self.panel_centre.orientation
+                        v_pose = PoseWithCovarianceStamped()
+                        v_pose.pose.pose.position.x = self.valve_poses[i][0]
+                        v_pose.pose.pose.position.y = self.valve_poses[i][1]
+                        v_pose.pose.pose.position.z = self.valve_poses[i][2]
+                        v_pose.pose.pose.orientation = self.panel_centre.orientation
+                        v_pose.pose.covariance = mark.pose.covariance
                         v_pose.header.stamp = rospy.Time.now()
                         self.valve_publishers[i].publish(v_pose)
                         # rospy.loginfo('Valve ' + str(i) + ' : '
@@ -221,13 +231,16 @@ class valveTracker():
         finally:
             self.lock.release()
 
-
     def updatecovariance(self, msg):
         """
         This method recive the data published by the visual detector and obtain
         the covariance of the position to use in the KF
         """
-        self.kf_r_error = np.ones(self.num_valves) * msg.pose.covariance[0]
+        self.lock_error.acquire()
+        try:
+            self.kf_r_error = np.ones(self.num_valves) * msg.pose.covariance[0]
+        finally:
+            self.lock_error.release()
 
     def predictpose(self):
         """
@@ -265,6 +278,7 @@ class valveTracker():
                                          kalman_gain[i] * self.kf_innov[i])
                 self.kf_p[i] = (1-kalman_gain[i]*self.kf_h[i])*self.kf_p_hat[i]
             self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+            self.valve_ori_cov[i].publish(self.kf_p[i])
             #rospy.loginfo('Valve Covariance ' + str(i) + ' : ' + str(self.kf_p[i]))
             #rospy.loginfo('Valve Ori ' + str(i) + ' : ' + str(self.kf_valves_ori[i]))
         #rospy.loginfo('********************************************')
@@ -277,7 +291,7 @@ class valveTracker():
         while not rospy.is_shutdown():
             self.predictpose()
             self.updatebumbleebetf()
-            self.updatehandcameratf()
+            #self.updatehandcameratf()
             self.updatekfandpublish()
             #Publish the Pose
             rospy.sleep(self.period)
