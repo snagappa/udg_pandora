@@ -298,6 +298,16 @@ class valveTracker():
 
 if __name__ == '__main__':
     try:
+        import subprocess
+        # Load ROS parameters
+        config_file_list = roslib.packages.find_resource("udg_pandora",
+            "valve_tracker.yaml")
+        if len(config_file_list):
+            config_file = config_file_list[0]
+            subprocess.call(["rosparam", "load", config_file])
+        else:
+            print "Could not locate visual_detector.yaml, using defaults"
+            set_default_parameters()
         rospy.init_node('valve_tracker')
         VALVETRACKER = valveTracker(rospy.get_name())
         VALVETRACKER.run()
