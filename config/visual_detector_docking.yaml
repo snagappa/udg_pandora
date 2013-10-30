@@ -1,0 +1,90 @@
+# f in mm and pixels/mm 
+visual_detector/f: 80
+visual_detector/pixels_mm_x: 6.96
+visual_detector/pixels_mm_y: 8.9
+# pixels
+visual_detector/image_x_size: 640
+visual_detector/image_y_size: 480
+# meters and radians
+visual_detector/visibility: 4.0
+visual_detector/panel_position: [-1.05, 1.0, 2.5]
+visual_detector/valve_position: [-1.05, 1.0, 2.5]
+visual_detector/chain_position: [3.1, 1.0, 5.0]
+
+# CAMERA POSE
+# stereo_down position    : [0.6, 0.0, 0.4]
+# stereo_down orientation : [0.0, 0.0, 1.57]
+# stereo_front position   : [0.6, 0.0, 0.2]
+# stereo_front orientation: [1.57, 0.0, 1.57]
+# stereo_baseline: [0.12, 0.0, 0.0]
+visual_detector/camera_position: [0.45, -0.06, -0.12]
+visual_detector/camera_orientation: [1.4, 0.0, 1.57] #1.309
+visual_detector/camera_baseline: [0.12, 0.0, 0.0]
+visual_detector/camera_baseline_orientation: [0., 0., 0.]
+
+# Specify whether to use the end effector camera or not
+visual_detector/use_endeffector: false
+visual_detector/detect_valves: false
+
+# Panel detection
+# To select between the simulated and real templates
+visual_detector/panel/simulator: false
+#visual_detector/panel/simulator_template: ["simulator_panel2.png"]
+visual_detector/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
+visual_detector/panel/simulator_template_mask: []
+visual_detector/panel/real_template: ["docking_template1a.png", "docking_template1b.png", "docking_template1c.png"]
+visual_detector/panel/real_template_mask: ["docking_mask1a.png", "docking_mask1b.png", "docking_mask1c.png"]
+
+# Detection parameters
+visual_detector/panel/num_features: 4000
+visual_detector/panel/flann_ratio: 0.6
+visual_detector/valves/filter_length: 5
+
+# Stereo or monocular detection
+visual_detector/panel/is_stereo: false
+
+# Use Sturm method for pose estimation (experimental)
+visual_detector/panel/use_sturm: false
+# Verify Sturm pose with result from OpenCV solve PnP
+visual_detector/panel/cross_verify: true
+# Specify whether to use a faked covariance or estimate from the data
+visual_detector/panel/compute_fake_cov: true
+# Maximum allowed variation in metres
+visual_detector/panel/verify_limit_m: 0.05
+# Maximum allowed variation in radians
+visual_detector/panel/verify_limit_rad: 0.035
+
+# if is_stereo == true,
+#   use camera_root/{left,right}/image_topic
+# otherwise,
+#   use camera_root/image_topic
+
+visual_detector/panel/camera_root: "/stereo_camera/left"
+visual_detector/panel/image_topic: "image_rect_color"
+
+# Simulator camera topics
+visual_detector/panel/sim_camera_root: "g500/stereo_front/left"
+visual_detector/panel/sim_image_topic: "image_raw"
+# Real camera topics
+visual_detector/panel/real_camera_root: "/stereo_camera/left"
+visual_detector/panel/real_image_topic: "image_rect_color"
+
+# Detection rate
+visual_detector/panel/rate: -1
+# Geometry
+visual_detector/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
+visual_detector/valves/radius: 0.05
+visual_detector/valves/centre: [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
+
+# Parameters for end effector camera
+visual_detector/end_effector/camera_root: "/camera"
+visual_detector/end_effector/camera_image_topic: "image_rect_color"
+visual_detector/end_effector/num_features: 1000
+visual_detector/end_effector/flann_ratio: 0.75
+visual_detector/end_effector/sub_templates: ["valve_template_scaled_far.png", "valve_template_scaled_close.png"]
+visual_detector/end_effector/sub_masks: ["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]
+#visual_detector/end_effector/sub_corners: [[[-0.105, 0.0754, 0], [0.105, 0.0754, 0], [0.105, -0.0754, 0], [-0.105, -0.0754, 0]]]
+visual_detector/end_effector/sub_corners: [[[-0.221, 0.165, 0], [0.221, 0.165, 0], [0.221, -0.165, 0], [-0.221, -0.165, 0]]]
+#visual_detector/end_effector/sub_corners: [[[-0.166, 0.104, 0], [0.166, 0.104, 0], [0.166, -0.104, 0], [-0.166, -0.104, 0]]]
+visual_detector/end_effector/sub_valve_centre: [[0.0, 0.052, 0.11]]
+
