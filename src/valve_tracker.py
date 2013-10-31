@@ -49,6 +49,7 @@ class valveTracker():
         self.valve_ori_cov = []
         self.last_update_tf = []
         time = rospy.Time.now()
+        self.last_update_ee_tf = time
         for i in xrange(self.num_valves):
             pub_name = '/valve_tracker/valve'+str(i)
             self.valve_publishers.append(rospy.Publisher(
@@ -102,9 +103,12 @@ class valveTracker():
         """
         param_dict = {'period': '/valve_tracker/period',
                       'num_valves': '/valve_tracker/number_of_valves',
-                      'name_valve_ee': '/valve_tracker/name_valve_ee',
+                      'name_valve_pose_ee': '/valve_tracker/name_valve_pose_ee',
+                      'name_valve_ori_ee': '/valve_tracker/name_valve_ori_ee',
                       'landmark_id': '/valve_tracker/landmark_id',
-                      'valve_dist_centre': '/valve_tracker/valve_dist_centre'
+                      'valve_dist_centre': '/valve_tracker/valve_dist_centre',
+                      'valve_dist_centre_ee': '/valve_tracker/valve_dist_centre_ee',
+                      'valve_id': '/valve_tracker/valve_id'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -167,16 +171,57 @@ class valveTracker():
                 #     'Error reading the Transformation from world to EE')
         #rospy.loginfo('***********************************************')
 
-    def updatehandcameratf(self):
+    def updatehandcameraposetf(self):
         """
         This method check if there is a tf with the position of the valve pose
-        provided using the bumblebee
+        provided using the camera in the end-effector
         """
         try:
             trans, rot = self.tflistener.lookupTransform(
-                'world', self.name_valve_ee,
+                'world', self.name_valve_pose_ee,
                 self.tflistener.getLatestCommonTime(
-                    'world', self.name_valve_ee))
+                    'world', self.name_valve_pose_ee))
+        except tf.Exception:
+            pass
+            # rospy.logerr(
+            #     'Error reading the Tranformation from world to EE')
+
+    def updatehandcameraoritf(self):
+        """
+        This method check if there is a tf with the position and orientation of
+        the valve pose provided using the bumblebee
+        """
+        try:
+            trans, rot = self.tflistener.lookupTransform(
+                'base_arm', self.name_valve_ori_ee,
+                self.tflistener.getLatestCommonTime(
+                    'base_arm', self.name_valve_ori_ee))
+            #yaw
+            #reading measurement
+            time = self.tflistener.getLatestCommonTime(
+                '/base_arm', self.name_valve_ori_ee)
+            if self.last_update_ee_tf < time:
+                i = self.valve_id
+                self.last_update_ee_tf = time
+                measurement = tf.transformations.euler_from_quaternion(
+                    rot)[2]
+                #--------------Observation step----------------
+                #innovation = measurement_vector -
+                #             self.H*predicted_state_estimate
+                self.kf_innov[i] = (measurement -
+                                    self.kf_h[i] * self.kf_valves_ori_hat[i])
+                #innovation_covariance = self.H*predicted_prob_estimate*
+                #                        numpy.transpose(self.H) + self.R
+                self.lock_error.acquire()
+                try:
+                    # TODO: Cacula la invertesa.
+                    self.kf_innov_cov[i] = (self.kf_h[i] * self.kf_p_hat[i] *
+                                            self.kf_h[i] + self.kf_r_error[i])
+                finally:
+                    self.lock_error.release()
+            else:
+                self.kf_innov[i] = 0.0
+                self.kf_innov_cov[i] = 0.0
         except tf.Exception:
             pass
             # rospy.logerr(
@@ -256,7 +301,7 @@ class valveTracker():
         #                            numpy.transpose(self.A) + self.Q
         self.kf_p_hat = (self.kf_a * self.kf_p)*self.kf_a + self.kf_q_error
 
-    def updatekfandpublish(self):
+    def updatekf(self):
         """
         update the value of the kalman filter value for each filter
         """
@@ -277,11 +322,36 @@ class valveTracker():
                 self.kf_valves_ori[i] = (self.kf_valves_ori_hat[i] +
                                          kalman_gain[i] * self.kf_innov[i])
                 self.kf_p[i] = (1-kalman_gain[i]*self.kf_h[i])*self.kf_p_hat[i]
+            # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+            # self.valve_ori_cov[i].publish(self.kf_p[i])
+        #rospy.loginfo('********************************************')
+
+    def updatekfhand(self):
+        """
+        update the value of the kalman filter value of the end_effector
+        """
+        #-----------------------------Update step-------------------------------
+        #kalman_gain = predicted_prob_estimate * numpy.transpose(self.H)
+        #              * numpy.linalg.inv(innovation_covariance)
+        kalman_gain = 0.0
+        i = self.valve_id
+        if self.kf_innov_cov[i] == 0.0:
+            self.kf_valves_ori[i] = self.kf_valves_ori_hat[i]
+            self.kf_p[i] = self.kf_p_hat[i]
+        else:
+            kalman_gain = (self.kf_p_hat[i] * self.kf_h[i] *
+                           (1/self.kf_innov_cov[i]))
+            self.kf_valves_ori[i] = (self.kf_valves_ori_hat[i] +
+                                     kalman_gain * self.kf_innov[i])
+            self.kf_p[i] = (1-kalman_gain*self.kf_h[i])*self.kf_p_hat[i]
+
+    def publish(self):
+        """
+        Publish the data updated in the kalman filter
+        """
+        for i in xrange(self.num_valves):
             self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
             self.valve_ori_cov[i].publish(self.kf_p[i])
-            #rospy.loginfo('Valve Covariance ' + str(i) + ' : ' + str(self.kf_p[i]))
-            #rospy.loginfo('Valve Ori ' + str(i) + ' : ' + str(self.kf_valves_ori[i]))
-        #rospy.loginfo('********************************************')
 
     def run(self):
         """
@@ -291,8 +361,10 @@ class valveTracker():
         while not rospy.is_shutdown():
             self.predictpose()
             self.updatebumbleebetf()
-            #self.updatehandcameratf()
-            self.updatekfandpublish()
+            self.updatekf()
+            self.updatehandcameraoritf()
+            self.updatekfhand()
+            self.publish()
             #Publish the Pose
             rospy.sleep(self.period)
 
