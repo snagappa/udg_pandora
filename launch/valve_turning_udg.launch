@@ -4,17 +4,17 @@
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
         <arg name="enableValveNtua" value="false" />
-	
+
 	<!-- Launch file for UDG - Valve Turning Scenario -->
-	
+
 	<!-- Load G500 components -->
  	<include file="$(find cola2_launch)/launch/g500-sim.launch">
         	<arg name="enableTeleopArm" value="true" />
         	<arg name="enableJoystick" value="true" />
-                <!-- <arg name="enableNtuaControl" value="true" /> -->
-        	<arg name="joystickDevice" value="/dev/input/js0"/>        
+                <arg name="enableNtuaControl" value="false" />
+        	<arg name="joystickDevice" value="/dev/input/js0"/>
         </include>
-	
+
 
 	<!-- Run UWSim -->
 	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find
@@ -30,7 +30,7 @@
 	<!-- Load meta-data -->
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/visual_detector_meta_data.yaml" />
 	<rosparam command="load" file="$(find udg_pandora)/meta_data/acoustic_detector_meta_data.yaml" />
-	
+
 	<!-- Load config files -->
 	<rosparam command="load" file="$(find udg_pandora)/config/visual_detector.yaml" />
 
@@ -42,7 +42,7 @@
         <!-- Load control position -->
 <!--        <node if="$(arg enableValveNtua)" name="valveTrackingControllerUpdate" pkg="ntua_pandora" type="valveTrackingControllerUpdate.py" /> -->
 
-	<!-- stereo image proc down & front-->	
+	<!-- stereo image proc down & front-->
         <node name="image_proc_down" pkg="stereo_image_proc" type="stereo_image_proc">
     		<env name="ROS_NAMESPACE" value="/g500/stereo_down"/>
   	</node>
@@ -52,9 +52,8 @@
 
 	<!-- Load G500 components -->
  	<include if="$(arg enableLandmarks)" file="$(find cola2_detection)/launch/ar_landmark_sim.launch"/>
-	
+
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
     '(/cola2_navigation/(.)*)|(/cola2_control/(.)*)|(/pose_ekf_slam/(.)*)|(/ar_pose_markers)|(/stereo_front/left/image_raw)|(/stereo_front/left/camera_info)|(/tf)' --split --size 2048 -o /home/$(env LOGNAME)/sim" />
 
 </launch>
-
