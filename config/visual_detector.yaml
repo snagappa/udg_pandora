@@ -23,7 +23,7 @@ visual_detector/camera_baseline: [0.12, 0.0, 0.0]
 visual_detector/camera_baseline_orientation: [0., 0., 0.]
 
 # Specify whether to use the end effector camera or not
-visual_detector/use_endeffector: true
+visual_detector/use_endeffector: false
 visual_detector/detect_valves: true
 
 # Panel detection
@@ -84,11 +84,16 @@ visual_detector/end_effector/camera_image_topic: "image_raw"
 visual_detector/end_effector/num_features: 1000
 visual_detector/end_effector/flann_ratio: 0.75
 #visual_detector/end_effector/sub_templates: ["valve_template_scaled_far.png", "valve_template_scaled_close.png"]
-visual_detector/end_effector/sub_templates: ["valve_template_close_sim.png", "valve_template_close_sim2.png", "valve_template_close_sim3.png"]
+#visual_detector/end_effector/sub_templates: ["valve_template_close_sim.png", "valve_template_close_sim2.png", "valve_template_close_sim3.png"]
 #visual_detector/end_effector/sub_masks: ["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]
-visual_detector/end_effector/sub_masks: ["valve_template_mask_close_sim.png", "valve_template_mask_close_sim2.png", "valve_template_mask_close_sim3.png"]
+#visual_detector/end_effector/sub_masks: ["valve_template_mask_close_sim.png", "valve_template_mask_close_sim2.png", "valve_template_mask_close_sim3.png"]
 #visual_detector/end_effector/sub_corners: [[[-0.105, 0.0754, 0], [0.105, 0.0754, 0], [0.105, -0.0754, 0], [-0.105, -0.0754, 0]]]
-visual_detector/end_effector/sub_corners: [[[-0.221, 0.165, 0], [0.221, 0.165, 0], [0.221, -0.165, 0], [-0.221, -0.165, 0]]]
-#visual_detector/end_effector/sub_corners: [[[-0.166, 0.104, 0], [0.166, 0.104, 0], [0.166, -0.104, 0], [-0.166, -0.104, 0]]]
-visual_detector/end_effector/sub_valve_centre: [[0.0, 0.052, 0.11]]
+#visual_detector/end_effector/sub_corners: [[[-0.221, 0.165, 0], [0.221, 0.165, 0], [0.221, -0.165, 0], [-0.221, -0.165, 0]]]
+#Visual_detector/end_effector/sub_corners: [[[-0.166, 0.104, 0], [0.166, 0.104, 0], [0.166, -0.104, 0], [-0.166, -0.104, 0]]]
+#visual_detector/end_effector/sub_valve_centre: [[0.0, 0.052, 0.11]]
 
+#Arnau
+visual_detector/end_effector/sub_templates: ["new_sub_template_sim.png"]
+visual_detector/end_effector/sub_masks: []
+visual_detector/end_effector/sub_corners: [[[-0.142, 0.125, 0], [0.142, 0.125, 0], [0.142, -0.125, 0], [-0.142, -0.125, 0]]]
+visual_detector/end_effector/sub_valve_centre: [[0.0, 0.0, 0.0]]
