@@ -1,0 +1,112 @@
+# f in mm and pixels/mm 
+visual_detector_ee/f: 80
+visual_detector_ee/pixels_mm_x: 6.96
+visual_detector_ee/pixels_mm_y: 8.9
+# pixels
+visual_detector_ee/image_x_size: 720
+visual_detector_ee/image_y_size: 540
+# meters and radians
+visual_detector_ee/visibility: 4.0
+visual_detector_ee/panel_position: [-1.05, 1.0, 2.5]
+visual_detector_ee/valve_position: [-1.05, 1.0, 2.5]
+visual_detector_ee/chain_position: [3.1, 1.0, 5.0]
+
+# CAMERA POSE
+# stereo_down position    : [0.6, 0.0, 0.4]
+# stereo_down orientation : [0.0, 0.0, 1.57]
+# stereo_front position   : [0.6, 0.0, 0.2]
+# stereo_front orientation: [1.57, 0.0, 1.57]
+# stereo_baseline: [0.12, 0.0, 0.0]
+visual_detector_ee/camera_position: [0.45, -0.06, -0.12]
+visual_detector_ee/camera_orientation: [1.4, 0.0, 1.57] #1.309
+visual_detector_ee/camera_baseline: [0.12, 0.0, 0.0]
+visual_detector_ee/camera_baseline_orientation: [0., 0., 0.]
+
+# Specify whether to use the end effector camera or not
+visual_detector_ee/use_endeffector: false
+visual_detector_ee/detect_valves: true
+
+# Panel detection
+# To select between the simulated and real templates
+visual_detector_ee/panel/simulator: true
+#visual_detector_ee/panel/simulator_template: ["subpanel_sim.png"]
+visual_detector_ee/panel/simulator_template: ["subpanel_sim_6.png"]
+#visual_detector_ee/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
+visual_detector_ee/panel/simulator_template_mask: []
+visual_detector_ee/panel/real_template: ["docking_template1a.png", "docking_template1b.png", "docking_template1c.png"]
+visual_detector_ee/panel/real_template_mask: ["docking_mask1a.png", "docking_mask1b.png", "docking_mask1c.png"]
+
+# Detection parameters
+visual_detector_ee/panel/num_features: 2000 #1000
+visual_detector_ee/panel/flann_ratio: 0.75
+visual_detector_ee/valves/filter_length: 5
+
+# Stereo or monocular detection
+visual_detector_ee/panel/is_stereo: false
+
+# Use Sturm method for pose estimation (experimental)
+visual_detector_ee/panel/use_sturm: false
+# Verify Sturm pose with result from OpenCV solve PnP
+visual_detector_ee/panel/cross_verify: true
+# Specify whether to use a faked covariance or estimate from the data
+visual_detector_ee/panel/compute_fake_cov: true
+# Maximum allowed variation in metres
+visual_detector_ee/panel/verify_limit_m: 0.05
+# Maximum allowed variation in radians
+visual_detector_ee/panel/verify_limit_rad: 0.035
+
+# if is_stereo == true,
+#   use camera_root/{left,right}/image_topic
+# otherwise,
+#   use camera_root/image_topic
+
+visual_detector_ee/panel/camera_root: "/stereo_camera/left"
+visual_detector_ee/panel/image_topic: "image_rect_color"
+
+# Simulator camera topics
+visual_detector_ee/panel/sim_camera_root: "g500/hand_camera"
+visual_detector_ee/panel/sim_image_topic: "image_raw"
+# Real camera topics
+visual_detector_ee/panel/real_camera_root: "/stereo_camera/left"
+visual_detector_ee/panel/real_image_topic: "image_rect_color"
+
+# Detection rate
+visual_detector_ee/panel/rate: -1
+# Geometry
+# Geometry of the Triton panel
+#visual_detector_ee/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
+#subpanel 1
+#visual_detector_ee/panel/corners: [[-0.130, 0.101, 0], [0.130, 0.101, 0], [0.130, -0.101, 0], [-0.130, -0.101, 0]]
+#subpanel 2
+# visual_detector_ee/panel/corners: [[-0.122, 0.093, 0], [0.122, 0.093, 0], [0.122, -0.093, 0], [-0.122, -0.093, 0]]
+#subpanel 3
+# visual_detector_ee/panel/corners: [[-0.131, 0.099, 0], [0.131, 0.099, 0], [0.131, -0.099, 0], [-0.131, -0.099, 0]]
+#subpanel 4
+#visual_detector_ee/panel/corners: [[-0.116, 0.094, 0], [0.116, 0.094, 0], [0.116, -0.094, 0], [-0.116, -0.094, 0]]
+#subpanel 5
+visual_detector_ee/panel/corners: [[-0.189, 0.141, 0], [0.189, 0.141, 0], [0.189, -0.141, 0], [-0.189, -0.141, 0]]
+#subpanel 5
+visual_detector_ee/panel/corners: [[-0.160, 0.127, 0], [0.160, 0.127, 0], [0.160, -0.127, 0], [-0.160, -0.127, 0]]
+
+visual_detector_ee/valves/radius: 0.04
+visual_detector_ee/valves/centre: [[-0.0, 0.0, 0.11]]
+
+# Parameters for end effector camera
+visual_detector_ee/end_effector/camera_root: "g500/hand_camera"
+visual_detector_ee/end_effector/camera_image_topic: "image_raw"
+visual_detector_ee/end_effector/num_features: 1000
+visual_detector_ee/end_effector/flann_ratio: 0.75
+#visual_detector_ee/end_effector/sub_templates: ["valve_template_scaled_far.png", "valve_template_scaled_close.png"]
+#visual_detector_ee/end_effector/sub_templates: ["valve_template_close_sim.png", "valve_template_close_sim2.png", "valve_template_close_sim3.png"]
+#visual_detector_ee/end_effector/sub_masks: ["valve_mask_scaled_far.png", "valve_mask_scaled_close.png"]
+#visual_detector_ee/end_effector/sub_masks: ["valve_template_mask_close_sim.png", "valve_template_mask_close_sim2.png", "valve_template_mask_close_sim3.png"]
+#visual_detector_ee/end_effector/sub_corners: [[[-0.105, 0.0754, 0], [0.105, 0.0754, 0], [0.105, -0.0754, 0], [-0.105, -0.0754, 0]]]
+#visual_detector_ee/end_effector/sub_corners: [[[-0.221, 0.165, 0], [0.221, 0.165, 0], [0.221, -0.165, 0], [-0.221, -0.165, 0]]]
+#visual_detector_ee/end_effector/sub_corners: [[[-0.166, 0.104, 0], [0.166, 0.104, 0], [0.166, -0.104, 0], [-0.166, -0.104, 0]]]
+#visual_detector_ee/end_effector/sub_valve_centre: [[0.0, 0.052, 0.11]]
+
+#Arnau
+visual_detector_ee/end_effector/sub_templates: ["new_sub_template_sim.png"]
+visual_detector_ee/end_effector/sub_masks: []
+visual_detector_ee/end_effector/sub_corners: [[[-0.142, 0.125, 0], [0.142, 0.125, 0], [0.142, -0.125, 0], [-0.142, -0.125, 0]]]
+visual_detector_ee/end_effector/sub_valve_centre: [[0.0, 0.0, 0.0]]

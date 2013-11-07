@@ -54,47 +54,47 @@ def get_default_parameters():
     # stereo_front position   : (0.6, 0.0, 0.2)
     # stereo_front orientation: (1.57, 0.0, 1.57)
     # stereo_baseline: (0.12, 0.0, 0.0)
-    parameters["visual_detector_test/camera_position"] = [0.6, 0.0, 0.2]
-    parameters["visual_detector_test/camera_orientation"] = [1.57, 0.0, 1.57]
-    parameters["visual_detector_test/camera_baseline"] = [0.12, 0.0, 0.0]
-    parameters["visual_detector_test/camera_baseline_orientation"] = [0., 0., 0.]
-    parameters["visual_detector_test/use_endeffector"] = False
-    parameters["visual_detector_test/detect_valves"] = False
+    parameters["visual_detector_ee/camera_position"] = [0.6, 0.0, 0.2]
+    parameters["visual_detector_ee/camera_orientation"] = [1.57, 0.0, 1.57]
+    parameters["visual_detector_ee/camera_baseline"] = [0.12, 0.0, 0.0]
+    parameters["visual_detector_ee/camera_baseline_orientation"] = [0., 0., 0.]
+    parameters["visual_detector_ee/use_endeffector"] = False
+    parameters["visual_detector_ee/detect_valves"] = False
 
     #
     # Simulator or real data
-    parameters["visual_detector_test/panel/simulator"] = False
+    parameters["visual_detector_ee/panel/simulator"] = False
     # Template for simulator
-    parameters["visual_detector_test/panel/simulator_template"] = (
+    parameters["visual_detector_ee/panel/simulator_template"] = (
         ["simulator_panel2.png"])
-    parameters["visual_detector_test/panel/simulator_template_mask"] = []
+    parameters["visual_detector_ee/panel/simulator_template_mask"] = []
     # Template for real data
-    parameters["visual_detector_test/panel/real_template"] = (
+    parameters["visual_detector_ee/panel/real_template"] = (
         ["new_panel_template.png"])
-    parameters["visual_detector_test/panel/real_template_mask"] = []
+    parameters["visual_detector_ee/panel/real_template_mask"] = []
     #
     # Detection options
-    parameters["visual_detector_test/panel/num_features"] = 4000
-    parameters["visual_detector_test/panel/flann_ratio"] = 0.6
-    parameters["visual_detector_test/valves/filter_length"] = 5
+    parameters["visual_detector_ee/panel/num_features"] = 4000
+    parameters["visual_detector_ee/panel/flann_ratio"] = 0.6
+    parameters["visual_detector_ee/valves/filter_length"] = 5
     #
     # Camera topics
     # Use monocular/stereo detection
-    parameters["visual_detector_test/panel/is_stereo"] = False
+    parameters["visual_detector_ee/panel/is_stereo"] = False
     # Camera topic
-    parameters["visual_detector_test/panel/camera_root"] = "stereo_camera/left"
+    parameters["visual_detector_ee/panel/camera_root"] = "stereo_camera/left"
     # Image topic
-    parameters["visual_detector_test/panel/image_topic"] = "image_rect_color"
+    parameters["visual_detector_ee/panel/image_topic"] = "image_rect_color"
     # Update rate
-    parameters["visual_detector_test/panel/rate"] = -1
+    parameters["visual_detector_ee/panel/rate"] = -1
     #
     # PANEL GEOMETRY
     # Panel corners
-    parameters["visual_detector_test/panel/corners"] = [
+    parameters["visual_detector_ee/panel/corners"] = [
         [-0.4, 0.25, 0], [ 0.4,  0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
     # Valve radius and centres
-    parameters["visual_detector_test/valves/radius"] = 0.05
-    parameters["visual_detector_test/valves/centres"] = [[-0.25, -0.125, 0.11],
+    parameters["visual_detector_ee/valves/radius"] = 0.05
+    parameters["visual_detector_ee/valves/centres"] = [[-0.25, -0.125, 0.11],
         [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
     return parameters
 
@@ -115,66 +115,66 @@ class VisualDetector(object):
 
         #Create services
         self.enable_panel_valve_detection = rospy.Service(
-            '/visual_detector_test/enable_panel_valve_detection',
+            '/visual_detector_ee/enable_panel_valve_detection',
             std_srvs.srv.Empty, self.enablePanelValveDetectionSrv)
         self.enable_valve_detection = rospy.Service(
-            '/visual_detector_test/enable_valve_detection',
+            '/visual_detector_ee/enable_valve_detection',
             std_srvs.srv.Empty, self.enableValveDetectionSrv)
         self.enable_chain_detection = rospy.Service(
-            '/visual_detector_test/enable_chain_detection',
+            '/visual_detector_ee/enable_chain_detection',
             std_srvs.srv.Empty, self.enableChainDetectionSrv)
         self.disable_panel_valve_detection = rospy.Service(
-            '/visual_detector_test/disable_panel_valve_detection',
+            '/visual_detector_ee/disable_panel_valve_detection',
             std_srvs.srv.Empty, self.disablePanelValveDetectionSrv)
         self.disable_valve_detection = rospy.Service(
-            '/visual_detector_test/disable_valve_detection',
+            '/visual_detector_ee/disable_valve_detection',
             std_srvs.srv.Empty, self.disableValveDetectionSrv)
         self.disable_chain_detection = rospy.Service(
-            '/visual_detector_test/disable_chain_detection',
+            '/visual_detector_ee/disable_chain_detection',
             std_srvs.srv.Empty, self.disableChainDetectionSrv)
 
-        SIMULATOR = rospy.get_param("visual_detector_test/panel/simulator")
+        SIMULATOR = rospy.get_param("visual_detector_ee/panel/simulator")
         if SIMULATOR:
             camera_root = rospy.get_param(
-                "visual_detector_test/panel/sim_camera_root")
+                "visual_detector_ee/panel/sim_camera_root")
             image_topic = rospy.get_param(
-                "visual_detector_test/panel/sim_image_topic")
+                "visual_detector_ee/panel/sim_image_topic")
         else:
             camera_root = rospy.get_param(
-                "visual_detector_test/panel/real_camera_root")
+                "visual_detector_ee/panel/real_camera_root")
             image_topic = rospy.get_param(
-                "visual_detector_test/panel/real_image_topic")
-        is_stereo = rospy.get_param("visual_detector_test/panel/is_stereo")
+                "visual_detector_ee/panel/real_image_topic")
+        is_stereo = rospy.get_param("visual_detector_ee/panel/is_stereo")
 
         # Initialise image buffer
         self.image_buffer = camera_buffer(camera_root, image_topic, is_stereo)
 
         # Specify whether to search for valves or not
         self.enable_detect_valves = rospy.get_param(
-            "visual_detector_test/detect_valves")
+            "visual_detector_ee/detect_valves")
 
         # Get camera details
         self._camera_ = STRUCT()
         cam_info_msg = self.image_buffer.get_camera_info(0)[0]
         self._camera_.frame_id = cam_info_msg.header.frame_id
         self._camera_.position = tuple(rospy.get_param(
-            "visual_detector_test/camera_position"))
+            "visual_detector_ee/camera_position"))
         self._camera_.orientation = quaternion_from_euler(
-            *rospy.get_param("visual_detector_test/camera_orientation"))
+            *rospy.get_param("visual_detector_ee/camera_orientation"))
         self._camera_.baseline = tuple(rospy.get_param(
-            "visual_detector_test/camera_baseline"))
+            "visual_detector_ee/camera_baseline"))
         self._camera_.baseline_orientation = quaternion_from_euler(
-            *rospy.get_param("visual_detector_test/camera_baseline_orientation"))
+            *rospy.get_param("visual_detector_ee/camera_baseline_orientation"))
 
         # End effector camera
         self.use_endeffector = rospy.get_param(
-            "visual_detector_test/use_endeffector", False)
+            "visual_detector_ee/use_endeffector", False)
         if self.use_endeffector:
             print "Initialising end effector camera"
             endeffector_camera_root = rospy.get_param(
-                "visual_detector_test/end_effector/camera_root")
+                "visual_detector_ee/end_effector/camera_root")
             endeffector_image_topic = rospy.get_param(
-                "visual_detector_test/end_effector/camera_image_topic")
+                "visual_detector_ee/end_effector/camera_image_topic")
             endeffector_is_stereo = False
 
             self.end_effector_image_buffer = camera_buffer(
@@ -197,48 +197,48 @@ class VisualDetector(object):
             self.init_endeffector_detector()
             # Publisher for pixel deltas endeefector
             self.endeffector.pixel_matches = rospy.Publisher(
-                '/visual_detector_test/ee_pixel_matches', Point2DMatched)
+                '/visual_detector_ee/ee_pixel_matches', Point2DMatched)
 
         # Publish panel position
-        self.panel.pub = rospy.Publisher('/visual_detector_test/valve_panel',
+        self.panel.pub = rospy.Publisher('/visual_detector_ee/valve_panel',
                                          Detection)
         self.panel.pose_msg_pub = rospy.Publisher(
             '/pose_ekf_slam/landmark_update/subpanel_centre',
             PoseWithCovarianceStamped)
         # Publisher for pixel deltas
         self.panel.pixel_matches = rospy.Publisher(
-            '/visual_detector_test/pixel_matches', Point2DMatched)
+            '/visual_detector_ee/pixel_matches', Point2DMatched)
         # Publish image of detected panel
         self.panel.img_pub = rospy.Publisher(
-            '/visual_detector_test/panel_img', Image)
+            '/visual_detector_ee/panel_img', Image)
         if self.use_endeffector:
             self.panel.ee_img_pub = rospy.Publisher(
-                '/visual_detector_test/ee_panel_img', Image)
+                '/visual_detector_ee/ee_panel_img', Image)
 
             # Publish subpanel position from end effector
             self.endeffector.pub = rospy.Publisher(
-                '/visual_detector_test/endeffector_valve', Detection)
+                '/visual_detector_ee/endeffector_valve', Detection)
 
         self.canny_pub = rospy.Publisher(
-                '/visual_detector_test/canny_img', Image)
+                '/visual_detector_ee/canny_img', Image)
 
         self.blur_pub = rospy.Publisher(
-                '/visual_detector_test/blur_img', Image)
+                '/visual_detector_ee/blur_img', Image)
 
         # Valve detection
         self.valve = STRUCT()
         self.valve.pub = STRUCT()
         self.valve.pub.img = rospy.Publisher(
-            "/visual_detector_test/valve_img", Image)
+            "/visual_detector_ee/valve_img", Image)
 
         # Each valve publisher is self.valve.pub.v{0..6}
         for valve_count in range(6):
             setattr(self.valve.pub, "v"+str(valve_count),
                     rospy.Publisher(
-                    '/visual_detector_test/valve'+str(valve_count), Detection))
+                    '/visual_detector_ee/valve'+str(valve_count), Detection))
 
         # Create publisher
-        self.pub_chain = rospy.Publisher('/visual_detector_test/chain',
+        self.pub_chain = rospy.Publisher('/visual_detector_ee/chain',
                                          Detection)
 
         #rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
@@ -262,30 +262,30 @@ class VisualDetector(object):
         panel.init = False
 
         # Load parameters
-        SIMULATOR = rospy.get_param("visual_detector_test/panel/simulator")
-        IS_STEREO = rospy.get_param("visual_detector_test/panel/is_stereo")
+        SIMULATOR = rospy.get_param("visual_detector_ee/panel/simulator")
+        IS_STEREO = rospy.get_param("visual_detector_ee/panel/is_stereo")
 
         # Load template and mask according to SIMULATOR
         if SIMULATOR:
             template_file_list = rospy.get_param(
-                "visual_detector_test/panel/simulator_template")
+                "visual_detector_ee/panel/simulator_template")
             template_mask_file_list = rospy.get_param(
-                "visual_detector_test/panel/simulator_template_mask")
+                "visual_detector_ee/panel/simulator_template_mask")
         else:
             template_file_list = rospy.get_param(
-                "visual_detector_test/panel/real_template")
+                "visual_detector_ee/panel/real_template")
             template_mask_file_list = rospy.get_param(
-                "visual_detector_test/panel/real_template_mask")
+                "visual_detector_ee/panel/real_template_mask")
 
         # Load geometry
         panel_corners = np.asarray(
-            rospy.get_param("visual_detector_test/panel/corners"))
-        valve_radius = rospy.get_param("visual_detector_test/valves/radius")
+            rospy.get_param("visual_detector_ee/panel/corners"))
+        valve_radius = rospy.get_param("visual_detector_ee/valves/radius")
         valve_centre = np.asarray(
-            rospy.get_param("visual_detector_test/valves/centre"))
+            rospy.get_param("visual_detector_ee/valves/centre"))
 
         # Get update rate
-        update_rate = rospy.get_param("visual_detector_test/panel/rate")
+        update_rate = rospy.get_param("visual_detector_ee/panel/rate")
         update_rate = update_rate if update_rate > 0 else None
 
         if IS_STEREO:
@@ -295,10 +295,10 @@ class VisualDetector(object):
             panel.detector = objdetect.Detector(
                 feat_detector=_default_feature_extractor_)
         # Set number of features from detector
-        num_features = rospy.get_param("visual_detector_test/panel/num_features")
+        num_features = rospy.get_param("visual_detector_ee/panel/num_features")
         panel.detector.set_detector_num_features(num_features)
         # Set flann ratio
-        flann_ratio = rospy.get_param("visual_detector_test/panel/flann_ratio")
+        flann_ratio = rospy.get_param("visual_detector_ee/panel/flann_ratio")
         panel.detector.set_flann_ratio_threshold(flann_ratio)
 
         # Get camera info msg and initialise camera
@@ -362,16 +362,16 @@ class VisualDetector(object):
         panel.detector.set_wNm(wNm)
 
         # Specify whether to use Sturm method for pose estimation
-        panel.use_sturm = rospy.get_param("visual_detector_test/panel/use_sturm",
+        panel.use_sturm = rospy.get_param("visual_detector_ee/panel/use_sturm",
                                           default=False)
         panel.cross_verify = rospy.get_param(
-            "visual_detector_test/panel/cross_verify", default=True)
+            "visual_detector_ee/panel/cross_verify", default=True)
         panel.compute_fake_cov = rospy.get_param(
-            "visual_detector_test/panel/compute_fake_cov", default=False)
+            "visual_detector_ee/panel/compute_fake_cov", default=False)
         panel.cross_verify_err_m = rospy.get_param(
-            "visual_detector_test/panel/verify_limit_m", default=0.05)
+            "visual_detector_ee/panel/verify_limit_m", default=0.05)
         panel.cross_verify_err_rad = rospy.get_param(
-            "visual_detector_test/panel/verify_limit_rad", default=0.035)
+            "visual_detector_ee/panel/verify_limit_rad", default=0.035)
 
         # Compute bounding regions for the valves
         if self.enable_detect_valves:
@@ -400,7 +400,7 @@ class VisualDetector(object):
 
             # Buffer to store valve orientations
             valves_filter_length = rospy.get_param(
-                "visual_detector_test/valves/filter_length")
+                "visual_detector_ee/valves/filter_length")
             valves.orientation = []
             for valve_count in range(valves.centre.shape[0]):
                 valves.orientation.append(deque(maxlen=valves_filter_length))
@@ -416,13 +416,13 @@ class VisualDetector(object):
 
     def init_endeffector_detector(self):
         endeffector_templates = rospy.get_param(
-            "visual_detector_test/end_effector/sub_templates")
+            "visual_detector_ee/end_effector/sub_templates")
         endeffector_masks = rospy.get_param(
-            "visual_detector_test/end_effector/sub_masks")
+            "visual_detector_ee/end_effector/sub_masks")
         endeffector_corners_3d = np.asarray(rospy.get_param(
-            "visual_detector_test/end_effector/sub_corners"))
+            "visual_detector_ee/end_effector/sub_corners"))
         valve_centre = np.asarray(rospy.get_param(
-            "visual_detector_test/end_effector/sub_valve_centre"))
+            "visual_detector_ee/end_effector/sub_valve_centre"))
 
         #num_images = len(self.endeffector.templates)
         # Create a list of detectors, one for each valve(?)
@@ -432,15 +432,15 @@ class VisualDetector(object):
         detector = self.endeffector.detector
         detector.camera.make_grid_adapted_detector()
         # Set near and far detection distances to 0.1m and 0.4m
-        detector.set_near_far(0.1, 1.0)
+        detector.set_near_far(0.01, 1.0)
 
         # Set number of features from detector
         num_features = rospy.get_param(
-            "visual_detector_test/end_effector/num_features", 2000)
+            "visual_detector_ee/end_effector/num_features", 2000)
         detector.set_detector_num_features(num_features)
         # Set flann ratio
         flann_ratio = rospy.get_param(
-            "visual_detector_test/end_effector/flann_ratio", 0.75)
+            "visual_detector_ee/end_effector/flann_ratio", 0.75)
         detector.set_flann_ratio_threshold(flann_ratio)
 
         # Get camera info msg and initialise camera
@@ -492,7 +492,7 @@ class VisualDetector(object):
         self.endeffector.valves = STRUCT()
         valves = self.endeffector.valves
         valves.px_per_m = px_per_m
-        valve_radius = rospy.get_param("visual_detector_test/valves/radius")
+        valve_radius = rospy.get_param("visual_detector_ee/valves/radius")
         valves.radius = valve_radius
         valves.radius_px = valves.radius*px_per_m
         # Valve centres in homogenous coordinates
@@ -639,6 +639,8 @@ class VisualDetector(object):
              panel.pose_msg.pose.pose.orientation.w) = (
                  panel_orientation_quaternion)
 
+            # TODO: ARNAU WORK AROUND
+            panel_cov = panel_cov*1000.0
             panel.pose_msg.pose.covariance = panel_cov.flatten().tolist()
             panel.pose_msg_pub.publish(panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
@@ -999,7 +1001,7 @@ class VisualDetector(object):
         # rospy.loginfo('HoughThreshold : ' + str(HoughThreshold))
         # rospy.loginfo('HoughMinLineLength : ' + str(HoughMinLineLength))
         # rospy.loginfo('HoughMaxLineGap : ' + str(HoughMaxLineGap))
-        #HoughMinLineLength = 140
+        HoughMinLineLength = 140
         #HoughThreshold = 50
         HoughMaxLineGap = 15
         # rospy.loginfo('CannyThreshold1 : ' + str(CannyThreshold1))
@@ -1008,7 +1010,7 @@ class VisualDetector(object):
         CannyThreshold2 = 250
         # Bluring the image
         im_box = img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-        im_blur = cv2.medianBlur(im_box, 7)
+        im_blur = cv2.medianBlur(im_box, 5)
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_blur))
         #                                  #encoding="bgr8")
         self.blur_pub.publish(img_msg)
@@ -1077,15 +1079,16 @@ if __name__ == '__main__':
         import subprocess
         # Load ROS parameters
         config_file_list = roslib.packages.find_resource("udg_pandora",
-            "visual_detector_test.yaml")
+            "visual_detector_ee.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            print "Could not locate visual_detector_test.yaml, using defaults"
+            print "Could not locate visual_detector_ee.yaml, using defaults"
             set_default_parameters()
 
-        rospy.init_node('visual_detector_test')
+        rospy.sleep(5.0)
+        rospy.init_node('visual_detector_ee')
         visual_detector = VisualDetector(rospy.get_name())
         #IPython.embed()
         rospy.spin()
