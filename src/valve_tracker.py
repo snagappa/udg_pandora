@@ -48,8 +48,10 @@ class valveTracker():
         self.valve_ori_pub = []
         self.valve_ori_cov = []
         self.last_update_tf = []
+        self.valve_msg = []
         time = rospy.Time.now()
         self.last_update_ee_tf = time
+        self.last_update_ee_p_tf = time
         for i in xrange(self.num_valves):
             pub_name = '/valve_tracker/valve'+str(i)
             self.valve_publishers.append(rospy.Publisher(
@@ -61,7 +63,10 @@ class valveTracker():
             pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
             self.valve_ori_cov.append(rospy.Publisher(
                 pub_name_cov, Float64))
+            self.valve_msg.append(PoseWithCovarianceStamped())
             self.last_update_tf.append(time)
+        self.pub_valve_landmark = rospy.Publisher(
+            self.publisher_landmark, PoseWithCovarianceStamped)
         #subscrive to the Map where is the position of the center
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.updatepanelpose)
         rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
@@ -108,7 +113,8 @@ class valveTracker():
                       'landmark_id': '/valve_tracker/landmark_id',
                       'valve_dist_centre': '/valve_tracker/valve_dist_centre',
                       'valve_dist_centre_ee': '/valve_tracker/valve_dist_centre_ee',
-                      'valve_id': '/valve_tracker/valve_id'
+                      'valve_id': '/valve_tracker/valve_id',
+                      'publisher_landmark': '/valve_tracker/publisher_landmark'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -173,14 +179,47 @@ class valveTracker():
 
     def updatehandcameraposetf(self):
         """
+        NOT USED
         This method check if there is a tf with the position of the valve pose
         provided using the camera in the end-effector
         """
         try:
             trans, rot = self.tflistener.lookupTransform(
-                'world', self.name_valve_pose_ee,
+                'base_arm', self.name_valve_pose_ee,
                 self.tflistener.getLatestCommonTime(
-                    'world', self.name_valve_pose_ee))
+                    'base_arm', self.name_valve_pose_ee))
+            time = self.tflistener.getLatestCommonTime(
+                'base_arm', self.name_valve_pose_ee)
+            if self.last_update_ee_p_tf < time:
+                self.last_update_ee_p_tf = time
+                pose_valve = PoseWithCovarianceStamped()
+                pose_valve.pose.pose.position.x = trans[0]
+                pose_valve.pose.pose.position.y = trans[1]
+                pose_valve.pose.pose.position.z = trans[2]
+                pose_valve.pose.pose.orientation.x = rot[0]
+                pose_valve.pose.pose.orientation.y = rot[1]
+                pose_valve.pose.pose.orientation.z = rot[2]
+                pose_valve.pose.pose.orientation.w = rot[3]
+                cov = 0.035*np.eye(6)
+                cov_p = (
+                    (((1.2*np.linalg.norm(np.asarray(trans)))**2)*0.03)**2)
+                cov[0, 0] = cov_p
+                cov[1, 1] = cov_p
+                cov[2, 2] = cov_p
+                rospy.loginfo('Trans ' + str(trans))
+                rospy.loginfo('Norm de la trans ' + str(np.linalg.norm(np.asarray(trans))))
+                rospy.loginfo('Covariance ' + str(cov_p))
+                rospy.loginfo('Matrix ' + str(cov) )
+                pose_valve.pose.covariance = cov.flatten().tolist()
+                # pose_valve.pose.covariance[0] = 0.0
+                # pose_valve.pose.covariance[7] = 0.003
+                # pose_valve.pose.covariance[14] = 0.003
+                # pose_valve.pose.covariance[21] = 0.035
+                # pose_valve.pose.covariance[28] = 0.035
+                # pose_valve.pose.covariance[35] = 0.035
+                pose_valve.header.stamp = rospy.Time.now()
+                pose_valve.header.frame_id = 'base_arm'
+                self.pub_valve_landmark.publish(pose_valve)
         except tf.Exception:
             pass
             # rospy.logerr(
@@ -200,8 +239,8 @@ class valveTracker():
             #reading measurement
             time = self.tflistener.getLatestCommonTime(
                 '/base_arm', self.name_valve_ori_ee)
+            i = self.valve_id
             if self.last_update_ee_tf < time:
-                i = self.valve_id
                 self.last_update_ee_tf = time
                 measurement = tf.transformations.euler_from_quaternion(
                     rot)[2]
@@ -270,7 +309,8 @@ class valveTracker():
                         v_pose.pose.pose.orientation = self.panel_centre.orientation
                         v_pose.pose.covariance = mark.pose.covariance
                         v_pose.header.stamp = rospy.Time.now()
-                        self.valve_publishers[i].publish(v_pose)
+                        self.valve_msg[i] = v_pose
+                        #self.valve_publishers[i].publish(v_pose)
                         # rospy.loginfo('Valve ' + str(i) + ' : '
                         #               + str(self.valve_poses[i]))
         finally:
@@ -350,9 +390,33 @@ class valveTracker():
         Publish the data updated in the kalman filter
         """
         for i in xrange(self.num_valves):
-            self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
-            self.valve_ori_cov[i].publish(self.kf_p[i])
-
+            self.lock.acquire()
+            try:
+                quat = np.zeros(4)
+                quat[0] = self.valve_msg[i].pose.pose.orientation.x
+                quat[1] = self.valve_msg[i].pose.pose.orientation.y
+                quat[2] = self.valve_msg[i].pose.pose.orientation.z
+                quat[3] = self.valve_msg[i].pose.pose.orientation.w
+                eul = tf.transformations.euler_from_quaternion(np.asarray(quat))
+                #replacing the yaw
+                #eul[2] = self.kf_valves_ori[i]
+                quat = tf.transformations.quaternion_from_euler(
+                    eul[0], eul[1], self.kf_valves_ori[i])
+                # quat = tf.transformations.quaternion_from_euler(
+                #     0.0, 0.0, self.kf_valves_ori[i])
+                self.valve_msg[i].pose.pose.orientation.x = quat[0]
+                self.valve_msg[i].pose.pose.orientation.y = quat[1]
+                self.valve_msg[i].pose.pose.orientation.z = quat[2]
+                self.valve_msg[i].pose.pose.orientation.w = quat[3]
+                cov = np.asarray(self.valve_msg[i].pose.covariance[:])
+                cov[35] = self.kf_p[i]
+                self.valve_msg[i].pose.covariance = cov
+                self.valve_msg[i].header.stamp = rospy.Time.now()
+                self.valve_publishers[i].publish(self.valve_msg[i])
+                # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+                # self.valve_ori_cov[i].publish(self.kf_p[i])
+            finally:
+                self.lock.release()
     def run(self):
         """
         This is the main loop where the prediction of the filter is done and the
@@ -365,7 +429,7 @@ class valveTracker():
             self.updatehandcameraoritf()
             self.updatekfhand()
             self.publish()
-            #Publish the Pose
+            self.updatehandcameraposetf()
             rospy.sleep(self.period)
 
 if __name__ == '__main__':
@@ -380,6 +444,7 @@ if __name__ == '__main__':
         else:
             print "Could not locate visual_detector.yaml, using defaults"
             set_default_parameters()
+        rospy.sleep(5.0)
         rospy.init_node('valve_tracker')
         VALVETRACKER = valveTracker(rospy.get_name())
         VALVETRACKER.run()

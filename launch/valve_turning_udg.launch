@@ -4,6 +4,7 @@
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
         <arg name="enableValveNtua" value="false" />
+        <arg name="enableValveTracker" value="true" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 
@@ -52,6 +53,12 @@
 
 	<!-- Load G500 components -->
  	<include if="$(arg enableLandmarks)" file="$(find cola2_detection)/launch/ar_landmark_sim.launch"/>
+
+        <group if="$(arg enableValveTracker)">
+            <node name="visual_detector" pkg="udg_pandora" type="visual_detector.py" />
+            <node name="visual_detector_ee" pkg="udg_pandora" type="visual_detector_ee.py"/>
+            <node name="valve_tracker" pkg="udg_pandora" type="valve_tracker.py" />
+        </group>
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
     '(/cola2_navigation/(.)*)|(/cola2_control/(.)*)|(/pose_ekf_slam/(.)*)|(/ar_pose_markers)|(/stereo_front/left/image_raw)|(/stereo_front/left/camera_info)|(/tf)' --split --size 2048 -o /home/$(env LOGNAME)/sim" />
