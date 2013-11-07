@@ -444,7 +444,7 @@ if __name__ == '__main__':
         else:
             print "Could not locate visual_detector.yaml, using defaults"
             set_default_parameters()
-        rospy.sleep(5.0)
+        #rospy.sleep(5.0)
         rospy.init_node('valve_tracker')
         VALVETRACKER = valveTracker(rospy.get_name())
         VALVETRACKER.run()

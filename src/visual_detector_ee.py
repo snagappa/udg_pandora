@@ -1087,7 +1087,7 @@ if __name__ == '__main__':
             print "Could not locate visual_detector_ee.yaml, using defaults"
             set_default_parameters()
 
-        rospy.sleep(5.0)
+        #rospy.sleep(5.0)
         rospy.init_node('visual_detector_ee')
         visual_detector = VisualDetector(rospy.get_name())
         #IPython.embed()
