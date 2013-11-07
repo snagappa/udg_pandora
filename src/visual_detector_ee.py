@@ -640,7 +640,7 @@ class VisualDetector(object):
                  panel_orientation_quaternion)
 
             # TODO: ARNAU WORK AROUND
-            panel_cov = panel_cov*1000.0
+            panel_cov = panel_cov*np.diag([100.0,100.0,100.0,1,1,1])
             panel.pose_msg.pose.covariance = panel_cov.flatten().tolist()
             panel.pose_msg_pub.publish(panel.pose_msg)
             self.tf_broadcaster.sendTransform(tuple(panel_centre),
