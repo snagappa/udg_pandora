@@ -783,7 +783,7 @@ class VisualDetector(object):
         # Arnau Beginning
         if valve_detected:
             # ULL D'on ve aquestes mesures
-            valve_centre = panel_centre + (valves.centre[0, :3]*[1., 1., -1.])
+            valve_centre = panel_centre +  [0.0, 0.0, -0.11] #(valves.centre[0, :3]*[1., 1., 1.])
             valve_rpy = panel_orientation + (0, 0, this_valve_orientation)
         elif panel_detected:
             # ULL D'on ve aquestes mesures
@@ -969,7 +969,7 @@ class VisualDetector(object):
                         #except IndexError:
                         #    pass
 
-                #cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
+                cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene),
                                          encoding="bgr8")
         self.valve.pub.img.publish(img_msg)
@@ -1050,7 +1050,7 @@ if __name__ == '__main__':
         else:
             print "Could not locate visual_detector.yaml, using defaults"
             set_default_parameters()
-
+        rospy.sleep(5.0)
         rospy.init_node('visual_detector')
         visual_detector = VisualDetector(rospy.get_name())
         #IPython.embed()
