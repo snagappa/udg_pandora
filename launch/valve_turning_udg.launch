@@ -4,7 +4,7 @@
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
         <arg name="enableValveNtua" value="false" />
-        <arg name="enableValveTracker" value="true" />
+        <arg name="enableValveTracker" value="false" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 
