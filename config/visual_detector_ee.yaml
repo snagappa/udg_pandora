@@ -29,7 +29,7 @@ visual_detector_ee/detect_valves: true
 # Panel detection
 # To select between the simulated and real templates
 visual_detector_ee/panel/simulator: true
-#visual_detector_ee/panel/simulator_template: ["subpanel_sim.png"]
+#visual_detector_ee/panel/simulator_template: ["simulator_panel2.png"]
 visual_detector_ee/panel/simulator_template: ["subpanel_sim_6.png"]
 #visual_detector_ee/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
 visual_detector_ee/panel/simulator_template_mask: []
@@ -75,18 +75,12 @@ visual_detector_ee/panel/rate: -1
 # Geometry
 # Geometry of the Triton panel
 #visual_detector_ee/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
-#subpanel 1
-#visual_detector_ee/panel/corners: [[-0.130, 0.101, 0], [0.130, 0.101, 0], [0.130, -0.101, 0], [-0.130, -0.101, 0]]
-#subpanel 2
-# visual_detector_ee/panel/corners: [[-0.122, 0.093, 0], [0.122, 0.093, 0], [0.122, -0.093, 0], [-0.122, -0.093, 0]]
-#subpanel 3
-# visual_detector_ee/panel/corners: [[-0.131, 0.099, 0], [0.131, 0.099, 0], [0.131, -0.099, 0], [-0.131, -0.099, 0]]
-#subpanel 4
-#visual_detector_ee/panel/corners: [[-0.116, 0.094, 0], [0.116, 0.094, 0], [0.116, -0.094, 0], [-0.116, -0.094, 0]]
-#subpanel 5
-#visual_detector_ee/panel/corners: [[-0.189, 0.141, 0], [0.189, 0.141, 0], [0.189, -0.141, 0], [-0.189, -0.141, 0]]
+
 #subpanel 6
 visual_detector_ee/panel/corners: [[-0.160, 0.127, 0], [0.160, 0.127, 0], [0.160, -0.127, 0], [-0.160, -0.127, 0]]
+
+#Complete panel
+#visual_detector_ee/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
 
 visual_detector_ee/valves/radius: 0.04
 visual_detector_ee/valves/centre: [[-0.0, 0.0, 0.11]]
