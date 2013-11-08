@@ -219,11 +219,11 @@ class VisualDetector(object):
             self.endeffector.pub = rospy.Publisher(
                 '/visual_detector_ee/endeffector_valve', Detection)
 
-        self.canny_pub = rospy.Publisher(
-                '/visual_detector_ee/canny_img', Image)
-
-        self.blur_pub = rospy.Publisher(
-                '/visual_detector_ee/blur_img', Image)
+        # DEBUG Code publish the canny and the blur_img
+        # self.canny_pub = rospy.Publisher(
+        #         '/visual_detector_ee/canny_img', Image)
+        # self.blur_pub = rospy.Publisher(
+        #         '/visual_detector_ee/blur_img', Image)
 
         # Valve detection
         self.valve = STRUCT()
@@ -1011,9 +1011,10 @@ class VisualDetector(object):
         # Bluring the image
         im_box = img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
         im_blur = cv2.medianBlur(im_box, 5)
-        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_blur))
+        # DEBUG
+        # img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_blur))
         #                                  #encoding="bgr8")
-        self.blur_pub.publish(img_msg)
+        # self.blur_pub.publish(img_msg)
         im_edges = cv2.Canny(im_blur, CannyThreshold1, CannyThreshold2)
         #im_edges = cv2.Canny(im_box, CannyThreshold1, CannyThreshold2)
         # Zero lines in the borders using a circular mask
@@ -1037,7 +1038,8 @@ class VisualDetector(object):
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_edges))
                                          #encoding="bgr8")
         img_msg.header.stamp = rospy.Time.now()
-        self.canny_pub.publish(img_msg)
+        # DEBUG
+        # self.canny_pub.publish(img_msg)
         lines = np.squeeze(cv2.HoughLinesP(im_edges, HoughRho, HoughTheta,
             HoughThreshold, minLineLength=HoughMinLineLength,
             maxLineGap=HoughMaxLineGap))

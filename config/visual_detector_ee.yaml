@@ -84,8 +84,8 @@ visual_detector_ee/panel/rate: -1
 #subpanel 4
 #visual_detector_ee/panel/corners: [[-0.116, 0.094, 0], [0.116, 0.094, 0], [0.116, -0.094, 0], [-0.116, -0.094, 0]]
 #subpanel 5
-visual_detector_ee/panel/corners: [[-0.189, 0.141, 0], [0.189, 0.141, 0], [0.189, -0.141, 0], [-0.189, -0.141, 0]]
-#subpanel 5
+#visual_detector_ee/panel/corners: [[-0.189, 0.141, 0], [0.189, 0.141, 0], [0.189, -0.141, 0], [-0.189, -0.141, 0]]
+#subpanel 6
 visual_detector_ee/panel/corners: [[-0.160, 0.127, 0], [0.160, 0.127, 0], [0.160, -0.127, 0], [-0.160, -0.127, 0]]
 
 visual_detector_ee/valves/radius: 0.04
