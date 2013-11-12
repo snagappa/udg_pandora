@@ -17,6 +17,7 @@ import cola2_lib
 # import the message to know the position
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
 # include the message of the ekf giving the position of the robot
 from nav_msgs.msg import Odometry
@@ -38,9 +39,10 @@ import numpy as np
 #To enable or disable the service
 from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
+from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
 
-from udg_pandora.srv import WorkAreaError
+#from udg_pandora.srv import WorkAreaError
 
 import threading
 import tf
@@ -55,8 +57,21 @@ from tf.transformations import euler_from_quaternion
 
 
 class learningReproductor:
+    """
+    This node have the propose to load the model learned from the demonstrations
+    and reproduce the model. This code Move the vehicle using the valve as a
+    frame and the arm using the base of the arm as a frame.
+    @author: Arnau
+    @date: 12/11/2013
+    """
 
     def __init__(self, name):
+        """
+        This method load the configuration and initialize the publishers,
+        subscribers and tf listener.
+        @param name: this atribute contain the name of the rosnode.
+        @type name: string
+        """
         self.name = name
         self.getConfig()
         self.getLearnedParameters()
@@ -74,6 +89,8 @@ class learningReproductor:
         self.desAcc = np.zeros(self.nbVar)
         self.dataReceived = 0
         self.dataGoalReceived = False
+        self.dataGoalPoseReceived = False
+        self.dataGoalOriReceived = False
         self.dataRobotReceived = False
         self.dataComputed = 0
         #Simulation parameter
@@ -104,22 +121,28 @@ class learningReproductor:
 
         self.lock = threading.Lock()
         self.pub_auv_vel = rospy.Publisher(
-            "/cola2_control/body_velocity_req", BodyVelocityReq)
+            '/cola2_control/body_velocity_req', BodyVelocityReq)
         self.pub_arm_command = rospy.Publisher(
-            "/cola2_control/joystick_arm_ef_vel", Joy)
+            '/cola2_control/joystick_arm_ef_vel', Joy)
         self.pub_auv_finish = rospy.Publisher(
-            "learning/auv_finish", Bool)
+            'learning/auv_finish', Bool)
 
-        rospy.Subscriber("/pose_ekf_slam/map",
-                         Map, self.updateGoalPose)
-        rospy.Subscriber("/pose_ekf_slam/odometry",
+        rospy.Subscriber('/pose_ekf_slam/map',
+                         Map, self.updateGoalOri)
+        rospy.Subscriber('/valve_tracker/vavle'+str(self.goal_valve),
+                         PoseWithCovarianceStamped,
+                         self.updateGoalPose)
+        rospy.Subscriber('/pose_ekf_slam/odometry',
                          Odometry, self.updateRobotPose)
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
                          self.updateArmPosition)
+        # rospy.Subscriber('/arm/safety_evalutaion',
+        #                  Float64,
+        #                  self.updateSafety)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
-        self.tflistener = tf.TransformListener()
+        #self.tflistener = tf.TransformListener()
 
         self.enable_srv = rospy.Service(
             '/learning/enable_reproductor_complete',
@@ -132,6 +155,9 @@ class learningReproductor:
             self.disableSrv)
 
     def getConfig(self):
+        """
+        This method load the configuration using the cola_ros_lib.
+        """
         param_dict = {'reproductor_parameters': 'learning/reproductor/complete/parameters',
                       'alpha': 'learning/reproductor/complete/alpha',
                       's': 'learning/reproductor/complete/s',
@@ -149,72 +175,54 @@ class learningReproductor:
                       'name_pub_done': 'learning/reproductor/complete/name_pub_done',
                       'poseGoal_x': 'learning/reproductor/complete/poseGoal_x',
                       'poseGoal_y': 'learning/reproductor/complete/poseGoal_y',
-                      'poseGoal_z': 'learning/reproductor/complete/poseGoal_z'
+                      'poseGoal_z': 'learning/reproductor/complete/poseGoal_z',
+                      'goal_valve': 'learning/reproductor/complete/goal_valve'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time))
 
-    def updateGoalPose(self, landMarkMap):
+    def updateGoalPose(self, pose_msg):
+        """
+        This method update the pose of the valve position published by the
+        valve_tracker, also is update the orientation of the handle of the valve
+        but is not used as the frame orientation.
+        @param pose_msg: Contains the position and the orientation of the vavle
+        @type pose_msg: PoseWithCovarianceStamped
+        """
+        self.lock.acquire()
+        try:
+            self.goalPose.position = pose_msg.pose.pose.position
+            self.valveOri = euler_from_quaternion(
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])[2]
+            if not self.dataGoalPoseReceived:
+                self.dataGoalPoseReceived = True
+                if (self.dataGoalOriReceived and
+                    not self.dataGoalReceived):
+                    self.dataGoalReceived = True
+            if not self.valveOriInit:
+                self.valveOriInit = True
+        finally:
+            self.lock.release()
+
+    def updateGoalOri(self, landMarkMap):
+        """
+        This method update the goal position. Load from the configuration file
+        the desired valve used. Read from the valve tracker and from the
+        pose ekf slam.
+        """
         self.lock.acquire()
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
-                    self.goalPose = mark.pose.pose
-                    try:
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world", "panel_centre",
-                            self.tflistener.getLatestCommonTime(
-                                "world", "panel_centre"))
-                        rotation_matrix = tf.transformations.quaternion_matrix(
-                            rot)
-                        goalPose = np.asarray([self.poseGoal_x,
-                                               self.poseGoal_y,
-                                               self.poseGoal_z,
-                                               1])
-                        goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.position.x = (self.goalPose.position.x +
-                                                    goalPose_rot[0])
-                        self.goalPose.position.y = (self.goalPose.position.y +
-                                                    goalPose_rot[1])
-                        self.goalPose.position.z = (self.goalPose.position.z +
-                                                    goalPose_rot[2])
-                        self.goalOrientation = euler_from_quaternion(rot)
-                        self.dataGoalReceived = True
-                    except tf.Exception:
-                        rotation_matrix = tf.transformations.quaternion_matrix(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])
-                        #poseGoal is the position of the vavle
-                        goalPose = np.asarray([self.poseGoal_x,
-                                               self.poseGoal_y,
-                                               self.poseGoal_z,
-                                               1])
-                        goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.position.x = (self.goalPose.position.x +
-                                                    goalPose_rot[0])
-                        self.goalPose.position.y = (self.goalPose.position.y +
-                                                    goalPose_rot[1])
-                        self.goalPose.position.z = (self.goalPose.position.z +
-                                                    goalPose_rot[2])
-                        self.goalOrientation = euler_from_quaternion(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])
-                        self.dataGoalReceived = True
-                    try:
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world", "valve2",
-                            self.tflistener.getLatestCommonTime(
-                                "world", "valve2"))
-                        self.valveOri = tf.transformations.euler_from_quaternion(rot)[2]
-                        #The Orientation of the valve is jumping
-                        #rospy.loginfo('valve2 Orientation ' + str(self.valveOri))
-                        #self.valveOriInit = True
-                    except tf.Exception:
-                        pass
+                    self.goalPose.orientation = mark.pose.pose.orientation
+                    if not self.dataGoalOriReceived:
+                        self.dataGoalOriReceived = True
+                        if (self.dataGoalPoseReceived and
+                            not self.dataGoalReceived):
+                            self.dataGoalReceived = True
         finally:
             self.lock.release()
 

@@ -5,3 +5,4 @@ learning/record/complete/frame_goal_id : 'panel_centre'
 learning/record/complete/poseGoal_x : 0.0
 learning/record/complete/poseGoal_y : 0.2
 learning/record/complete/poseGoal_z : 0.11
+learning/record/complete/goal_valve : 2
