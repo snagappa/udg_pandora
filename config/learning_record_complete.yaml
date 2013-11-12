@@ -1,0 +1,7 @@
+learning/record/complete/filename : 'trajectory_demonstration'
+learning/record/complete/number_sample : 3
+learning/record/complete/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
+learning/record/complete/frame_goal_id : 'panel_centre'
+learning/record/complete/poseGoal_x : 0.0
+learning/record/complete/poseGoal_y : 0.2
+learning/record/complete/poseGoal_z : 0.11
