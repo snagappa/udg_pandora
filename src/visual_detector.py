@@ -7,7 +7,7 @@ import rospy
 #import std_msgs.msg
 import std_srvs.srv
 #from auv_msgs.msg import NavSts
-from udg_pandora.msg import Detection, Point2D, Point2DMatched
+from udg_pandora.msg import Detection, Point2D, Point2DMatched, BoxCorners
 from sensor_msgs.msg import Image
 import cv2
 #import code
@@ -218,6 +218,10 @@ class VisualDetector(object):
             # Publish subpanel position from end effector
             self.endeffector.pub = rospy.Publisher(
                 '/visual_detector/endeffector_valve', Detection)
+
+        self.corner_panel = rospy.Publisher(
+            '/visual_detector/corners', BoxCorners)
+
 
         # Valve detection
         self.valve = STRUCT()
@@ -660,6 +664,23 @@ class VisualDetector(object):
             out_img = panel.detector.get_scene(0)
             cv2.polylines(out_img, [corners],
                           True, bbox_colour, 6)
+
+            #ARNAU
+            # Add code to send the pixels in the coorners.
+            corners_msg = BoxCorners()
+            corners_msg.corners[0].x = corners[0][0]
+            corners_msg.corners[0].y = corners[0][1]
+            corners_msg.corners[1].x = corners[1][0]
+            corners_msg.corners[1].y = corners[1][1]
+            corners_msg.corners[2].x = corners[3][0]
+            corners_msg.corners[2].y = corners[3][1]
+            corners_msg.corners[3].x = corners[2][0]
+            corners_msg.corners[3].y = corners[2][1]
+            #rospy.loginfo('Llista ' + str(corners.tolist()))
+            #corners_msg.data.append(0.0)
+            #corners_msg.data = corners.tolist()
+            self.corner_panel.publish(corners_msg)
+
         else:
             out_img = panel.detector.get_scene(0)
 
