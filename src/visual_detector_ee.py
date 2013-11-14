@@ -225,6 +225,9 @@ class VisualDetector(object):
         self.corner_panel = rospy.Publisher(
             '/visual_detector_ee/corners', BoxCorners)
 
+        self.box_corner_valve = rospy.Publisher(
+            '/visual_detector_ee/box_corners', BoxCorners)
+
         # DEBUG Code publish the canny and the blur_img
         # self.canny_pub = rospy.Publisher(
         #         '/visual_detector_ee/canny_img', Image)
@@ -1005,6 +1008,20 @@ class VisualDetector(object):
                         #except IndexError:
                         #    pass
 
+                #self.box_corner_valve
+                #ARNAU
+                # Add code to send the pixels in the coorners.
+                corners_msg = BoxCorners()
+                corners_msg.corners[0].x = px_corners[3][0]
+                corners_msg.corners[0].y = px_corners[3][1]
+                corners_msg.corners[1].x = px_corners[2][0]
+                corners_msg.corners[1].y = px_corners[2][1]
+                corners_msg.corners[2].x = px_corners[0][0]
+                corners_msg.corners[2].y = px_corners[0][1]
+                corners_msg.corners[3].x = px_corners[1][0]
+                corners_msg.corners[3].y = px_corners[1][1]
+
+                self.box_corner_valve.publish(corners_msg)
                 cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene),
                                          encoding="bgr8")
