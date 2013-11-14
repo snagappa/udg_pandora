@@ -399,8 +399,14 @@ class VisualDetector(object):
             valves_filter_length = rospy.get_param(
                 "visual_detector/valves/filter_length")
             valves.orientation = []
+            # ARNAU
+            # Add a publisher list for the boxes of the vavles
+            self.valve_corners = []
             for valve_count in range(valves.centre.shape[0]):
                 valves.orientation.append(deque(maxlen=valves_filter_length))
+                self.valve_corners.append(rospy.Publisher(
+                    'visual_detector/valve_corner_'+str(valve_count),
+                    BoxCorners))
 
         self.panel.callback_id = None
         self.panel.update_rate = update_rate
@@ -514,8 +520,6 @@ class VisualDetector(object):
         detection_msg = Detection()
         detection_msg.header.frame_id = cam_info[0].header.frame_id
         self.endeffector.detection_msg = detection_msg
-
-
 
         # Create Pixel matches
         self.endeffector.pixel_matches_msg = Point2DMatched()
@@ -989,6 +993,18 @@ class VisualDetector(object):
                         #    scene[px_corners[:, 1], px_corners[:, 0]] = 255
                         #except IndexError:
                         #    pass
+
+                corners_msg = BoxCorners()
+                corners_msg.corners[0].x = px_corners[3][0]
+                corners_msg.corners[0].y = px_corners[3][1]
+                corners_msg.corners[1].x = px_corners[2][0]
+                corners_msg.corners[1].y = px_corners[2][1]
+                corners_msg.corners[2].x = px_corners[0][0]
+                corners_msg.corners[2].y = px_corners[0][1]
+                corners_msg.corners[3].x = px_corners[1][0]
+                corners_msg.corners[3].y = px_corners[1][1]
+
+                self.valve_corners[valve_idx].publish(corners_msg)
 
                 cv2.polylines(scene, [px_corners], True, (255, 255, 255), 2)
         img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(scene),
