@@ -12,4 +12,4 @@ learning/reproductor/complete/frame_id_goal : 'valve1'
 learning/reproductor/complete/poseGoal_x : 0.0
 learning/reproductor/complete/poseGoal_y : 0.2
 learning/reproductor/complete/poseGoal_z : 0.11
-learning/record/complete/goal_valve : 2
+learning/reproductor/complete/goal_valve : 2

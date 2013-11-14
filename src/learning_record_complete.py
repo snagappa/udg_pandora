@@ -214,7 +214,6 @@ class LearningRecord:
                 #WORK ARROUND
                 if self.valveOriInit:
                     roll = self.valveOri - armOri[2]
-                    rospy.loginfo('Computing diference in Roll')
                 else:
                     roll = armOri[2]
 

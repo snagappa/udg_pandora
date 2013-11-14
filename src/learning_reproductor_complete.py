@@ -129,7 +129,7 @@ class learningReproductor:
 
         rospy.Subscriber('/pose_ekf_slam/map',
                          Map, self.updateGoalOri)
-        rospy.Subscriber('/valve_tracker/vavle'+str(self.goal_valve),
+        rospy.Subscriber('/valve_tracker/valve'+str(self.goal_valve),
                          PoseWithCovarianceStamped,
                          self.updateGoalPose)
         rospy.Subscriber('/pose_ekf_slam/odometry',
@@ -137,7 +137,7 @@ class learningReproductor:
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
                          self.updateArmPosition)
-        # rospy.Subscriber('/arm/safety_evalutaion',
+        # rospy.Subscriber('/arm/safety_evaluation',
         #                  Float64,
         #                  self.updateSafety)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')

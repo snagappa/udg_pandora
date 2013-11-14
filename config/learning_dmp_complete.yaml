@@ -10,5 +10,5 @@ learning/dmp/kPmin : 1
 learning/dmp/kPmax : 50
 learning/dmp/alpha : 2.0
 learning/dmp/demonstration_file : trajectory_demonstration
-learning/dmp/demonstrations : [2,3] 
+learning/dmp/demonstrations : [3] 
 learning/dmp/export_filename : learned_data_complete.txt
