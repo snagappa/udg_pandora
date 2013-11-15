@@ -150,6 +150,14 @@ class LearningRecord:
             self.lock.release()
 
     def updateArmPose(self, armPose):
+        """
+        This method update the pose of the end-effector using as a frame center
+        the base of the manipulator. Also Compute the position of the AUV using
+        as a frame center the position of the panel. Finally writes the result
+        in a csv file.
+        @param armPose: Contains the position and orientation of the End-effector respect the base of the arm
+        @type armPose: PoseStamped
+        """
         #quaternion = [armPose.pose.orientation.x, armPose.pose.orientation.y,
         #              armPose.pose.orientation.z, armPose.pose.orientation.w]
         #euler = euler_from_quaternion(quaternion, 'sxyz')
