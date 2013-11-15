@@ -21,6 +21,7 @@ from nav_msgs.msg import Odometry
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseWithCovarianceStamped
 #from geometry_msgs.msg import Quaternion
 from tf.transformations import euler_from_quaternion
 #import to use mutex
@@ -39,18 +40,23 @@ class LearningRecord:
         self.robotPose = Pose()
         self.lock = threading.Lock()
         self.initTime = 0.0
+        self.initGoal = False
         self.initGoalPose = False
+        self.initGoalOri = False
         self.initRobotPose = False
         self.valveOri = 0.0
         self.valveOriInit = False
 
         rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
 
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalPose)
+        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalOri)
 
         rospy.Subscriber(
             "/pose_ekf_slam/odometry", Odometry, self.updateRobotPose)
 
+        rospy.Subscriber("/valve_tracker/valve" + str(self.goal_valve),
+                         PoseWithCovarianceStamped,
+                         self.updateGoalPose)
         self.tflistener = tf.TransformListener()
 
     def getConfig(self):
@@ -61,75 +67,68 @@ class LearningRecord:
                       'poseGoal_x': 'learning/record/complete/poseGoal_x',
                       'poseGoal_y': 'learning/record/complete/poseGoal_y',
                       'poseGoal_z': 'learning/record/complete/poseGoal_z',
+                      'goal_valve': 'learning/record/complete/goal_valve',
+                      'base_pose': '/arm_controller/base_pose',
+                      'base_ori': '/arm_controller/base_ori'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         self.file = open(self.filename + "_" +
                          str(self.numberSample) + ".csv", 'w')
 
-    def updateGoalPose(self, landMarkMap):
+    def updateGoalPose(self, pose_msg):
+        """
+        This method update the pose of the valve position published by the
+        valve_tracker, also is update the orientation of the handle of the valve
+        but is not used as the frame orientation.
+        @param pose_msg: Contains the position and the orientation of the vavle
+        @type pose_msg: PoseWithCovarianceStamped
+        """
+        self.lock.acquire()
+        try:
+            self.goalPose.position = pose_msg.pose.pose.position
+            self.valveOri = euler_from_quaternion(
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])[2]
+            if not self.initGoalPose:
+                self.initGoalPose = True
+                if (self.initGoalOri and
+                    not self.initGoal):
+                    self.initGoal = True
+            if not self.valveOriInit:
+                self.valveOriInit = True
+        finally:
+            self.lock.release()
+
+    def updateGoalOri(self, landMarkMap):
+        """
+        This method update the pose of the valve position published by the
+        valve_tracker, also is update the orientation of the handle of the valve
+        but is not used as the frame orientation.
+        @param landMarkMap: Contains the position and the orientation of the vavle and panel
+        @type landMarkMap: Map with
+        """
         self.lock.acquire()
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
-                    self.goalPose = mark.pose.pose
-                    try:
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world", "panel_centre",
-                            self.tflistener.getLatestCommonTime(
-                                "world", "panel_centre"))
-                        rotation_matrix = tf.transformations.quaternion_matrix(
-                            rot)
-                        goalPose = np.asarray([self.poseGoal_x,
-                                               self.poseGoal_y,
-                                               self.poseGoal_z,
-                                               1])
-                        goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.position.x = (self.goalPose.position.x +
-                                                    goalPose_rot[0])
-                        self.goalPose.position.y = (self.goalPose.position.y +
-                                                    goalPose_rot[1])
-                        self.goalPose.position.z = (self.goalPose.position.z +
-                                                    goalPose_rot[2])
-                        self.goalOrientation = euler_from_quaternion(rot)
-                        self.initGoalPose = True
-                    except tf.Exception:
-                        rotation_matrix = tf.transformations.quaternion_matrix(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])
-                        #poseGoal is the position of the vavle
-                        goalPose = np.asarray([self.poseGoal_x,
-                                               self.poseGoal_y,
-                                               self.poseGoal_z,
-                                               1])
-                        goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.position.x = (self.goalPose.position.x +
-                                                    goalPose_rot[0])
-                        self.goalPose.position.y = (self.goalPose.position.y +
-                                                    goalPose_rot[1])
-                        self.goalPose.position.z = (self.goalPose.position.z +
-                                                    goalPose_rot[2])
-                        self.goalOrientation = euler_from_quaternion(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])
-                        self.initGoalPose = True
-
-                    try:
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world", "valve2",
-                            self.tflistener.getLatestCommonTime(
-                                "world", "valve2"))
-                        self.valveOri = tf.transformations.euler_from_quaternion(rot)[2]
-                        self.valveOriInit = True
-                    except tf.Exception:
-                        pass
+                    self.goalPose.orientation = mark.pose.pose.orientation
+                    if not self.initGoalOri:
+                        self.initGoalOri = True
+                        if (self.initGoalPose and
+                            not self.initGoal):
+                            self.initGoal = True
         finally:
             self.lock.release()
 
     def updateRobotPose(self, odometry):
+        """
+        This method update the position of the robot. Using directly the pose
+        published by the pose_ekf_slam.
+        @param odometry: Contains the odometry computed in the pose_ekf
+        @type odometry: Odometry message
+        """
         self.lock.acquire()
         try:
             self.robotPose = odometry.pose.pose
@@ -138,105 +137,118 @@ class LearningRecord:
             self.lock.release()
 
     def updateArmPose(self, armPose):
+        """
+        This method update the pose of the end-effector using as a frame center
+        the base of the manipulator. Also Compute the position of the AUV and
+        end-effector using as a frame center the position of the panel. Finally
+        it writes the positions in a csv file.
+        @param armPose: Contains the position and orientation of the End-effector respect the base of the arm
+        @type armPose: PoseStamped
+        """
         #quaternion = [armPose.pose.orientation.x, armPose.pose.orientation.y,
         #              armPose.pose.orientation.z, armPose.pose.orientation.w]
         #euler = euler_from_quaternion(quaternion, 'sxyz')
         self.lock.acquire()
         try:
             if self.initGoalPose:
-                try:
-                    #################################################
-                    # Compute the pose of the AUV respect the Valve 2
-                    #################################################
-                    robotPose = np.array(
-                        [self.robotPose.position.x,
-                         self.robotPose.position.y,
-                         self.robotPose.position.z,
-                         1])
+                #################################################
+                # Compute the pose of the AUV respect the Valve 2
+                #################################################
+                robotPose = np.array(
+                    [self.robotPose.position.x,
+                     self.robotPose.position.y,
+                     self.robotPose.position.z,
+                     1])
 
-                    trans_matrix = tf.transformations.quaternion_matrix(
-                        [self.goalPose.orientation.x,
-                         self.goalPose.orientation.y,
-                         self.goalPose.orientation.z,
-                         self.goalPose.orientation.w])
+                trans_matrix = tf.transformations.quaternion_matrix(
+                    [self.goalPose.orientation.x,
+                     self.goalPose.orientation.y,
+                     self.goalPose.orientation.z,
+                     self.goalPose.orientation.w])
 
-                    trans_matrix[0, 3] = self.goalPose.position.x
-                    trans_matrix[1, 3] = self.goalPose.position.y
-                    trans_matrix[2, 3] = self.goalPose.position.z
+                trans_matrix[0, 3] = self.goalPose.position.x
+                trans_matrix[1, 3] = self.goalPose.position.y
+                trans_matrix[2, 3] = self.goalPose.position.z
 
-                    #invert Matrix
-                    inv_mat = np.zeros([4, 4])
-                    inv_mat[3, 3] = 1.0
-                    inv_mat[0:3, 0:3] = np.transpose(trans_matrix[0:3, 0:3])
-                    inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
-                                             trans_matrix[0:3, 3])
+                #invert Matrix
+                inv_mat = np.zeros([4, 4])
+                inv_mat[3, 3] = 1.0
+                inv_mat[0:3, 0:3] = np.transpose(trans_matrix[0:3, 0:3])
+                inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
+                                         trans_matrix[0:3, 3])
 
-                    robotTrans = np.dot(inv_mat, robotPose)
+                robotTrans = np.dot(inv_mat, robotPose)
 
-                    robotYaw = euler_from_quaternion(
-                        [self.robotPose.orientation.x,
-                         self.robotPose.orientation.y,
-                         self.robotPose.orientation.z,
-                         self.robotPose.orientation.w])[2]
+                robotYaw = euler_from_quaternion(
+                    [self.robotPose.orientation.x,
+                     self.robotPose.orientation.y,
+                     self.robotPose.orientation.z,
+                     self.robotPose.orientation.w])[2]
 
-                    goalYaw = tf.transformations.euler_from_quaternion(
-                        [self.goalPose.orientation.x,
-                         self.goalPose.orientation.y,
-                         self.goalPose.orientation.z,
-                         self.goalPose.orientation.w])[1]
+                goalYaw = tf.transformations.euler_from_quaternion(
+                    [self.goalPose.orientation.x,
+                     self.goalPose.orientation.y,
+                     self.goalPose.orientation.z,
+                     self.goalPose.orientation.w])[1]
 
-                    #################################################
-                    # End-Effector Pose from the Base_arm
-                    #################################################
+                #################################################
+                # End-Effector Pose from the Base_arm without TF
+                #################################################
 
-                    pose_ef, ori_ef = self.tflistener.lookupTransform(
-                        "world", "end_effector",
-                        self.tflistener.getLatestCommonTime(
-                            "world", "end_effector"))
+                #transformation from the world to the robot
+                trans_matrix_v2 = tf.transformations.quaternion_matrix(
+                    [self.robotPose.orientation.x,
+                     self.robotPose.orientation.y,
+                     self.robotPose.orientation.z,
+                     self.robotPose.orientation.w])
 
-                    # endeffectorPose = np.array([armPose.pose.position.x,
-                    #                             armPose.pose.position.y,
-                    #                             armPose.pose.position.z,
-                    #                             1])
+                trans_matrix_v2[0, 3] = self.robotPose.position.x
+                trans_matrix_v2[1, 3] = self.robotPose.position.y
+                trans_matrix_v2[2, 3] = self.robotPose.position.z
 
-                    # armOri = euler_from_quaternion(
-                    #     [armPose.pose.orientation.x,
-                    #      armPose.pose.orientation.y,
-                    #      armPose.pose.orientation.z,
-                    #      armPose.pose.orientation.w])
+                arm_pose = np.array([armPose.pose.position.x,
+                                     armPose.pose.position.y,
+                                     armPose.pose.position.z,
+                                     1])
 
-                    endeffectorPose = np.array([pose_ef[0],
-                                                pose_ef[1],
-                                                pose_ef[2],
-                                                1])
+                robot_base = tf.transformations.euler_matrix(
+                    self.base_ori[0],
+                    self.base_ori[1],
+                    self.base_ori[2])
 
-                    armOri = euler_from_quaternion(ori_ef)
-                    endEfWorld = np.dot(inv_mat, endeffectorPose)
+                robot_base[0, 3] = self.base_pose[0]
+                robot_base[1, 3] = self.base_pose[1]
+                robot_base[2, 3] = self.base_pose[2]
 
-                    #Wrong orientation is not correct.
-                    if self.valveOriInit:
-                        roll = self.valveOri - armOri[2]
-                    else:
-                        roll = armOri[2]
+                arm_base = np.dot(robot_base, arm_pose)
 
-                    s = (repr(robotTrans[0]) + " " +
-                         repr(robotTrans[1]) + " " +
-                         repr(robotTrans[2]) + " " +
-                         repr(cola2_lib.normalizeAngle(goalYaw - robotYaw))
-                         + " " +
-                         repr(endEfWorld[0]) + " " +
-                         repr(endEfWorld[1]) + " " +
-                         repr(endEfWorld[2]) + " " +
-                         repr(roll) + " " +
-                         repr(armOri[1]) + " " +
-                         repr(armOri[2]) + "\n")
-                    self.file.write(s)
-                except tf.Exception:
-                    rospy.loginfo(
-                        'Error in the TF using the last arm pose published')
-                    #TODO Subscribe the node tho the arm position.
-                    # Think how we transform for the arm position to the world position 
-                    # without using the TF
+                arm_world_pose = np.dot(trans_matrix_v2, arm_base)
+
+                arm_frame_pose = np.dot(inv_mat, arm_world_pose)
+
+                arm_ori = euler_from_quaternion([armPose.pose.orientation.x,
+                                                 armPose.pose.orientation.y,
+                                                 armPose.pose.orientation.z,
+                                                 armPose.pose.orientation.w])
+
+                #Wrong orientation is not correct.
+                if self.valveOriInit:
+                    roll = self.valveOri - arm_ori[2]
+                else:
+                    roll = arm_ori[2]
+
+                s = (repr(robotTrans[0]) + " " +
+                     repr(robotTrans[1]) + " " +
+                     repr(robotTrans[2]) + " " +
+                     repr(cola2_lib.normalizeAngle(goalYaw - robotYaw))
+                     + " " +
+                     repr(arm_frame_pose[0]) + " " +
+                     repr(arm_frame_pose[1]) + " " +
+                     repr(arm_frame_pose[2]) + " " +
+                     repr(arm_ori[0]) + " " +
+                     repr(arm_ori[1]) + " " +
+                     repr(roll) + "\n")
+                self.file.write(s)
             else:
                 rospy.loginfo('Goal pose Not initialized')
         finally:
