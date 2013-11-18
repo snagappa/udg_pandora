@@ -1,11 +1,12 @@
-slam_feature_detector/fov/near: 0.15
-slam_feature_detector/fov/far: 4.0
+slam_feature_detector/fov/near: 0.1
+slam_feature_detector/fov/far: 6.0
 slam_feature_detector/extractor_name: "Surf"
-slam_feature_detector/num_features: 50
-slam_feature_detector/flann_ratio: 0.6
+slam_feature_detector/grid_adapted: True
+slam_feature_detector/num_features: 0
+slam_feature_detector/flann_ratio: 0.9
 #
 # Options for the surf extractor
-slam_feature_detector/surf_extractor/hessian_threshold: 50
+slam_feature_detector/surf_extractor/hessian_threshold: 0
 #
 # Options for the orb extractor
 #slam_feature_detector/orb_extractor/
@@ -33,4 +34,4 @@ slam_feature_detector/sigma_scale_factor/x: 0.08
 slam_feature_detector/sigma_scale_factor/y: 0.08
 slam_feature_detector/sigma_scale_factor/z: 0.08
 
-slam_feature_detector/pixel_std: 2
+slam_feature_detector/pixel_std: 3.

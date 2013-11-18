@@ -1,0 +1,10 @@
+valve_tracker/period : 0.1 
+valve_tracker/number_of_valves : 4
+#valve_tracker/name_valve_pose_ee : "ee_valve_pose"
+valve_tracker/name_valve_pose_ee : "ee_valve_pose"
+valve_tracker/name_valve_ori_ee : "ee_valve_pose_ori"
+valve_tracker/landmark_id : "/pose_ekf_slam/landmark_update/panel_centre"
+valve_tracker/valve_dist_centre : [[-0.25, -0.125, 0.11], [ 0.0, -0.125, 0.11], [ 0.0, +0.125, 0.11], [+0.25, -0.125, 0.11]]
+valve_tracker/valve_dist_centre_ee : [0.0, 0.0, 0.11]
+valve_tracker/valve_id : 2
+valve_tracker/publisher_landmark : "/pose_ekf_slam/landmark_update/valve_ee"

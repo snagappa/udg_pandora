@@ -18,7 +18,8 @@ def get_default_parameters():
     parameters = {}
     parameters["slam_feature_detector/fov/near"] = 0.15
     parameters["slam_feature_detector/fov/far"] = 4.0
-    parameters["slam_feature_extractor/extractor_name"] =  "Surf"
+    parameters["slam_feature_detector/extractor_name"] =  "Surf"
+    parameters["slam_feature_detector/grid_adapted"] = False
     parameters["slam_feature_detector/num_features"] =  40
     parameters["slam_feature_detector/flann_ratio"] =  0.6
     
@@ -113,6 +114,7 @@ class SlamFeatureDetector(object):
         # Extract parameters
         extractor_name = rospy.get_param("slam_feature_detector/extractor_name")
         update_rate = rospy.get_param("slam_feature_detector/rate")
+        make_grid_adapted = rospy.get_param("slam_feature_detector/grid_adapted")
         num_features = rospy.get_param("slam_feature_detector/num_features")
         flann_ratio = rospy.get_param("slam_feature_detector/flann_ratio")
         fov_near = rospy.get_param("slam_feature_detector/fov/near")
@@ -154,10 +156,18 @@ class SlamFeatureDetector(object):
             if n_octaves > 0:
                 slam_features.camera._featuredetector_.set_nOctaves(n_octaves)
             # Convert to grid adapted to set num_features
+            #slam_features.camera._featuredetector_.make_grid_adapted()
+        
+        # Convert to grid adapted to set num_features
+        if make_grid_adapted:
             slam_features.camera._featuredetector_.make_grid_adapted()
         
         # Set number of features
-        slam_features.camera._featuredetector_.set_num_features(num_features)
+        if num_features:
+            try:
+                slam_features.camera._featuredetector_.set_num_features(num_features)
+            except UnboundLocalError:
+                print "Could not set number of features for the detector."
         
         # Extract camera info
         slam_features.camera.fromCameraInfo(*self.image_buffer.get_camera_info())

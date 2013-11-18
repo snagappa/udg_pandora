@@ -1,0 +1,12 @@
+phdmapper/filter/prune_threshold: 0.0005
+phdmapper/filter/merge_threshold: 0.5
+phdmapper/filter/max_num_components: 8000
+phdmapper/filter/birth_intensity: 0.05
+phdmapper/filter/clutter_intensity: 40
+phdmapper/filter/detection_probability: 0.6
+phdmapper/use_3d: false
+phdmapper/use_ukf: true
+phdmapper/camera_position: [0.6, 0.0, 0.4]
+phdmapper/camera_orientation: [0.0, 0.0, 1.57]
+phdmapper/camera_baseline: [0.12, 0.0, 0.0]
+phdmapper/camera_baseline_orientation: [0., 0., 0.]

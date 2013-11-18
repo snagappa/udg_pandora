@@ -7,14 +7,14 @@ Created on Tue Oct 30 12:20:27 2012
 from image_geometry import cameramodels as ros_cameramodels
 import numpy as np
 import tf
+from tf import LookupException, ExtrapolationException
 import rospy
 import blas
 import misctools
 import image_feature_extractor
-from misctools import STRUCT, rotation_matrix, FlannMatcher
+from misctools import STRUCT, rotation_matrix, FlannMatcher, sample_mn_cv
 import cv2
 import copy
-import code
 from geometry_msgs.msg import PointStamped
 import sys
 import traceback
@@ -38,11 +38,19 @@ def get_transform(target_frame, source_frame, timestamp=None):
         point.header.stamp = timestamp
     point.header.frame_id = source_frame
     
-    mat44 = tflistener.asMatrix(target_frame, point.header)
+    try:
+        mat44 = tflistener.asMatrix(target_frame, point.header)
+    except (LookupException, ExtrapolationException) as exc_msg:
+        print "get_transform(): LookupException occurred."
+        print "Transformation from %s to %s failed" % (source_frame, 
+                                                       target_frame)
+        print exc_msg
+        raise
     return mat44
 
 def transform_numpy_array(target_frame, source_frame, numpy_points,
-                          timestamp=None, ROTATE_BEFORE_TRANSLATE=True):
+                          timestamp=None, ROTATE_BEFORE_TRANSLATE=True,
+                          rethrow_exception=False):
     assert (((numpy_points.ndim == 2) and (numpy_points.shape[1] == 3)) or
             (np.prod(numpy_points.shape) == 0)), (
             "Points must be Nx3 numpy array")
@@ -52,10 +60,13 @@ def transform_numpy_array(target_frame, source_frame, numpy_points,
     arr_len = numpy_points.shape[0]
     try:
         mat44 = get_transform(target_frame, source_frame, timestamp)
-    except:
-        sys_exc = sys.exc_info()
+    except (LookupException, ExtrapolationException) as exc_msg:
+        #sys_exc = sys.exc_info()
         print "Error converting from %s to %s" % (source_frame, target_frame)
-        print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", traceback.print_tb(sys_exc[2])
+        #print "CAMERAMODELS:TRANSFORM_NUMPY_ARRAY():\n", traceback.print_tb(sys_exc[2])
+        print exc_msg
+        if rethrow_exception:
+            raise
         return np.empty(0, dtype=numpy_points.dtype)
     
     if ROTATE_BEFORE_TRANSLATE:
@@ -171,22 +182,22 @@ class _FoV_(object):
                           euclid_distance < self.fov_far)] = self.pd
         return pd
     
-    def pdf_detection(self, points, **kwargs):
+    def pdf_detection(self, points, timestamp=None, **kwargs):
         """pdf_detection(self, points) -> pd
         Returns the probability of detection for points specified according to 
         world co-ordinates.
         """
         if points.shape[0] == 0:
             return np.empty(0)
-        rel_points = self.from_world_coords(points)[0]
+        rel_points = self.from_world_coords(points, timestamp)[0]
         return self._pdf_detection_(rel_points, **kwargs)
     
-    def is_visible(self, points, **kwargs):
+    def is_visible(self, points, timestamp=None, **kwargs):
         """is_visible(self, points) -> bool_vector
         """
         if points.shape[0] == 0:
             return np.empty(0, dtype=np.bool)
-        pd = self.pdf_detection(points, **kwargs)
+        pd = self.pdf_detection(points, timestamp, **kwargs)
         return (pd > 0)
     
     def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
@@ -208,8 +219,9 @@ class _FoV_(object):
     def set_tf_frame(self, frame_id):
         self.tfFrame = frame_id
     
-    def to_world_coords(self, numpy_points):
-        """to_world_coords(self, numpy_points)->world_points
+    def to_world_coords(self, numpy_points, timestamp=None,
+                        rethrow_exception=False):
+        """to_world_coords(self, numpy_points, timestamp=None)->world_points
         Convert Nx3 numpy array of points from camera coordinate system to
         world coordinates"""
         #pcl_points = self._nparray_to_pcl_(numpy_points, self.tfFrame)
@@ -217,30 +229,32 @@ class _FoV_(object):
         target_frame = "world"
         source_frame = self.tfFrame
         return transform_numpy_array(target_frame, source_frame, numpy_points,
-                                     ROTATE_BEFORE_TRANSLATE=True)
+                                     timestamp, True, rethrow_exception)
     
-    def from_world_coords(self, numpy_points):
-        """from_world_coords(self, numpy_points)->(camera_points,)
+    def from_world_coords(self, numpy_points, timestamp=None,
+                          rethrow_exception=False):
+        """from_world_coords(self, numpy_points, timestamp=None)->(camera_points,)
         Convert Nx3 numpy array of points from world coordinate system to
         camera coordinates"""
         #pcl_points = self._nparray_to_pcl_(numpy_points, "world")
         #return self.from_world_coords_pcl(pcl_points, True)
         target_frame = self.tfFrame
         source_frame = "world"
+        # Must return a tuple
         return (transform_numpy_array(target_frame, source_frame, numpy_points,
-                                     ROTATE_BEFORE_TRANSLATE=True),)
+                                     timestamp, True, rethrow_exception), )
     
-    def rotation_matrix(self):
+    def rotation_matrix(self, timestamp=None):
         """rotation_matrix(self) -> rot_mat
         returns the 3x3 rotation matrix of the sensor with respect to the world
         """
-        return get_transform(self.tfFrame, "world")[:3, :3]
+        return get_transform(self.tfFrame, "world", timestamp)[:3, :3]
     
-    def inv_rotation_matrix(self):
+    def inv_rotation_matrix(self, timestamp=None):
         """rotation_matrix(self) -> rot_mat
         returns the 3x3 rotation matrix of the world with respect to the sensor
         """
-        return get_transform("world", self.tfFrame)[:3, :3]
+        return get_transform("world", self.tfFrame, timestamp)[:3, :3]
     
     def relative(self, target_coord_XYZ, target_coord_RPY, world_points_XYZ):
         if not world_points_XYZ.shape[0]: return np.empty(0)
@@ -256,12 +270,12 @@ class _FoV_(object):
                              source_coord_XYZ)
         return absolute_position
     
-    def observations(self, points):
-        rel_states = self.from_world_coords(points)
+    def observations(self, points, timestamp=None):
+        rel_states = self.from_world_coords(points, timestamp)
         return rel_states
     
-    def observation_jacobian(self):
-        return self.inv_rotation_matrix()
+    def observation_jacobian(self, timestamp=None):
+        return self.inv_rotation_matrix(timestamp)
     
 
 class SphericalCamera(_FoV_):
@@ -485,6 +499,48 @@ class PinholeCameraModel(ros_cameramodels.PinholeCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.tfFrame,)
     
+    def observation_px_jacobian(self, states, timestamp=None):
+        num_states = states.shape[0]
+        proj_matrix = self.projection_matrix()
+        f = proj_matrix[0, 0]
+        rot_matrix = self.inv_rotation_matrix(timestamp)
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = rot_states[:, 2]
+        zz_sq = zz**2
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.empty((num_states, 3, 3))
+        # Set last row to zero for all states
+        J_matrix[:, 2, :] = 0
+        # First row
+        J_matrix[:, 0, 0] = f_zz_sq*(rot_matrix[0, 0]*zz - rot_matrix[2, 0]*rot_states[:, 0])
+        J_matrix[:, 0, 1] = f_zz_sq*(rot_matrix[0, 1]*zz - rot_matrix[2, 1]*rot_states[:, 0])
+        J_matrix[:, 0, 2] = f_zz_sq*(rot_matrix[0, 2]*zz - rot_matrix[2, 2]*rot_states[:, 0])
+        # Second row
+        J_matrix[:, 1, 0] = f_zz_sq*(rot_matrix[1, 0]*zz - rot_matrix[2, 0]*rot_states[:, 1])
+        J_matrix[:, 1, 1] = f_zz_sq*(rot_matrix[1, 1]*zz - rot_matrix[2, 1]*rot_states[:, 1])
+        J_matrix[:, 1, 2] = f_zz_sq*(rot_matrix[1, 2]*zz - rot_matrix[2, 2]*rot_states[:, 1])
+        
+        return J_matrix
+#        u = proj_matrix[0, 2]
+#        v = proj_matrix[1, 2]
+#        J_matrix = self.inv_rotation_matrix()
+#        J_matrix[:2, :2] *= f
+#        J_matrix[0, :] += u*J_matrix[2, :]
+#        J_matrix[1, :] += v*J_matrix[2, :]
+#        J_matrix[:, 2] = 0
+#        z = states[:, 2, np.newaxis, np.newaxis] # (num_states x 1 x 1 ndarray)
+#        J_matrix = J_matrix/z
+#        return J_matrix
+#        
+#        #rot_matrix[0, :] *= proj_matrix[0, 0]
+#        rot_matrix[:, 0, :]
+#        rot_matrix[0, :] += proj_matrix[0, 2]/f*rot_matrix[2, :]
+#        #rot_matrix[1, :] *= proj_matrix[1, 1]
+#        rot_matrix[1, :] += proj_matrix[1, 2]/f*rot_matrix[2, :]
+#        return rot_matrix
+        
 
 class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def __init__(self):
@@ -502,10 +558,11 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         new_camera.set_tf_frame(self.left.tfFrame, self.right.tfFrame)
         return new_camera
     
-    def fromCameraInfo(self, left_msg, right_msg):
+    def fromCameraInfo(self, left_msg, right_msg, **kwargs):
         self._camera_info_ = (left_msg, right_msg)
         super(StereoCameraModel, self).fromCameraInfo(left_msg, right_msg)
         self.tfFrame = left_msg.header.frame_id
+        self._compute_observation_volume_disparity_(**kwargs)
     
     def camera_matrix(self):
         return self.left.camera_matrix()
@@ -526,6 +583,7 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         """
         self.left.set_near_far_fov(fov_near, fov_far)
         self.right.set_near_far_fov(fov_near, fov_far)
+        self._compute_observation_volume_disparity_()
     
     def set_const_pd(self, pd=0.9):
         """set_const_pd(self, pd=0.9)
@@ -540,19 +598,19 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         else:
             return np.empty((0, 2))
     
-    def pdf_detection(self, points, **kwargs):
+    def pdf_detection(self, points, timestamp=None, **kwargs):
         """pdf_detection(self, points) -> pd
         Calculate the probability of detection for the points
         """
         # Convert points to left reference frame
-        rel_points = self.left.from_world_coords(points)[0]
+        rel_points = self.left.from_world_coords(points, timestamp)[0]
         l_pdf = self.left._pdf_detection_(rel_points, **kwargs)
         r_pdf = self.right._pdf_detection_(rel_points, **kwargs)
         l_pdf = np.vstack((l_pdf, r_pdf))
         return np.min(l_pdf, axis=0)
     
-    def is_visible(self, points, **kwargs):
-        return (self.pdf_detection(points, **kwargs) > 0).astype(np.bool)
+    def is_visible(self, points, timestamp=None, **kwargs):
+        return (self.pdf_detection(points, timestamp, **kwargs) > 0).astype(np.bool)
     
     def is_visible_relative2sensor(self, rel_points1, rel_points2=None, **kwargs):
         if rel_points1.shape[0] == 0:
@@ -576,6 +634,32 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             clutter_l[replace_idx] = clutter_r[replace_idx]
         return clutter_l
     
+    def _compute_observation_volume_disparity_(self, num_samples=2000):
+        """Statistically compute the minimum/maximum disparity that is achieved
+        using the specified near and far FoV. Disparity-based clutter assumes
+        a uniform distribution over the range.
+        """
+        # Sample points in the space
+        pts_3d = np.random.random((num_samples, 3))*(
+            [2*self.fov_far, 2*self.fov_far, self.fov_far])
+        pts_3d[:, :2] -= self.fov_far
+        # Determine which points are in the FoV
+        within_fov = self.is_visible_relative2sensor(pts_3d)
+        pts_l, pts_r = self.project3dToPixel(pts_3d)
+        disparity = pts_l[:, 0] - pts_r[:, 0]
+        disparity_wts = np.ones(disparity.shape[0])/disparity.shape[0]
+        disparity_wts[np.logical_not(within_fov)] = 0
+        disparity_mn, disparity_cv = sample_mn_cv(
+            disparity[:, np.newaxis], disparity_wts)
+        min_disparity = disparity[within_fov].min()
+        max_disparity = disparity_mn + 6*disparity_cv**0.5
+        disparity_range = max_disparity - min_disparity
+        self.observation_volume_disparity = np.squeeze(
+            self.get_width()*self.get_height()*disparity_range)
+    
+    def pdf_clutter_disparity(self, points, **kwargs):
+        return (1.0/self.observation_volume_disparity)*np.ones(points.shape[0])
+    
     def triangulate(self, pts_left, pts_right):
         """triangulate(self, pts_left, pts_right) -> points3d
         Triangulate points using rectified camera. pts_left and pts_right must
@@ -593,13 +677,14 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
         points3d = np.asarray((points4d[0:3, :]).T, dtype=np.float, order='C')
         return points3d
     
-    def from_world_coords(self, numpy_points):
+    def from_world_coords(self, numpy_points, timestamp=None):
         """from_world_coords(self, numpy_points)
             -> (camera_points_l, camera_points_r)
         Convert Nx3 numpy array of points from world coordinate system to
         camera coordinates"""
-        return (self.left.from_world_coords(numpy_points)[0],
-                self.right.from_world_coords(numpy_points)[0])
+        # Pinhole camera from_world_coords returns a tuple - selct idx 0
+        return (self.left.from_world_coords(numpy_points, timestamp)[0],
+                self.right.from_world_coords(numpy_points, timestamp)[0])
     
     def set_tf_frame(self, left_frame_id, right_frame_id):
         self.tfFrame = left_frame_id
@@ -609,12 +694,17 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
     def get_tf_frame(self):
         return (self.left.tfFrame, self.right.tfFrame)
     
-    def observations(self, states):
-        rel_states = self.from_world_coords(states)
+    def observations(self, states, idx=None, timestamp=None):
+        rel_states = self.from_world_coords(states, timestamp)
+        assert idx in [0, 1], "idx must be 0 or 1"
+        if idx == 0:
+            rel_states = rel_states[0]
+        elif idx == 1:
+            rel_states = rel_states[1]
         return rel_states
     
-    def observations_px(self, states):
-        rel_states_l, rel_states_r = self.from_world_coords(states)
+    def observations_px(self, states, timestamp=None):
+        rel_states_l, rel_states_r = self.from_world_coords(states, timestamp)
         img_pts_l = self.left.project3dToPixel(rel_states_l)
         img_pts_r = self.right.project3dToPixel(rel_states_l)
         if img_pts_l.shape[0]:
@@ -623,6 +713,62 @@ class StereoCameraModel(ros_cameramodels.StereoCameraModel, _FoV_):
             disparity_obs = np.empty((0, 3))
         return disparity_obs
     
+    def observation_px_jacobian_full(self, states, timestamp=None):
+        num_states = states.shape[0]
+        proj_matrix_l, proj_matrix_r = self.projection_matrix()
+        
+        f = proj_matrix_l[0, 0]
+        baseline = proj_matrix_r[0, 3]
+        rot_matrix = self.inv_rotation_matrix(timestamp)
+        rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = rot_states[:, 2]
+        zz_sq = zz**2
+        f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.empty((num_states, 3, 3))
+        # First row
+        J_matrix[:, 0, 0] = f_zz_sq*(rot_matrix[0, 0]*zz - rot_matrix[2, 0]*rot_states[:, 0])
+        J_matrix[:, 0, 1] = f_zz_sq*(rot_matrix[0, 1]*zz - rot_matrix[2, 1]*rot_states[:, 0])
+        J_matrix[:, 0, 2] = f_zz_sq*(rot_matrix[0, 2]*zz - rot_matrix[2, 2]*rot_states[:, 0])
+        # Second row
+        J_matrix[:, 1, 0] = f_zz_sq*(rot_matrix[1, 0]*zz - rot_matrix[2, 0]*rot_states[:, 1])
+        J_matrix[:, 1, 1] = f_zz_sq*(rot_matrix[1, 1]*zz - rot_matrix[2, 1]*rot_states[:, 1])
+        J_matrix[:, 1, 2] = f_zz_sq*(rot_matrix[1, 2]*zz - rot_matrix[2, 2]*rot_states[:, 1])
+        # Third row
+        J_matrix[:, 2, :] = baseline/zz_sq[:,np.newaxis]*rot_matrix[2, :]
+        
+        return J_matrix
+    
+    def observation_px_jacobian_partial(self, states, timestamp=None):
+        num_states = states.shape[0]
+        proj_matrix_l, proj_matrix_r = self.projection_matrix()
+        
+        f = proj_matrix_l[0, 0]
+        baseline = proj_matrix_r[0, 3]
+        rot_matrix = self.inv_rotation_matrix(timestamp)
+        #rot_states = np.dot(rot_matrix, states.T).T
+        # Need to divide by new (rotated) z to get image points
+        zz = states[:, 2]
+        zz_sq = zz**2
+        f_zz = f/zz
+        #f_zz_sq = f/zz_sq
+        # Create emtpy Jacobian
+        J_matrix = np.zeros((num_states, 3, 3))
+        # First row
+        J_matrix[:, 0, 0] = f_zz*rot_matrix[0, 0]
+        J_matrix[:, 0, 1] = f_zz*rot_matrix[0, 1]
+        
+        # Second row
+        J_matrix[:, 1, 0] = f_zz*rot_matrix[1, 0]
+        J_matrix[:, 1, 1] = f_zz*rot_matrix[1, 1]
+        
+        # Third row
+        J_matrix[:, 2, :] = baseline/zz_sq[:,np.newaxis]
+        
+        return J_matrix
+    
+
 class _CameraFeatureDetector_(object):
     def __init__(self, feature_extractor=image_feature_extractor.Orb, **kwargs):
         self._flann_matcher_ = None
@@ -732,10 +878,42 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             (images[idx].keypoints, images[idx].descriptors) = (
             self.get_features(_im_))
         """
-        margin_l, margin_r, margin_t, margin_b = image_margins
-        mask_margins = np.any(image_margins)
+        # Empty result if no matches
+        points3d = np.empty(0)
+        pts_l = np.empty(0)
+        pts_r = np.empty(0)
+        kp_l = np.empty(0)
+        kp_r = np.empty(0)
+        desc_l = np.empty(0)
+        desc_r = np.empty(0)
+        
+        #Get features from the left image
         (images[0].keypoints, images[0].descriptors) = (
             self.get_features(image_left))
+        # Increase the number of features detected (if possible) to facilitate
+        # matching
+        try:
+            num_features = self.get_detector_num_features()
+            self.set_detector_num_features(np.min([num_features*10, 2000]))
+        except UnboundLocalError:
+            pass
+        # Get features from the right image
+        (images[1].keypoints, images[1].descriptors) = (
+            self.get_features(image_right))
+        # Restore the original number of features to be detected
+        try:
+            self.set_detector_num_features(num_features)
+        except UnboundLocalError:
+            pass
+        
+        # Check if matching can be performed (require minimum of 2 matches)
+        if ((len(images[0].keypoints) < 3) or
+            (len(images[1].keypoints) < 3)):
+            return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
+        
+        margin_l, margin_r, margin_t, margin_b = image_margins
+        mask_margins = np.any(image_margins)
+        
         if mask_margins:
             this_img_keypoints = images[0].keypoints
             this_img_descriptors = images[0].descriptors
@@ -751,23 +929,14 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
             images[0].keypoints = _masked_keypoints_
             images[0].descriptors = _masked_descriptors_
         
+        
         try:
-            num_features = self.get_detector_num_features()
-        except UnboundLocalError:
-            pass
-        try:
-            try:
-                self.set_detector_num_features(np.min([num_features*10, 2000]))
-            except UnboundLocalError:
-                pass
             """
             for (idx, _im_) in zip((0, 1), (image_left, image_right)):
                 #self.images[idx].raw = _im_.copy()
                 (images[idx].keypoints, images[idx].descriptors) = (
                 self.get_features(_im_))
             """
-            (images[1].keypoints, images[1].descriptors) = (
-                self.get_features(image_right))
             if mask_margins:
                 this_img_keypoints = images[1].keypoints
                 this_img_descriptors = images[1].descriptors
@@ -820,22 +989,11 @@ class StereoCameraFeatureDetector(StereoCameraModel, _CameraFeatureDetector_):
                 # Triangulate the points now that they are matched
                 # Normalise the points
                 points3d = self.triangulate(pts_l, pts_r)
-            else:
-                points3d = np.empty(0)
-                kp_l = np.empty(0)
-                kp_r = np.empty(0)
-                desc_l = np.empty(0)
-                desc_r = np.empty(0)
         except:
             exc_info = sys.exc_info()
             print "STEREOCAMERAFEATUREDETECTOR: POINTS3D_FROM_IMG():"
             print traceback.print_tb(exc_info[2])
-            
-        finally:
-            try:
-                self.set_detector_num_features(num_features)
-            except UnboundLocalError:
-                pass
+        
         #print "Found (%s, %s) keypoints" % (len(images[0].keypoints), len(images[1].keypoints))
         return points3d, (pts_l, pts_r), (kp_l, kp_r), (desc_l, desc_r)
     
