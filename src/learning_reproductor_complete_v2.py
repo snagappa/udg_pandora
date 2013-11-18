@@ -149,85 +149,79 @@ class learningReproductor:
                       'name_pub_done': 'learning/reproductor/complete/name_pub_done',
                       'poseGoal_x': 'learning/reproductor/complete/poseGoal_x',
                       'poseGoal_y': 'learning/reproductor/complete/poseGoal_y',
-                      'poseGoal_z': 'learning/reproductor/complete/poseGoal_z'
+                      'poseGoal_z': 'learning/reproductor/complete/poseGoal_z',
+                      'goal_valve': 'learning/record/complete/goal_valve',
+                      'base_pose': '/arm_controller/base_pose',
+                      'base_ori': '/arm_controller/base_ori'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time))
 
-    def updateGoalPose(self, landMarkMap):
+    def updateGoalPose(self, pose_msg):
+        """
+        This method update the pose of the valve position published by the
+        valve_tracker, also is update the orientation of the handle of the valve
+        but is not used as the frame orientation.
+        @param pose_msg: Contains the position and the orientation of the vavle
+        @type pose_msg: PoseWithCovarianceStamped
+        """
+        self.lock.acquire()
+        try:
+            self.goalPose.position = pose_msg.pose.pose.position
+            self.valveOri = euler_from_quaternion(
+                            [self.goalPose.orientation.x,
+                             self.goalPose.orientation.y,
+                             self.goalPose.orientation.z,
+                             self.goalPose.orientation.w])[2]
+            if not self.initGoalPose:
+                self.initGoalPose = True
+                if (self.initGoalOri and
+                    not self.initGoal):
+                    self.initGoal = True
+            if not self.valveOriInit:
+                self.valveOriInit = True
+        finally:
+            self.lock.release()
+
+    def updateGoalOri(self, landMarkMap):
+        """
+        This method update the pose of the valve position published by the
+        valve_tracker, also is update the orientation of the handle of the valve
+        but is not used as the frame orientation.
+        @param landMarkMap: Contains the position and the orientation of the vavle and panel
+        @type landMarkMap: Map with
+        """
         self.lock.acquire()
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
-                    self.goalPose = mark.pose.pose
-                    try:
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world", "panel_centre",
-                            self.tflistener.getLatestCommonTime(
-                                "world", "panel_centre"))
-                        rotation_matrix = tf.transformations.quaternion_matrix(
-                            rot)
-                        goalPose = np.asarray([self.poseGoal_x,
-                                               self.poseGoal_y,
-                                               self.poseGoal_z,
-                                               1])
-                        goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.position.x = (self.goalPose.position.x +
-                                                    goalPose_rot[0])
-                        self.goalPose.position.y = (self.goalPose.position.y +
-                                                    goalPose_rot[1])
-                        self.goalPose.position.z = (self.goalPose.position.z +
-                                                    goalPose_rot[2])
-                        self.goalOrientation = euler_from_quaternion(rot)
-                        self.dataGoalReceived = True
-                    except tf.Exception:
-                        rotation_matrix = tf.transformations.quaternion_matrix(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])
-                        #poseGoal is the position of the vavle
-                        goalPose = np.asarray([self.poseGoal_x,
-                                               self.poseGoal_y,
-                                               self.poseGoal_z,
-                                               1])
-                        goalPose_rot = np.dot(rotation_matrix, goalPose)
-                        self.goalPose.position.x = (self.goalPose.position.x +
-                                                    goalPose_rot[0])
-                        self.goalPose.position.y = (self.goalPose.position.y +
-                                                    goalPose_rot[1])
-                        self.goalPose.position.z = (self.goalPose.position.z +
-                                                    goalPose_rot[2])
-                        self.goalOrientation = euler_from_quaternion(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])
-                        self.dataGoalReceived = True
-                    try:
-                        trans, rot = self.tflistener.lookupTransform(
-                            "world", "valve2",
-                            self.tflistener.getLatestCommonTime(
-                                "world", "valve2"))
-                        self.valveOri = tf.transformations.euler_from_quaternion(rot)[2]
-                        self.valveOriInit = True
-                    except tf.Exception:
-                        pass
+                    self.goalPose.orientation = mark.pose.pose.orientation
+                    if not self.initGoalOri:
+                        self.initGoalOri = True
+                        if (self.initGoalPose and
+                            not self.initGoal):
+                            self.initGoal = True
         finally:
             self.lock.release()
 
     def updateRobotPose(self, odometry):
+        """
+        This method update the position of the robot. Using directly the pose
+        published by the pose_ekf_slam.
+        @param odometry: Contains the odometry computed in the pose_ekf
+        @type odometry: Odometry message
+        """
         self.lock.acquire()
         try:
             self.robotPose = odometry.pose.pose
             eul = euler_from_quaternion(
-                [odometry.pose.pose.orientation.x,
-                 odometry.pose.pose.orientation.y,
-                 odometry.pose.pose.orientation.z,
-                 odometry.pose.pose.orientation.w])
-            s = (repr(odometry.pose.pose.position.x) + " " +
-                 repr(odometry.pose.pose.position.y) + " " +
-                 repr(odometry.pose.pose.position.z) + " " +
+                [self.robotPose.orientation.x,
+                 self.robotPose.orientation.y,
+                 self.robotPose.orientation.z,
+                 self.robotPose.orientation.w])
+            s = (repr(self.robotPose.position.x) + " " +
+                 repr(self.robotPose.position.y) + " " +
+                 repr(self.robotPose.position.z) + " " +
                  repr(eul[0]) + " " +
                  repr(eul[1]) + " " +
                  repr(eul[2]) + "\n")
@@ -305,25 +299,27 @@ class learningReproductor:
     def updateArmPosition(self, data):
         self.lock.acquire()
         try:
-            pose_ef, ori_ef = self.tflistener.lookupTransform(
-                "world", "end_effector",
-                self.tflistener.getLatestCommonTime(
-                    "world", "end_effector"))
+            if self.initGoalPose:
 
-            # self.armPose = np.array([data.pose.position.x,
-            #                          data.pose.position.y,
-            #                          data.pose.position.z])
-            # self.armOrientation = euler_from_quaternion(
-            #     [data.pose.orientation.x,
-            #      data.pose.orientation.y,
-            #      data.pose.orientation.z,
-            #      data.pose.orientation.w])
+            else:
+                rospy.loginfo('Goal pose Not initialized')
 
-            endeffectorPose = np.array([pose_ef[0],
-                                        pose_ef[1],
-                                        pose_ef[2],
+            endeffectorPose = np.array([data.pose.position.x,
+                                        data.pose.position.y,
+                                        data.pose.position.z,
                                         1])
             self.armOrientation = euler_from_quaternion(ori_ef)
+
+            trans_matrix_v2 = tf.transformations.quaternion_matrix(
+                [self.robotPose.orientation.x,
+                 self.robotPose.orientation.y,
+                 self.robotPose.orientation.z,
+                 self.robotPose.orientation.w])
+
+            trans_matrix_v2[0, 3] = self.robotPose.position.x
+            trans_matrix_v2[1, 3] = self.robotPose.position.y
+            trans_matrix_v2[2, 3] = self.robotPose.position.z
+
 
             trans_matrix = tf.transformations.quaternion_matrix(
                 [self.goalPose.orientation.x,
@@ -342,7 +338,21 @@ class learningReproductor:
             inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
                                      trans_matrix[0:3, 3])
 
-            endEfWorld = np.dot(inv_mat, endeffectorPose)
+            robot_base = tf.transformations.euler_matrix(
+                self.base_ori[0],
+                self.base_ori[1],
+                self.base_ori[2])
+
+            robot_base[0, 3] = self.base_pose[0]
+            robot_base[1, 3] = self.base_pose[1]
+            robot_base[2, 3] = self.base_pose[2]
+
+            arm_base = np.dot(robot_base, endeffectorPose)
+
+            arm_world_pose = np.dot(trans_matrix_v2, arm_base)
+
+            endEfWorld = np.dot(inv_mat, arm_world_pose)
+
             self.armPose[0:3] = endEfWorld[0:3]
             s = (repr(self.armPose[0]) + " " +
                  repr(self.armPose[1]) + " " +
