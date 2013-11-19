@@ -17,6 +17,7 @@ import cola2_lib
 # import the message to know the position
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
 # include the message of the ekf giving the position of the robot
 from nav_msgs.msg import Odometry
@@ -73,7 +74,10 @@ class learningReproductor:
         self.currAcc = np.zeros(self.nbVar)
         self.desAcc = np.zeros(self.nbVar)
         self.dataReceived = 0
+        self.dataReceivedArm = 0
         self.dataGoalReceived = False
+        self.dataGoalPoseReceived = False
+        self.dataGoalOriReceived = False
         self.dataRobotReceived = False
         self.dataComputed = 0
         #Simulation parameter
@@ -99,7 +103,7 @@ class learningReproductor:
             self.fileTraj = open('real_traj.csv', 'w')
 
         self.fileAUVPose = open('auv_pose.csv', 'w')
-        self.fileValvePose = open('panel_pose.csv', 'w')
+        self.fileVpalvePose = open('panel_pose.csv', 'w')
         self.fileEFPose = open('ef_pose.csv', 'w')
 
         self.lock = threading.Lock()
@@ -110,16 +114,22 @@ class learningReproductor:
         self.pub_auv_finish = rospy.Publisher(
             "learning/auv_finish", Bool)
 
-        rospy.Subscriber("/pose_ekf_slam/map",
-                         Map, self.updateGoalPose)
+        rospy.Subscriber('/pose_ekf_slam/map',
+                         Map, self.updateGoalOri)
+        rospy.Subscriber('/valve_tracker/valve'+str(self.goal_valve),
+                         PoseWithCovarianceStamped,
+                         self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/odometry",
                          Odometry, self.updateRobotPose)
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
                          self.updateArmPosition)
+        # rospy.Subscriber('/arm/safety_evaluation',
+        #                  Float64,
+        #                  self.updateSafety)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
-        self.tflistener = tf.TransformListener()
+        #self.tflistener = tf.TransformListener()
 
         self.enable_srv = rospy.Service(
             '/learning/enable_reproductor_complete',
@@ -173,11 +183,11 @@ class learningReproductor:
                              self.goalPose.orientation.y,
                              self.goalPose.orientation.z,
                              self.goalPose.orientation.w])[2]
-            if not self.initGoalPose:
-                self.initGoalPose = True
-                if (self.initGoalOri and
-                    not self.initGoal):
-                    self.initGoal = True
+            if not self.dataGoalPoseReceived:
+                self.dataGoalPoseReceived = True
+                if (self.dataGoalOriReceived and
+                    not self.dataGoalReceived):
+                    self.dataGoalReceived = True
             if not self.valveOriInit:
                 self.valveOriInit = True
         finally:
@@ -196,11 +206,11 @@ class learningReproductor:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
                     self.goalPose.orientation = mark.pose.pose.orientation
-                    if not self.initGoalOri:
-                        self.initGoalOri = True
-                        if (self.initGoalPose and
-                            not self.initGoal):
-                            self.initGoal = True
+                    if not self.dataGoalOriReceived:
+                        self.dataGoalOriReceived = True
+                        if (self.dataGoalPoseReceived and
+                            not self.dataGoalReceived):
+                            self.dataGoalReceived = True
         finally:
             self.lock.release()
 
@@ -299,94 +309,93 @@ class learningReproductor:
     def updateArmPosition(self, data):
         self.lock.acquire()
         try:
-            if self.initGoalPose:
+            if self.dataGoalReceived:
+                endeffectorPose = np.array([data.pose.position.x,
+                                            data.pose.position.y,
+                                            data.pose.position.z,
+                                            1])
+                self.armOrientation = euler_from_quaternion([data.pose.orientation.x,
+                                            data.pose.orientation.y,
+                                            data.pose.orientation.z,
+                                            data.pose.orientation.w])
 
+                trans_matrix_v2 = tf.transformations.quaternion_matrix(
+                    [self.robotPose.orientation.x,
+                     self.robotPose.orientation.y,
+                     self.robotPose.orientation.z,
+                     self.robotPose.orientation.w])
+
+                trans_matrix_v2[0, 3] = self.robotPose.position.x
+                trans_matrix_v2[1, 3] = self.robotPose.position.y
+                trans_matrix_v2[2, 3] = self.robotPose.position.z
+
+                trans_matrix = tf.transformations.quaternion_matrix(
+                    [self.goalPose.orientation.x,
+                     self.goalPose.orientation.y,
+                     self.goalPose.orientation.z,
+                     self.goalPose.orientation.w])
+
+                trans_matrix[0, 3] = self.goalPose.position.x
+                trans_matrix[1, 3] = self.goalPose.position.y
+                trans_matrix[2, 3] = self.goalPose.position.z
+
+                inv_mat = np.zeros([4, 4])
+                inv_mat[3, 3] = 1.0
+                inv_mat[0:3, 0:3] = np.transpose(trans_matrix[0:3, 0:3])
+                inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
+                                         trans_matrix[0:3, 3])
+
+                robot_base = tf.transformations.euler_matrix(
+                    self.base_ori[0],
+                    self.base_ori[1],
+                    self.base_ori[2])
+
+                robot_base[0, 3] = self.base_pose[0]
+                robot_base[1, 3] = self.base_pose[1]
+                robot_base[2, 3] = self.base_pose[2]
+
+                arm_base = np.dot(robot_base, endeffectorPose)
+
+                arm_world_pose = np.dot(trans_matrix_v2, arm_base)
+
+                endEfWorld = np.dot(inv_mat, arm_world_pose)
+
+                self.armPose[0:3] = endEfWorld[0:3]
+                s = (repr(self.armPose[0]) + " " +
+                     repr(self.armPose[1]) + " " +
+                     repr(self.armPose[2]) + " " +
+                     repr(self.armOrientation[0]) + " " +
+                     repr(self.armOrientation[1]) + " " +
+                     repr(self.armOrientation[2]) + "\n")
+                self.fileEFPose.write(s)
+
+                self.prevPos[4:10] = self.currPos[4:10]
+                self.currPos[4:7] = self.armPose
+                if self.valveOriInit:
+                    self.currPos[7] = self.armOrientation[2] - self.valveOri
+                else:
+                    self.currPos[7] = self.armOrientation[2]
+                self.currPos[8:10] = self.armOrientation[1:3]
+
+                if self.dataReceivedArm == 0:
+                    self.currTimeArm = (data.header.stamp.secs +
+                                        (data.header.stamp.nsecs*1E-9))
+                    self.dataReceivedArm += 1
+                elif self.dataReceivedArm == 1:
+                    self.prevTimeArm = self.currTimeArm
+                    self.currTimeArm = (data.header.stamp.secs +
+                                        (data.header.stamp.nsecs*1E-9))
+                    self.currVel[4:10] = ((self.currPos[4:10]-self.prevPos[4:10]) /
+                                          (self.currTimeArm-self.prevTimeArm))
+                    self.dataReceivedArm += 1
+                else:
+                    self.prevTimeArm = self.currTimeArm
+                    self.currTimeArm = (data.header.stamp.secs +
+                                        (data.header.stamp.nsecs*1E-9))
+                    self.currVel[4:10] = ((self.currPos[4:10]-self.prevPos[4:10]) /
+                                          (self.currTimeArm-self.prevTimeArm))
             else:
                 rospy.loginfo('Goal pose Not initialized')
-
-            endeffectorPose = np.array([data.pose.position.x,
-                                        data.pose.position.y,
-                                        data.pose.position.z,
-                                        1])
-            self.armOrientation = euler_from_quaternion(ori_ef)
-
-            trans_matrix_v2 = tf.transformations.quaternion_matrix(
-                [self.robotPose.orientation.x,
-                 self.robotPose.orientation.y,
-                 self.robotPose.orientation.z,
-                 self.robotPose.orientation.w])
-
-            trans_matrix_v2[0, 3] = self.robotPose.position.x
-            trans_matrix_v2[1, 3] = self.robotPose.position.y
-            trans_matrix_v2[2, 3] = self.robotPose.position.z
-
-
-            trans_matrix = tf.transformations.quaternion_matrix(
-                [self.goalPose.orientation.x,
-                 self.goalPose.orientation.y,
-                 self.goalPose.orientation.z,
-                 self.goalPose.orientation.w])
-
-            trans_matrix[0, 3] = self.goalPose.position.x
-            trans_matrix[1, 3] = self.goalPose.position.y
-            trans_matrix[2, 3] = self.goalPose.position.z
-
-            #invert Matrix
-            inv_mat = np.zeros([4, 4])
-            inv_mat[3, 3] = 1.0
-            inv_mat[0:3, 0:3] = np.transpose(trans_matrix[0:3, 0:3])
-            inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
-                                     trans_matrix[0:3, 3])
-
-            robot_base = tf.transformations.euler_matrix(
-                self.base_ori[0],
-                self.base_ori[1],
-                self.base_ori[2])
-
-            robot_base[0, 3] = self.base_pose[0]
-            robot_base[1, 3] = self.base_pose[1]
-            robot_base[2, 3] = self.base_pose[2]
-
-            arm_base = np.dot(robot_base, endeffectorPose)
-
-            arm_world_pose = np.dot(trans_matrix_v2, arm_base)
-
-            endEfWorld = np.dot(inv_mat, arm_world_pose)
-
-            self.armPose[0:3] = endEfWorld[0:3]
-            s = (repr(self.armPose[0]) + " " +
-                 repr(self.armPose[1]) + " " +
-                 repr(self.armPose[2]) + " " +
-                 repr(self.armOrientation[0]) + " " +
-                 repr(self.armOrientation[1]) + " " +
-                 repr(self.armOrientation[2]) + "\n")
-            self.fileEFPose.write(s)
-
-            self.prevPos[4:10] = self.currPos[4:10]
-            self.currPos[4:7] = self.armPose
-            if self.valveOriInit:
-                self.currPos[7] = self.armOrientation[2] - self.valveOri
-            else:
-                self.currPos[7] = self.armOrientation[2]
-            self.currPos[8:10] = self.armOrientation[1:3]
-
-            if self.dataReceived == 0:
-                self.currTimeArm = (data.header.stamp.secs +
-                                    (data.header.stamp.nsecs*1E-9))
-                self.dataReceived += 1
-            elif self.dataReceived == 1:
-                self.prevTimeArm = self.currTimeArm
-                self.currTimeArm = (data.header.stamp.secs +
-                                    (data.header.stamp.nsecs*1E-9))
-                self.currVel[4:10] = ((self.currPos[4:10]-self.prevPos[4:10]) /
-                                      (self.currTimeArm-self.prevTimeArm))
-                self.dataReceived += 1
-            else:
-                self.prevTimeArm = self.currTimeArm
-                self.currTimeArm = (data.header.stamp.secs +
-                                    (data.header.stamp.nsecs*1E-9))
-                self.currVel[4:10] = ((self.currPos[4:10]-self.prevPos[4:10]) /
-                                      (self.currTimeArm-self.prevTimeArm))
         finally:
             self.lock.release()
 
@@ -408,7 +417,7 @@ class learningReproductor:
             try:
                 if self.enabled:
                     if not self.simulation:
-                        if self.dataReceived > 1:
+                        if self.dataReceived > 1 and self.dataReceivedArm > 1:
                             self.generateNewPose()
                     else:
                         self.simulatedNewPose()
