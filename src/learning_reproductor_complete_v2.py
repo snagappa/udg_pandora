@@ -160,7 +160,7 @@ class learningReproductor:
                       'poseGoal_x': 'learning/reproductor/complete/poseGoal_x',
                       'poseGoal_y': 'learning/reproductor/complete/poseGoal_y',
                       'poseGoal_z': 'learning/reproductor/complete/poseGoal_z',
-                      'goal_valve': 'learning/record/complete/goal_valve',
+                      'goal_valve': 'learning/reproductor/complete/goal_valve',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori'
                       }
@@ -286,20 +286,20 @@ class learningReproductor:
                     self.dataReceived += 1
 
                 elif self.dataReceived == 1:
-                    self.prevPos[0:4] = self.currPos[0:4]
+                    #self.prevPos[0:4] = self.currPos[0:4]
                     self.prevTimeAUV = self.currTimeAUV
                     self.currTimeAUV = (odometry.header.stamp.secs +
                                         (odometry.header.stamp.nsecs*1E-9))
                     self.currVel[0:4] = ((self.currPos[0:4] - self.prevPos[0:4])
-                                         / (self.currTimeArm - self.prevTimeArm))
+                                         / (self.currTimeAUV - self.prevTimeAUV))
                     self.dataReceived += 1
                 else:
-                    self.prevPos[0:4] = self.currPos[0:4]
+                    #self.prevPos[0:4] = self.currPos[0:4]
                     self.prevTimeAUV = self.currTimeAUV
                     self.currTimeAUV = (odometry.header.stamp.secs +
                                         (odometry.header.stamp.nsecs*1E-9))
                     self.currVel[0:4] = ((self.currPos[0:4] - self.prevPos[0:4]) /
-                                         (self.currTimeArm - self.prevTimeArm))
+                                         (self.currTimeAUV - self.prevTimeAUV))
             else:
                 rospy.loginfo(
                     'Waiting to initialise the valve and robot position')
@@ -415,6 +415,12 @@ class learningReproductor:
         while not rospy.is_shutdown():
             self.lock.acquire()
             try:
+                # rospy.loginfo('Curr Pos Rob ' + str(self.currPos[0])
+                #               + ', ' + str(self.currPos[1])
+                #               + ', ' + str(self.currPos[2]))
+                # rospy.loginfo('Curr Pos Arm ' + str(self.currPos[4])
+                #               + ', ' + str(self.currPos[5])
+                #               + ', ' + str(self.currPos[6]))
                 if self.enabled:
                     if not self.simulation:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
@@ -536,7 +542,29 @@ class learningReproductor:
             [self.desVel[0],
              self.desVel[1],
              self.desVel[2],
-             1])
+             0])
+
+        rospy.loginfo('Current Pose ' + str(self.currPos[0])
+                      + ', ' + str(self.currPos[1])
+                      + ', ' + str(self.currPos[2]))
+
+        rospy.loginfo('Des Pose ' + str(self.desPos[0])
+                      + ', ' + str(self.desPos[1])
+                      + ', ' + str(self.desPos[2]))
+
+        rospy.loginfo('Curr Vel ' + str(self.currVel[0])
+                      + ', ' + str(self.currVel[1])
+                      + ', ' + str(self.currVel[2]))
+        
+        rospy.loginfo('Des Vel ' + str(self.desVel[0])
+                      + ', ' + str(self.desVel[1])
+                      + ', ' + str(self.desVel[2]))
+
+        vel_panel_ee = np.asarray(
+            [self.desVel[4],
+             self.desVel[5],
+             self.desVel[6],
+             0])
 
         trans_panel = tf.transformations.quaternion_matrix(
             [self.goalPose.orientation.x,
@@ -548,7 +576,14 @@ class learningReproductor:
         trans_panel[1, 3] = self.goalPose.position.y
         trans_panel[2, 3] = self.goalPose.position.z
 
-        vel_world = np.dot(trans_panel, vel_panel)
+        inv_panel = np.zeros([4, 4])
+        inv_panel[3, 3] = 1.0
+        inv_panel[0:3, 0:3] = np.transpose(trans_panel[0:3, 0:3])
+        inv_panel[0:3, 3] = np.dot((-1*inv_panel[0:3, 0:3]),
+                                 trans_panel[0:3, 3])
+
+        vel_world = np.dot(inv_panel, vel_panel)
+        vel_world_ee = np.dot(inv_panel, vel_panel_ee)
 
         trans_auv = tf.transformations.quaternion_matrix(
             [self.robotPose.orientation.x,
@@ -560,22 +595,29 @@ class learningReproductor:
         trans_auv[1, 3] = self.robotPose.position.y
         trans_auv[2, 3] = self.robotPose.position.z
 
-        inv_mat = np.zeros([4, 4])
-        inv_mat[3, 3] = 1.0
-        inv_mat[0:3, 0:3] = np.transpose(trans_auv[0:3, 0:3])
-        inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
-                                 trans_auv[0:3, 3])
+        # inv_mat = np.zeros([4, 4])
+        # inv_mat[3, 3] = 1.0
+        # inv_mat[0:3, 0:3] = np.transpose(trans_auv[0:3, 0:3])
+        # inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
+        #                          trans_auv[0:3, 3])
 
-        vel_auv = np.dot(inv_mat, vel_world)
+        vel_auv = np.dot(trans_auv, vel_world)
+        vel_arm = np.dot(trans_auv, vel_world_ee)
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_auv[0]/70.0
-        vel_com.twist.linear.y = vel_auv[1]/70.0
-        vel_com.twist.linear.z = vel_auv[2]/30.0
+        vel_com.twist.linear.x = -vel_auv[0]/50.0
+        vel_com.twist.linear.y = -vel_auv[1]/50.0
+        vel_com.twist.linear.z = -vel_auv[2]/30.0
+        # rospy.loginfo('Learning ' + str(-vel_auv[0])
+        #               + ' ' + str(-vel_auv[1])
+        #               + ' ' + str(-vel_auv[2]))
+        # rospy.loginfo('Reduced ' + str(-vel_auv[0]/50.0)
+        #               + ' ' + str(-vel_auv[1]/50.0)
+        #               + ' ' + str(-vel_auv[2]/30.0))
         vel_com.twist.angular.z = -self.desVel[3]/40.0
 
         #disabled_axis boby_velocity_req
@@ -592,13 +634,19 @@ class learningReproductor:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append(self.desVel[0]-self.desVel[4])
-        joyCommand.axes.append(self.desVel[1]-self.desVel[5])
-        joyCommand.axes.append(self.desVel[2]-self.desVel[6])
+        joyCommand.axes.append(vel_arm[0]-vel_auv[0])
+        # rospy.loginfo('Vel arm ' + str(vel_arm[0])
+        #               + ', ' + str(vel_arm[1])
+        #               + ', ' + str(vel_arm[2]))
+        # rospy.loginfo('Vel AUV ' + str(vel_auv[0])
+        #               + ', ' + str(vel_auv[1])
+        #               + ', ' + str(vel_auv[2]))
+        joyCommand.axes.append(vel_arm[1]-vel_auv[1])
+        joyCommand.axes.append(vel_arm[2]-vel_auv[2])
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
-        self.pub_arm_command.publish(joyCommand)
+        #self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
@@ -612,7 +660,7 @@ class learningReproductor:
              repr(self.currPos[9]) + "\n")
         self.fileTraj.write(s)
 
-        self.pub_auv_vel.publish(vel_com)
+        #self.pub_auv_vel.publish(vel_com)
 
     def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
