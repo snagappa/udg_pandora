@@ -39,6 +39,7 @@ import numpy as np
 #To enable or disable the service
 from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
+from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
 
 #from udg_pandora.srv import WorkAreaError
@@ -93,6 +94,7 @@ class learningReproductor:
         self.currNbDataRepro = 0
         self.enabled = False
         self.initial_s = self.s
+        self.action = 1.0
 
         self.valveOri = 0.0
         self.valveOriInit = False
@@ -124,9 +126,9 @@ class learningReproductor:
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
                          self.updateArmPosition)
-        # rospy.Subscriber('/arm/safety_evaluation',
-        #                  Float64,
-        #                  self.updateSafety)
+        rospy.Subscriber('/arm/safety_evaluation',
+                         Float64,
+                         self.updateSafety)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
         #self.tflistener = tf.TransformListener()
@@ -407,6 +409,13 @@ class learningReproductor:
         finally:
             self.lock.release()
 
+    def updateSafety(self, action):
+        self.lock.acquire()
+        try:
+            self.action = action.data
+        finally:
+            self.lock.release()
+
     def enableSrv(self, req):
         self.enabled = True
         rospy.loginfo('%s Enabled', self.name)
@@ -415,6 +424,7 @@ class learningReproductor:
     def disableSrv(self, req):
         self.enabled = False
         self.s = self.initial_s
+        self.action = 1.0
         rospy.loginfo('%s Disabled', self.name)
         return EmptyResponse()
 
@@ -486,8 +496,8 @@ class learningReproductor:
              repr(self.desPos[9]) + "\n")
         self.file.write(s)
 
-        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
-        self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
+        #self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
         self.currNbDataRepro = self.currNbDataRepro+1
         self.currPosSim = self.desPos
@@ -524,7 +534,7 @@ class learningReproductor:
         self.desAcc = (np.dot(
             currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
-        #currAcc = currAcc * math.fabs(self.action)
+        currAcc = currAcc * math.fabs(self.action)
 
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
@@ -532,8 +542,8 @@ class learningReproductor:
 
         self.publishCommands()
 
-        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
-        self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
+        #self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
         #rospy.loginfo('Value of S ' + str(self.s))
         if (self.s < 1E-200):
@@ -584,11 +594,11 @@ class learningReproductor:
         trans_panel[1, 3] = self.goalPose.position.y
         trans_panel[2, 3] = self.goalPose.position.z
 
-        inv_panel = np.zeros([4, 4])
-        inv_panel[3, 3] = 1.0
-        inv_panel[0:3, 0:3] = np.transpose(trans_panel[0:3, 0:3])
-        inv_panel[0:3, 3] = np.dot((-1*inv_panel[0:3, 0:3]),
-                                 trans_panel[0:3, 3])
+        # inv_panel = np.zeros([4, 4])
+        # inv_panel[3, 3] = 1.0
+        # inv_panel[0:3, 0:3] = np.transpose(trans_panel[0:3, 0:3])
+        # inv_panel[0:3, 3] = np.dot((-1*inv_panel[0:3, 0:3]),
+        #                          trans_panel[0:3, 3])
 
         #vel_world = np.dot(inv_panel, vel_panel)
         vel_world = np.dot(trans_panel, vel_panel)
@@ -677,7 +687,7 @@ class learningReproductor:
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
-        #self.pub_arm_command.publish(joyCommand)
+        self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
@@ -691,7 +701,7 @@ class learningReproductor:
              repr(self.currPos[9]) + "\n")
         self.fileTraj.write(s)
 
-        self.pub_auv_vel.publish(vel_com)
+        #self.pub_auv_vel.publish(vel_com)
 
     def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
