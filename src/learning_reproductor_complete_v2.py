@@ -41,7 +41,7 @@ from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Joy
 
-from udg_pandora.srv import WorkAreaError
+#from udg_pandora.srv import WorkAreaError
 
 import threading
 import tf
@@ -206,6 +206,14 @@ class learningReproductor:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
                     self.goalPose.orientation = mark.pose.pose.orientation
+                    # euler_test = tf.transformations.euler_from_quaternion(
+                    #     [mark.pose.pose.orientation.x,
+                    #      mark.pose.pose.orientation.y,
+                    #      mark.pose.pose.orientation.z,
+                    #      mark.pose.pose.orientation.w])
+                    # rospy.loginfo('Euler test + ' + str(euler_test[0])
+                    #               + ', ' + str(euler_test[1])
+                    #               + ', ' + str(euler_test[2]))
                     if not self.dataGoalOriReceived:
                         self.dataGoalOriReceived = True
                         if (self.dataGoalPoseReceived and
@@ -544,21 +552,21 @@ class learningReproductor:
              self.desVel[2],
              0])
 
-        rospy.loginfo('Current Pose ' + str(self.currPos[0])
-                      + ', ' + str(self.currPos[1])
-                      + ', ' + str(self.currPos[2]))
+        # rospy.loginfo('Current Pose ' + str(self.currPos[0])
+        #               + ', ' + str(self.currPos[1])
+        #               + ', ' + str(self.currPos[2]))
 
-        rospy.loginfo('Des Pose ' + str(self.desPos[0])
-                      + ', ' + str(self.desPos[1])
-                      + ', ' + str(self.desPos[2]))
+        # rospy.loginfo('Des Pose ' + str(self.desPos[0])
+        #               + ', ' + str(self.desPos[1])
+        #               + ', ' + str(self.desPos[2]))
 
-        rospy.loginfo('Curr Vel ' + str(self.currVel[0])
-                      + ', ' + str(self.currVel[1])
-                      + ', ' + str(self.currVel[2]))
-        
-        rospy.loginfo('Des Vel ' + str(self.desVel[0])
-                      + ', ' + str(self.desVel[1])
-                      + ', ' + str(self.desVel[2]))
+        # rospy.loginfo('Curr Vel ' + str(self.currVel[0])
+        #               + ', ' + str(self.currVel[1])
+        #               + ', ' + str(self.currVel[2]))
+
+        # rospy.loginfo('Des Vel ' + str(self.desVel[0])
+        #               + ', ' + str(self.desVel[1])
+        #               + ', ' + str(self.desVel[2]))
 
         vel_panel_ee = np.asarray(
             [self.desVel[4],
@@ -582,8 +590,20 @@ class learningReproductor:
         inv_panel[0:3, 3] = np.dot((-1*inv_panel[0:3, 0:3]),
                                  trans_panel[0:3, 3])
 
-        vel_world = np.dot(inv_panel, vel_panel)
-        vel_world_ee = np.dot(inv_panel, vel_panel_ee)
+        #vel_world = np.dot(inv_panel, vel_panel)
+        vel_world = np.dot(trans_panel, vel_panel)
+        #vel_world_ee = np.dot(inv_panel, vel_panel_ee)
+        vel_world_ee = np.dot(trans_panel, vel_panel_ee)
+
+        euler_test = tf.transformations.euler_from_quaternion(
+            [self.goalPose.orientation.x,
+             self.goalPose.orientation.y,
+             self.goalPose.orientation.z,
+             self.goalPose.orientation.w])
+
+        # rospy.loginfo('Vel World ' + str(vel_world[0])
+        #               + ', ' + str(vel_world[1])
+        #               + ', ' + str(vel_world[2]))
 
         trans_auv = tf.transformations.quaternion_matrix(
             [self.robotPose.orientation.x,
@@ -595,23 +615,34 @@ class learningReproductor:
         trans_auv[1, 3] = self.robotPose.position.y
         trans_auv[2, 3] = self.robotPose.position.z
 
-        # inv_mat = np.zeros([4, 4])
-        # inv_mat[3, 3] = 1.0
-        # inv_mat[0:3, 0:3] = np.transpose(trans_auv[0:3, 0:3])
-        # inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
-        #                          trans_auv[0:3, 3])
+        inv_mat_auv = np.zeros([4, 4])
+        inv_mat_auv[3, 3] = 1.0
+        inv_mat_auv[0:3, 0:3] = np.transpose(trans_auv[0:3, 0:3])
+        inv_mat_auv[0:3, 3] = np.dot((-1*inv_mat_auv[0:3, 0:3]),
+                                     trans_auv[0:3, 3])
 
-        vel_auv = np.dot(trans_auv, vel_world)
-        vel_arm = np.dot(trans_auv, vel_world_ee)
+        vel_auv = np.dot(inv_mat_auv, vel_world)
+        # vel_auv2 = np.dot(inv_mat_auv, vel_world)
+        vel_arm = np.dot(inv_mat_auv, vel_world_ee)
+
+        # rospy.loginfo('Vel auv ' + str(vel_auv[0])
+        #               + ', ' + str(vel_auv[1])
+        #               + ', ' + str(vel_auv[2]))
+
+        # rospy.loginfo('Vel auv 2 ' + str(vel_auv2[0])
+        #               + ', ' + str(vel_auv2[1])
+        #               + ', ' + str(vel_auv2[2]))
+
+        #rospy.loginfo('*********************************')
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = -vel_auv[0]/50.0
-        vel_com.twist.linear.y = -vel_auv[1]/50.0
-        vel_com.twist.linear.z = -vel_auv[2]/30.0
+        vel_com.twist.linear.x = vel_auv[0]/50.0
+        vel_com.twist.linear.y = vel_auv[1]/50.0
+        vel_com.twist.linear.z = vel_auv[2]/30.0
         # rospy.loginfo('Learning ' + str(-vel_auv[0])
         #               + ' ' + str(-vel_auv[1])
         #               + ' ' + str(-vel_auv[2]))
@@ -660,7 +691,7 @@ class learningReproductor:
              repr(self.currPos[9]) + "\n")
         self.fileTraj.write(s)
 
-        #self.pub_auv_vel.publish(vel_com)
+        self.pub_auv_vel.publish(vel_com)
 
     def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
