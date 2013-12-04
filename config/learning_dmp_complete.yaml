@@ -2,13 +2,16 @@ learning/dmp/nbData : 500
 learning/dmp/nbDataRepro : 500
 learning/dmp/nbDataExport : 3000
 learning/dmp/nbVar : 10
-learning/dmp/nbStates : 16
+learning/dmp/nbStates : 22
+#16
 learning/dmp/kV : 1
 learning/dmp/kP : 25
 learning/dmp/dt : 0.2
+# learning/dmp/kPmin : 0.0001
+# learning/dmp/kPmax : 0.01
 learning/dmp/kPmin : 1
 learning/dmp/kPmax : 50
 learning/dmp/alpha : 2.0
 learning/dmp/demonstration_file : trajectory_demonstration
-learning/dmp/demonstrations : [3] 
+learning/dmp/demonstrations : [1] 
 learning/dmp/export_filename : learned_data_complete.txt

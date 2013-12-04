@@ -126,6 +126,8 @@ class learningReproductor:
             '/cola2_control/joystick_arm_ef_vel', Joy)
         self.pub_auv_finish = rospy.Publisher(
             'learning/auv_finish', Bool)
+        self.pub_arm_des_pose = rospy.Publisher(
+            "learning/end_effector_desired_pose", PoseStamped)
 
         rospy.Subscriber('/pose_ekf_slam/map',
                          Map, self.updateGoalOri)
@@ -192,6 +194,9 @@ class learningReproductor:
         self.lock.acquire()
         try:
             self.goalPose.position = pose_msg.pose.pose.position
+            #WORK AROUND
+            #self.goalPose.orientation = pose_msg.pose.pose.orientation
+            #END
             self.valveOri = euler_from_quaternion(
                             [self.goalPose.orientation.x,
                              self.goalPose.orientation.y,
@@ -476,6 +481,20 @@ class learningReproductor:
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
         self.desPos = self.currPos + self.desVel * self.interval_time
+
+        #rospy.loginfo('AUV Pose ' + str(self.currPos[0]) + ', ' + str(self.currPos[1]) + ', ' + str(self.currPos[2]))
+
+        desPose_msg = PoseStamped()
+        desPose_msg.header.stamp = rospy.get_rostime()
+        desPose_msg.header.frame_id = "valve2"
+        desPose_msg.pose.position.x = self.desPos[0]
+        desPose_msg.pose.position.y = self.desPos[1]
+        desPose_msg.pose.position.z = self.desPos[2]
+        desPose_msg.pose.orientation.x = 0
+        desPose_msg.pose.orientation.y = 0
+        desPose_msg.pose.orientation.z = 0
+        desPose_msg.pose.orientation.w = 1
+        self.pub_arm_des_pose.publish(desPose_msg)
 
         self.publishCommands()
 

@@ -115,6 +115,8 @@ class learningReproductor:
             "/cola2_control/joystick_arm_ef_vel", Joy)
         self.pub_auv_finish = rospy.Publisher(
             "learning/auv_finish", Bool)
+        self.pub_arm_des_pose = rospy.Publisher(
+            "learning/end_effector_desired_pose", PoseStamped)
 
         rospy.Subscriber('/pose_ekf_slam/map',
                          Map, self.updateGoalOri)
@@ -484,6 +486,19 @@ class learningReproductor:
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
 
+        desPose_msg = PoseStamped()
+        desPose_msg.header.stamp = rospy.get_rostime()
+        desPose_msg.header.frame_id = "valve2"
+        desPose_msg.pose.position.x = self.desPos[0]
+        desPose_msg.pose.position.y = self.desPos[1]
+        desPose_msg.pose.position.z = self.desPos[2]
+        desPose_msg.pose.orientation.x = 0
+        desPose_msg.pose.orientation.y = 0
+        desPose_msg.pose.orientation.z = 0
+        desPose_msg.pose.orientation.w = 1
+
+        self.pub_arm_des_pose.publish(desPose_msg)
+
         s = (repr(self.desPos[0]) + " " +
              repr(self.desPos[1]) + " " +
              repr(self.desPos[2]) + " " +
@@ -534,11 +549,23 @@ class learningReproductor:
         self.desAcc = (np.dot(
             currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
-        currAcc = currAcc * math.fabs(self.action)
+        #self.desAcc = self.desAcc * math.fabs(self.action)
 
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
         self.desPos = self.currPos + self.desVel * self.interval_time
+
+        desPose_msg = PoseStamped()
+        desPose_msg.header.stamp = rospy.get_rostime()
+        desPose_msg.header.frame_id = "valve2"
+        desPose_msg.pose.position.x = self.desPos[0]
+        desPose_msg.pose.position.y = self.desPos[1]
+        desPose_msg.pose.position.z = self.desPos[2]
+        desPose_msg.pose.orientation.x = 0
+        desPose_msg.pose.orientation.y = 0
+        desPose_msg.pose.orientation.z = 0
+        desPose_msg.pose.orientation.w = 1
+        self.pub_arm_des_pose.publish(desPose_msg)
 
         self.publishCommands()
 
@@ -574,9 +601,9 @@ class learningReproductor:
         #               + ', ' + str(self.currVel[1])
         #               + ', ' + str(self.currVel[2]))
 
-        # rospy.loginfo('Des Vel ' + str(self.desVel[0])
-        #               + ', ' + str(self.desVel[1])
-        #               + ', ' + str(self.desVel[2]))
+        rospy.loginfo('Des Vel ' + str(self.desVel[0])
+                      + ', ' + str(self.desVel[1])
+                      + ', ' + str(self.desVel[2]))
 
         vel_panel_ee = np.asarray(
             [self.desVel[4],
@@ -611,9 +638,9 @@ class learningReproductor:
              self.goalPose.orientation.z,
              self.goalPose.orientation.w])
 
-        # rospy.loginfo('Vel World ' + str(vel_world[0])
-        #               + ', ' + str(vel_world[1])
-        #               + ', ' + str(vel_world[2]))
+        rospy.loginfo('Vel World ' + str(vel_world[0])
+                      + ', ' + str(vel_world[1])
+                      + ', ' + str(vel_world[2]))
 
         trans_auv = tf.transformations.quaternion_matrix(
             [self.robotPose.orientation.x,
@@ -635,9 +662,9 @@ class learningReproductor:
         # vel_auv2 = np.dot(inv_mat_auv, vel_world)
         vel_arm = np.dot(inv_mat_auv, vel_world_ee)
 
-        # rospy.loginfo('Vel auv ' + str(vel_auv[0])
-        #               + ', ' + str(vel_auv[1])
-        #               + ', ' + str(vel_auv[2]))
+        rospy.loginfo('Vel auv ' + str(vel_auv[0])
+                      + ', ' + str(vel_auv[1])
+                      + ', ' + str(vel_auv[2]))
 
         # rospy.loginfo('Vel auv 2 ' + str(vel_auv2[0])
         #               + ', ' + str(vel_auv2[1])
@@ -645,13 +672,23 @@ class learningReproductor:
 
         #rospy.loginfo('*********************************')
 
+        # for i in xrange(3):
+        #     if vel_auv[i] > 0.6 :
+        #         vel_auv[i] = 0.6
+        #     elif vel_auv[i] < -0.6 :
+        #         vel_auv[i] = -0.6
+
+        # if self.desVel[3] > 0.6 :
+        #     self.desVel[3] = 0.6
+        # elif self.desVel[3] < -0.6 :
+        #     self.desVel[3] = -0.6
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_auv[0]/50.0
-        vel_com.twist.linear.y = vel_auv[1]/50.0
+        vel_com.twist.linear.x = vel_auv[0]/50.0 #50.0
+        vel_com.twist.linear.y = vel_auv[1]/50.0 #50.0
         vel_com.twist.linear.z = vel_auv[2]/30.0
         # rospy.loginfo('Learning ' + str(-vel_auv[0])
         #               + ' ' + str(-vel_auv[1])
@@ -670,6 +707,8 @@ class learningReproductor:
         vel_com.disable_axis.yaw = False
         #vel_com.disable_axis.yaw = True
 
+        self.pub_auv_vel.publish(vel_com)
+
         ##############################################
         # Compute the Arm velocity
         ##############################################
@@ -687,7 +726,7 @@ class learningReproductor:
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
-        self.pub_arm_command.publish(joyCommand)
+        #self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
@@ -700,8 +739,6 @@ class learningReproductor:
              repr(self.currPos[8]) + " " +
              repr(self.currPos[9]) + "\n")
         self.fileTraj.write(s)
-
-        #self.pub_auv_vel.publish(vel_com)
 
     def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
