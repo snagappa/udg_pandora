@@ -42,6 +42,8 @@ from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
 
+from rfdm_pkg.msg import rfdm_msg
+
 #from udg_pandora.srv import WorkAreaError
 
 import threading

@@ -42,6 +42,8 @@ from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
 
+from rfdm_pkg.msg import rfdm_msg
+
 #from udg_pandora.srv import WorkAreaError
 
 import threading
@@ -103,6 +105,8 @@ class learningReproductor:
         self.currPosSim[5] = 0.05
         self.currPosSim[6] = 0.02
 
+        self.action = 1.0
+
         self.currNbDataRepro = 0
         self.enabled = False
         self.initial_s = self.s
@@ -142,6 +146,10 @@ class learningReproductor:
         # rospy.Subscriber('/arm/safety_evaluation',
         #                  Float64,
         #                  self.updateSafety)
+
+        rospy.Subscriber('/rfdm_pkg/reactive',
+                         rfdm_msg,
+                         self.updateSafety)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
         #self.tflistener = tf.TransformListener()
@@ -178,7 +186,9 @@ class learningReproductor:
                       'poseGoal_x': 'learning/reproductor/complete/poseGoal_x',
                       'poseGoal_y': 'learning/reproductor/complete/poseGoal_y',
                       'poseGoal_z': 'learning/reproductor/complete/poseGoal_z',
-                      'goal_valve': 'learning/reproductor/complete/goal_valve'
+                      'goal_valve': 'learning/reproductor/complete/goal_valve',
+                      'base_pose': '/arm_controller/base_pose',
+                      'base_ori': '/arm_controller/base_ori'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Interval time value: ' + str(self.interval_time))
@@ -365,6 +375,13 @@ class learningReproductor:
         finally:
             self.lock.release()
 
+    def updateSafety(self, rfdm_msg):
+        self.lock.acquire()
+        try:
+            self.action = rfdm_msg.reactive_data
+        finally:
+            self.lock.release()
+
     def enableSrv(self, req):
         self.enabled = True
         rospy.loginfo('%s Enabled', self.name)
@@ -373,6 +390,7 @@ class learningReproductor:
     def disableSrv(self, req):
         self.enabled = False
         self.s = self.initial_s
+        self.action = 1.0
         rospy.loginfo('%s Disabled', self.name)
         return EmptyResponse()
 
@@ -476,7 +494,7 @@ class learningReproductor:
         self.desAcc = (np.dot(
             currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
-        #currAcc = currAcc * math.fabs(self.action)
+        self.desAcc = self.desAcc * math.fabs(self.action)
 
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
@@ -484,22 +502,13 @@ class learningReproductor:
 
         #rospy.loginfo('AUV Pose ' + str(self.currPos[0]) + ', ' + str(self.currPos[1]) + ', ' + str(self.currPos[2]))
 
-        desPose_msg = PoseStamped()
-        desPose_msg.header.stamp = rospy.get_rostime()
-        desPose_msg.header.frame_id = "valve2"
-        desPose_msg.pose.position.x = self.desPos[0]
-        desPose_msg.pose.position.y = self.desPos[1]
-        desPose_msg.pose.position.z = self.desPos[2]
-        desPose_msg.pose.orientation.x = 0
-        desPose_msg.pose.orientation.y = 0
-        desPose_msg.pose.orientation.z = 0
-        desPose_msg.pose.orientation.w = 1
-        self.pub_arm_des_pose.publish(desPose_msg)
+        self.computeArmDesPoseAndPub(self.desPos[0:4],self.desPos[4:7])
 
         self.publishCommands()
 
-        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
-        self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action*1.2
+        rospy.loginfo('Value of S ' + str(self.s) + ' Action Value ' + str(self.action) )
+        #self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
         #rospy.loginfo('Value of S ' + str(self.s))
         if (self.s < 1E-200):
@@ -553,9 +562,9 @@ class learningReproductor:
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_auv[0]/70.0
-        vel_com.twist.linear.y = vel_auv[1]/70.0
-        vel_com.twist.linear.z = vel_auv[2]/30.0
+        vel_com.twist.linear.x = vel_auv[0]/10.0#vel_auv[0]/50.0
+        vel_com.twist.linear.y = vel_auv[1]/50.0
+        vel_com.twist.linear.z = vel_auv[2]/20.0
         vel_com.twist.angular.z = -self.desVel[3]/40.0
 
         #disabled_axis boby_velocity_req
@@ -579,7 +588,7 @@ class learningReproductor:
         joyCommand.axes.append(-self.desVel[7]*0.0)#/20.)
         joyCommand.axes.append(self.desVel[8])
         joyCommand.axes.append(self.desVel[9])
-        self.pub_arm_command.publish(joyCommand)
+        #self.pub_arm_command.publish(joyCommand)
 
         # rospy.loginfo('Desired Roll ' + str(self.desPos[7]))
         # rospy.loginfo('Current Roll ' + str(self.currPos[7]))
@@ -597,6 +606,67 @@ class learningReproductor:
              repr(self.currPos[8]) + " " +
              repr(self.currPos[9]) + "\n")
         self.fileTraj.write(s)
+
+    def computeArmDesPoseAndPub(self, robot_pose, arm_pose):
+        endeffectorPose = np.array([arm_pose[0],
+                                   arm_pose[1],
+                                   arm_pose[2],
+                                   1])
+        desiredRobotPose = np.array([robot_pose[0],
+                                     robot_pose[1],
+                                     robot_pose[2],
+                                     1])
+
+        robot_base = tf.transformations.euler_matrix(
+            self.base_ori[0],
+            self.base_ori[1],
+            self.base_ori[2])
+
+        robot_base[0, 3] = self.base_pose[0]
+        robot_base[1, 3] = self.base_pose[1]
+        robot_base[2, 3] = self.base_pose[2]
+
+        arm_base = np.dot(robot_base, endeffectorPose)
+
+        robotEuler = euler_from_quaternion([self.robotPose.orientation.x,
+                                            self.robotPose.orientation.y,
+                                            self.robotPose.orientation.z,
+                                            self.robotPose.orientation.w])
+
+        goalYaw = euler_from_quaternion(
+            [self.goalPose.orientation.x,
+             self.goalPose.orientation.y,
+             self.goalPose.orientation.z,
+             self.goalPose.orientation.w])[1]
+
+        trans_matrix_v2 = tf.transformations.euler_matrix(
+            0.0,
+            0.0,
+            3.14)
+
+        trans_matrix_v2[0, 3] = robot_pose[0]
+        trans_matrix_v2[1, 3] = robot_pose[1]
+        trans_matrix_v2[2, 3] = robot_pose[2]
+
+        inv_mat = np.zeros([4, 4])
+        inv_mat[3, 3] = 1.0
+        inv_mat[0:3, 0:3] = np.transpose(trans_matrix_v2[0:3, 0:3])
+        inv_mat[0:3, 3] = np.dot((-1*trans_matrix_v2[0:3, 0:3]),
+                                 trans_matrix_v2[0:3, 3])
+
+        desired_arm = np.dot(trans_matrix_v2, arm_base)
+
+        desPose_msg = PoseStamped()
+        desPose_msg.header.stamp = rospy.get_rostime()
+        desPose_msg.header.frame_id = "valve2"
+        desPose_msg.pose.position.x = desired_arm[0]
+        desPose_msg.pose.position.y = desired_arm[1]
+        desPose_msg.pose.position.z = desired_arm[2]
+        desPose_msg.pose.orientation.x = 0
+        desPose_msg.pose.orientation.y = 0
+        desPose_msg.pose.orientation.z = 0
+        desPose_msg.pose.orientation.w = 1
+        self.pub_arm_des_pose.publish(desPose_msg)
 
     def getLearnedParameters(self):
         logfile = open(self.reproductor_parameters, "r").readlines()
