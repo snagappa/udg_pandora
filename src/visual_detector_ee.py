@@ -206,7 +206,7 @@ class VisualDetector(object):
         self.panel.pub = rospy.Publisher('/visual_detector_ee/valve_panel',
                                          Detection)
         self.panel.pose_msg_pub = rospy.Publisher(
-            '/pose_ekf_slam/landmark_update/subpanel_centre',
+            '/pose_ekf_slam/l_u/subpanel_centre',
             PoseWithCovarianceStamped)
         # Publisher for pixel deltas
         self.panel.pixel_matches = rospy.Publisher(
