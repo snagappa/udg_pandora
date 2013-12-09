@@ -1,15 +1,15 @@
 # f in mm and pixels/mm 
-visual_detector_ee/f: 80
-visual_detector_ee/pixels_mm_x: 6.96
-visual_detector_ee/pixels_mm_y: 8.9
+#visual_detector_ee/f: 80
+#visual_detector_ee/pixels_mm_x: 6.96
+#visual_detector_ee/pixels_mm_y: 8.9
 # pixels
-visual_detector_ee/image_x_size: 720
-visual_detector_ee/image_y_size: 540
+#visual_detector_ee/image_x_size: 720
+#visual_detector_ee/image_y_size: 540
 # meters and radians
-visual_detector_ee/visibility: 4.0
-visual_detector_ee/panel_position: [-1.05, 1.0, 2.5]
-visual_detector_ee/valve_position: [-1.05, 1.0, 2.5]
-visual_detector_ee/chain_position: [3.1, 1.0, 5.0]
+#visual_detector_ee/visibility: 4.0
+#visual_detector_ee/panel_position: [-1.05, 1.0, 2.5]
+#visual_detector_ee/valve_position: [-1.05, 1.0, 2.5]
+#visual_detector_ee/chain_position: [3.1, 1.0, 5.0]
 
 # CAMERA POSE
 # stereo_down position    : [0.6, 0.0, 0.4]
@@ -28,13 +28,14 @@ visual_detector_ee/detect_valves: true
 
 # Panel detection
 # To select between the simulated and real templates
-visual_detector_ee/panel/simulator: true
+visual_detector_ee/panel/simulator: false
 #visual_detector_ee/panel/simulator_template: ["simulator_panel2.png"]
 visual_detector_ee/panel/simulator_template: ["subpanel_sim_6.png"]
 #visual_detector_ee/panel/simulator_template: ["docking_panel_simulator_template_half.png"]
 visual_detector_ee/panel/simulator_template_mask: []
-visual_detector_ee/panel/real_template: ["docking_template1a.png", "docking_template1b.png", "docking_template1c.png"]
-visual_detector_ee/panel/real_template_mask: ["docking_mask1a.png", "docking_mask1b.png", "docking_mask1c.png"]
+visual_detector_ee/panel/real_template: ["ee_subpanel_template.png"]
+#visual_detector_ee/panel/real_template: ["ee_panel_template.png"]
+visual_detector_ee/panel/real_template_mask: []
 
 # Detection parameters
 visual_detector_ee/panel/num_features: 2000 #1000
@@ -67,7 +68,7 @@ visual_detector_ee/panel/image_topic: "image_rect_color"
 visual_detector_ee/panel/sim_camera_root: "g500/hand_camera"
 visual_detector_ee/panel/sim_image_topic: "image_raw"
 # Real camera topics
-visual_detector_ee/panel/real_camera_root: "/stereo_camera/left"
+visual_detector_ee/panel/real_camera_root: "camera"
 visual_detector_ee/panel/real_image_topic: "image_rect_color"
 
 # Detection rate
@@ -77,10 +78,13 @@ visual_detector_ee/panel/rate: -1
 #visual_detector_ee/panel/corners: [[-0.332, 0.1755, 0], [0.332, 0.1755, 0], [0.332, -0.1755, 0], [-0.332, -0.1755, 0]]
 
 #subpanel 6
-visual_detector_ee/panel/corners: [[-0.160, 0.127, 0], [0.160, 0.127, 0], [0.160, -0.127, 0], [-0.160, -0.127, 0]]
+#visual_detector_ee/panel/corners: [[-0.160, 0.127, 0], [0.160, 0.127, 0], [0.160, -0.127, 0], [-0.160, -0.127, 0]]
+
+#Subpanel
+visual_detector_ee/panel/corners: [[-0.148, 0.087, 0], [0.148, 0.087, 0], [0.148, -0.087, 0], [-0.148, -0.087, 0]]
 
 #Complete panel
-#visual_detector_ee/panel/corners: [[-0.4, 0.25, 0], [0.4, 0.25, 0], [0.4, -0.25, 0], [-0.4, -0.25, 0]]
+#visual_detector_ee/panel/corners: [[-0.395, 0.25, 0], [0.395, 0.25, 0], [0.395, -0.25, 0], [-0.395, -0.25, 0]]
 
 visual_detector_ee/valves/radius: 0.04
 visual_detector_ee/valves/centre: [[-0.0, 0.0, 0.11]]
