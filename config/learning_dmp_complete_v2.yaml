@@ -1,0 +1,26 @@
+learning/dmp/nbData : 500
+learning/dmp/nbDataRepro : 500
+learning/dmp/nbDataExport : 3000
+learning/dmp/nbVar : 10
+learning/dmp/nbStates : 10
+#learning/dmp/kV : 4.4721359549995796
+#learning/dmp/kP : 4.5
+#Semba que funciona
+#learning/dmp/kV : 4.4721359549995796
+#learning/dmp/kP : 5
+# kV = 2*sqrt(kP)
+#learning/dmp/kV : 0.005477
+# kP = KPmin + (kPmax - kPmin)/2
+#learning/dmp/kP : 0.0000075
+learning/dmp/dt : 0.2
+#learning/dmp/kPmin : 0.000005
+#learning/dmp/kPmax : 0.00001
+learning/dmp/kPmin : [7, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+learning/dmp/kPmax : [9, 5, 9, 9, 9, 9, 9, 9, 9, 9]
+#Semba que funciona
+#learning/dmp/kPmin : 1
+#learning/dmp/kPmax : 10
+learning/dmp/alpha : 2.0
+learning/dmp/demonstration_file : trajectory_demonstration
+learning/dmp/demonstrations : [0] 
+learning/dmp/export_filename : learned_data_complete_individual.txt
