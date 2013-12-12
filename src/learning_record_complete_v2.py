@@ -247,7 +247,8 @@ class LearningRecord:
                      repr(arm_frame_pose[2]) + " " +
                      repr(arm_ori[0]) + " " +
                      repr(arm_ori[1]) + " " +
-                     repr(roll) + "\n")
+                     repr(roll) + " " +
+                     repr(rospy.get_time()) + "\n")
                 self.file.write(s)
             else:
                 rospy.loginfo('Goal pose Not initialized')

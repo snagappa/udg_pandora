@@ -99,6 +99,9 @@ class LearningRecord:
         self.lock.acquire()
         try:
             self.goalPose.position = pose_msg.pose.pose.position
+            #WORK AROUND
+            #self.goalPose.orientation = pose_msg.pose.pose.orientation
+            #END
             self.valveOri = euler_from_quaternion(
                             [self.goalPose.orientation.x,
                              self.goalPose.orientation.y,
@@ -126,6 +129,7 @@ class LearningRecord:
         try:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
+                    #WORK AROUND
                     self.goalPose.orientation = mark.pose.pose.orientation
                     if not self.initGoalOri:
                         self.initGoalOri = True
