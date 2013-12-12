@@ -46,14 +46,33 @@ class ChainFollow:
 
 
     def sonar_waypoint_update(self, data):
-        (trans, rot) = self.listener.lookupTransform(
-                            '/soundmetrics_aris3000_img',
-                            '/world',
-                            rospy.Time(0))
+        self.listener.waitForTransform( 
+                                       '/world', '/soundmetrics_aris3000_img',
+                                       rospy.Time(),
+                                       rospy.Duration(2.0))
+                        
+        (sensor_trans, sensor_rot) = self.listener.lookupTransform(
+                                       
+                                       '/world','/soundmetrics_aris3000_img',
+                                       rospy.Time(0))
 
+        self.listener.waitForTransform( 
+                                       '/world', '/girona500',
+                                       rospy.Time(),
+                                       rospy.Duration(2.0))
+                        
+        (trans_g500, rot_g500) = self.listener.lookupTransform(
+                            		
+                            		'/world','/girona500',
+                            		rospy.Time(0))
+        print 'g500 rot: \n', rot_g500
+        print 'sensor trans: \n', sensor_trans
+        print 'g500 trans: \n', trans_g500
+        print 'sensor rot: \n', sensor_rot
         # Transform all waypoint from world frame to sensor frame
-        sTw = tf.transformations.quaternion_matrix(rot)
-        sTw[0:3, 3] = trans
+        wTs = tf.transformations.quaternion_matrix(rot_g500)
+        wTs[0:3, 3] = sensor_trans
+        sTw = np.linalg.pinv(wTs)
         list_of_wp = list()
         for waypoint in data.markers:
             Pw = np.array([0, 0, 0, 1.0])
@@ -75,13 +94,13 @@ class ChainFollow:
         i = 0
         for waypoint in list_of_wp:
             print '--> ', waypoint
-            if waypoint[0] > min_x and waypoint[0] < max_x and waypoint[1] > min_y and waypoint[0] < max_y:
+            if waypoint[0] > min_x and waypoint[0] < max_x and waypoint[1] > min_y and waypoint[1] < max_y:
                 if waypoint[0] > max_wp_x:
                     max_wp_x = waypoint[0]
                     max_wp_index = i
             i = i + 1
 
-        if max_wp_index > 0:
+        if max_wp_index >= 0:
             # It is the waypoint in the sonar fov with larger x
             self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
         else:
@@ -98,7 +117,7 @@ class ChainFollow:
         body_velocity_req.goal.requester = self.name + '_velocity'
 
         # twist set-point
-        body_velocity_req.twist.angular.z = -y_offset/10.0
+        body_velocity_req.twist.angular.z = y_offset/2.0
 
         # Check if DoF is disable
         body_velocity_req.disable_axis.x = True
@@ -107,9 +126,11 @@ class ChainFollow:
         body_velocity_req.disable_axis.roll = True
         body_velocity_req.disable_axis.pitch = True
         body_velocity_req.disable_axis.yaw = False
-
+        print 'Answer: \n', body_velocity_req	
         self.pub_yaw_rate.publish(body_velocity_req)
 
 
 if __name__ == '__main__':
-    chain_follow = ChainFollow('chain_follow')
+    rospy.init_node('chain_follow')
+    chain_follow = ChainFollow(rospy.get_name())
+    rospy.spin()
