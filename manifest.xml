@@ -30,5 +30,7 @@
   <depend package="pcl"/>
   <depend package="image_transport"/>
   <depend package="image_geometry"/>
-  <!-- <depend package="rfdm_pkg" /> -->
+  <depend package="cola2_perception_dev"/>
+
+ <!-- <depend package="rfdm_pkg" /> -->
 </package>

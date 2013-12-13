@@ -12,6 +12,9 @@ import tf
 from cola2_perception_dev.msg import SonarInfo
 import numpy as np
 from auv_msgs.msg import GoalDescriptor
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry
+import threading
 
 class ChainFollow:
     def __init__(self, name):
@@ -20,10 +23,13 @@ class ChainFollow:
         # Default parameters
         self.window_lenght = 3.0
         self.window_start = 1.0
+        self.waypoint_req = WorldWaypointReq()
+        self.body_velocity_req = BodyVelocityReq()
+        self.odometry = Odometry()
+        self.sonar_img_pose = PoseStamped()
+        self.lock = threading.RLock()
 
         # self.get_config()
-
-        self.listener = tf.TransformListener()
 
         self.pub_yaw_rate = rospy.Publisher('/cola2_control/body_velocity_req',
                                             BodyVelocityReq)
@@ -39,6 +45,41 @@ class ChainFollow:
                          SonarInfo,
                          self.sonar_info_update)
 
+        rospy.Subscriber('/ntua_planner/world_waypoint_req',
+                         WorldWaypointReq,
+                         self.world_waypoint_req_update)
+
+        rospy.Subscriber('/pose_ekf_slam/odometry',
+                         Odometry,
+                         self.odometry_update)
+        
+        rospy.Subscriber('/cola2_perception/soundmetrics_aris3000/sonar_img_pose',
+                         PoseStamped,
+                         self.sonar_img_pose_update)
+
+        rospy.Timer(rospy.Duration(0.05), 
+                    self.publish_control)
+ 
+
+    def odometry_update(self, data):
+        self.odometry = data
+
+
+    def sonar_img_pose_update(self, data):
+        self.sonar_img_pose = data
+
+
+    def world_waypoint_req_update(self, data):
+        self.lock.acquire()
+	self.waypoint_req = data
+        self.waypoint_req.goal.priority = GoalDescriptor.PRIORITY_NORMAL
+        self.waypoint_req.goal.requester = self.name + '_pose'
+        self.waypoint_req.disable_axis.z = True
+        self.waypoint_req.disable_axis.yaw = True
+        self.waypoint_req.disable_axis.x = False
+        self.waypoint_req.disable_axis.y = False
+        self.lock.release()
+
 
     def sonar_info_update(self, data):
         self.window_lenght = data.window_lenght
@@ -46,32 +87,16 @@ class ChainFollow:
 
 
     def sonar_waypoint_update(self, data):
-        self.listener.waitForTransform( 
-                                       '/world', '/soundmetrics_aris3000_img',
-                                       rospy.Time(),
-                                       rospy.Duration(2.0))
-                        
-        (sensor_trans, sensor_rot) = self.listener.lookupTransform(
-                                       
-                                       '/world','/soundmetrics_aris3000_img',
-                                       rospy.Time(0))
-
-        self.listener.waitForTransform( 
-                                       '/world', '/girona500',
-                                       rospy.Time(),
-                                       rospy.Duration(2.0))
-                        
-        (trans_g500, rot_g500) = self.listener.lookupTransform(
-                            		
-                            		'/world','/girona500',
-                            		rospy.Time(0))
-        print 'g500 rot: \n', rot_g500
-        print 'sensor trans: \n', sensor_trans
-        print 'g500 trans: \n', trans_g500
-        print 'sensor rot: \n', sensor_rot
-        # Transform all waypoint from world frame to sensor frame
-        wTs = tf.transformations.quaternion_matrix(rot_g500)
-        wTs[0:3, 3] = sensor_trans
+       # Transform all waypoint from world frame to sensor frame
+        wTs = tf.transformations.quaternion_matrix([self.odometry.pose.pose.orientation.x,
+                                                    self.odometry.pose.pose.orientation.y,
+                                                    self.odometry.pose.pose.orientation.z,
+                                                    self.odometry.pose.pose.orientation.w])
+        wTs[0:3, 3] = [self.sonar_img_pose.pose.position.x,
+                       self.sonar_img_pose.pose.position.y,
+                       self.sonar_img_pose.pose.position.z]
+        print 'robot orientation: \n',self.odometry.pose.pose.orientation
+        print 'sonar position: \n', self.sonar_img_pose.pose.position 
         sTw = np.linalg.pinv(wTs)
         list_of_wp = list()
         for waypoint in data.markers:
@@ -102,10 +127,23 @@ class ChainFollow:
 
         if max_wp_index >= 0:
             # It is the waypoint in the sonar fov with larger x
-            self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
+            rospy.loginfo("%s: Compute yaw rate", self.name) 
+            self.body_velocity_req = self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
+            # TODO: Indicate which detection is used to center the vehicle
         else:
-            rospy.loginfo("%s: No waypoints inside sonar FOV")
+            rospy.loginfo("%s: No waypoints inside sonar FOV", self.name)
+        
 
+    def publish_control(self, event):
+        self.lock.acquire()
+        self.pub_yaw_rate.publish(self.body_velocity_req)
+        print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
+       
+        if abs(self.body_velocity_req.twist.angular.z) < 0.05 and self.body_velocity_req.twist.angular.z != 0.0:
+            print self.name, ', WP: ', self.waypoint_req.position.north, ', ', self.waypoint_req.position.east
+            self.waypoint_req.header.stamp = rospy.Time.now()
+            self.pub_waypoint_req.publish(self.waypoint_req)
+        self.lock.release()
 
     def __compute_yaw_rate__(self, y_offset):
          # Publish Body Velocity Request
@@ -117,7 +155,7 @@ class ChainFollow:
         body_velocity_req.goal.requester = self.name + '_velocity'
 
         # twist set-point
-        body_velocity_req.twist.angular.z = y_offset/2.0
+        body_velocity_req.twist.angular.z = y_offset/4.0
 
         # Check if DoF is disable
         body_velocity_req.disable_axis.x = True
@@ -126,8 +164,8 @@ class ChainFollow:
         body_velocity_req.disable_axis.roll = True
         body_velocity_req.disable_axis.pitch = True
         body_velocity_req.disable_axis.yaw = False
-        print 'Answer: \n', body_velocity_req	
-        self.pub_yaw_rate.publish(body_velocity_req)
+        return body_velocity_req	
+        
 
 
 if __name__ == '__main__':
