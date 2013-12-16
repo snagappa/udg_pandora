@@ -296,7 +296,9 @@ class learningReproductor:
                     self.dataReceived += 1
 
                 elif self.dataReceived == 1:
-                    #self.prevPos[0:4] = self.currPos[0:4]
+                    #ERROR
+                    self.prevPos[0:4] = self.currPos[0:4]
+                    #####
                     self.prevTimeAUV = self.currTimeAUV
                     self.currTimeAUV = (odometry.header.stamp.secs +
                                         (odometry.header.stamp.nsecs*1E-9))
@@ -304,7 +306,9 @@ class learningReproductor:
                                          / (self.currTimeAUV - self.prevTimeAUV))
                     self.dataReceived += 1
                 else:
-                    #self.prevPos[0:4] = self.currPos[0:4]
+                    #ERROR
+                    self.prevPos[0:4] = self.currPos[0:4]
+                    #####
                     self.prevTimeAUV = self.currTimeAUV
                     self.currTimeAUV = (odometry.header.stamp.secs +
                                         (odometry.header.stamp.nsecs*1E-9))
@@ -392,6 +396,9 @@ class learningReproductor:
                                         (data.header.stamp.nsecs*1E-9))
                     self.dataReceivedArm += 1
                 elif self.dataReceivedArm == 1:
+                    # ERROR
+                    self.prevPos[4:10] = self.currPos[4:10]
+                    #######
                     self.prevTimeArm = self.currTimeArm
                     self.currTimeArm = (data.header.stamp.secs +
                                         (data.header.stamp.nsecs*1E-9))
@@ -399,6 +406,9 @@ class learningReproductor:
                                           (self.currTimeArm-self.prevTimeArm))
                     self.dataReceivedArm += 1
                 else:
+                    # ERROR
+                    self.prevPos[4:10] = self.currPos[4:10]
+                    #######
                     self.prevTimeArm = self.currTimeArm
                     self.currTimeArm = (data.header.stamp.secs +
                                         (data.header.stamp.nsecs*1E-9))
@@ -536,7 +546,7 @@ class learningReproductor:
         for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
-        if np.sum(h) == 0:
+        if np.sum(h) <= 0.0001:
             rospy.loginfo('The time used in the demonstration is exhausted')
             rospy.signal_shutdown(
                 'The time used in the demonstration is exhausted')
@@ -679,6 +689,11 @@ class learningReproductor:
                       + ', ' + str(vel_auv[1])
                       + ', ' + str(vel_auv[2]))
 
+        if vel_auv[0] > 1.0:
+            vel_auv[0] = 1.0
+        elif vel_auv[0] < -1.0:
+            vel_auv[0] = -1.0
+
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
         vel_com.goal.priority = 10
@@ -687,15 +702,15 @@ class learningReproductor:
         vel_com.twist.linear.x = vel_auv[0] #/50.0
         vel_com.twist.linear.y = vel_auv[1] #/50.0
         vel_com.twist.linear.z = vel_auv[2] #/30.0
-        vel_com.twist.angular.z = -self.desVel[3]/40.0
+        vel_com.twist.angular.z = -self.desVel[3]
 
         #disabled_axis boby_velocity_req
         vel_com.disable_axis.x = False
-        vel_com.disable_axis.y = True
-        vel_com.disable_axis.z = True
+        vel_com.disable_axis.y = False
+        vel_com.disable_axis.z = False
         vel_com.disable_axis.roll = True
         vel_com.disable_axis.pitch = True
-        vel_com.disable_axis.yaw = True
+        vel_com.disable_axis.yaw = False
         #vel_com.disable_axis.yaw = True
 
         self.pub_auv_vel.publish(vel_com)
@@ -705,13 +720,13 @@ class learningReproductor:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append(vel_arm[0]-vel_auv[0])
-        joyCommand.axes.append(vel_arm[1]-vel_auv[1])
-        joyCommand.axes.append(vel_arm[2]-vel_auv[2])
+        joyCommand.axes.append((vel_arm[0]-vel_auv[0])*25.0)
+        joyCommand.axes.append((vel_arm[1]-vel_auv[1])*25.0)
+        joyCommand.axes.append((vel_arm[2]-vel_auv[2])*25.0)
         joyCommand.axes.append(self.desVel[7]*0.0)
-        joyCommand.axes.append(self.desVel[8])
-        joyCommand.axes.append(self.desVel[9])
-        #self.pub_arm_command.publish(joyCommand)
+        joyCommand.axes.append(self.desVel[8]*0.0)
+        joyCommand.axes.append(self.desVel[9]*0.0)
+        self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
