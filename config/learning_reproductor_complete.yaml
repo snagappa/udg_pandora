@@ -1,4 +1,5 @@
-learning/reproductor/complete/parameters : learned_data_complete.txt
+#learning/reproductor/complete/parameters : learned_data_complete.txt
+learning/reproductor/complete/parameters : learned_data_complete_individual.txt
 learning/reproductor/complete/alpha : 2
 learning/reproductor/complete/s : 1
 learning/reproductor/complete/nbVar : 10

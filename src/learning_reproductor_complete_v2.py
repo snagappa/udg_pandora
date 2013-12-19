@@ -689,10 +689,10 @@ class learningReproductor:
                       + ', ' + str(vel_auv[1])
                       + ', ' + str(vel_auv[2]))
 
-        if vel_auv[0] > 1.0:
-            vel_auv[0] = 1.0
-        elif vel_auv[0] < -1.0:
-            vel_auv[0] = -1.0
+        # if vel_auv[0] > 1.0:
+        #     vel_auv[0] = 1.0
+        # elif vel_auv[0] < -1.0:
+        #     vel_auv[0] = -1.0
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
@@ -720,9 +720,9 @@ class learningReproductor:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append((vel_arm[0]-vel_auv[0])*25.0)
-        joyCommand.axes.append((vel_arm[1]-vel_auv[1])*25.0)
-        joyCommand.axes.append((vel_arm[2]-vel_auv[2])*25.0)
+        joyCommand.axes.append((vel_arm[0]-vel_auv[0])*40.0) #*25.0)
+        joyCommand.axes.append((vel_arm[1]-vel_auv[1])*40.0) #*25.0)
+        joyCommand.axes.append((vel_arm[2]-vel_auv[2])*40.0) #*25.0)
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8]*0.0)
         joyCommand.axes.append(self.desVel[9]*0.0)

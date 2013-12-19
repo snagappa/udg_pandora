@@ -4,6 +4,10 @@ learning/dmp/nbDataExport : 3000
 learning/dmp/nbVar : 10
 learning/dmp/nbStates : 20
 learning/dmp/dt : 0.2
+#Simulator
+#learning/dmp/kPmin : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+#learning/dmp/kPmax : [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+#Pool
 learning/dmp/kPmin : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 learning/dmp/kPmax : [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
 learning/dmp/alpha : 2.0
