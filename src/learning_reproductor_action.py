@@ -61,7 +61,7 @@ from tf.transformations import euler_from_quaternion
 # numpy
 # .set_printoptions(threshold=100000)
 
-class learningReproductorSrv:
+class learningReproductorAct:
     """
     This class reproduce a trajectory learned with the AUV and the Manipulator
     to turn the valve. The algorithm is switched on using the action library.
@@ -135,9 +135,10 @@ class learningReproductorSrv:
 
         rospy.Subscriber('/pose_ekf_slam/map',
                          Map, self.updateGoalOri)
-        rospy.Subscriber('/valve_tracker/valve'+str(self.goal_valve),
-                         PoseWithCovarianceStamped,
-                         self.updateGoalPose)
+        self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
+                                           str(self.goal_valve)),
+                                          PoseWithCovarianceStamped,
+                                          self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/odometry",
                          Odometry, self.updateRobotPose)
         rospy.Subscriber('/arm/pose_stamped',
@@ -158,7 +159,7 @@ class learningReproductorSrv:
         self.disable_srv = rospy.Service(
             '/learning/disable_reproductor_complete',
             Empty,
-            self.disableSrv)
+            self.disable_srv)
 
         # self.valve_turning_srv = rospy.Service(
         #     '/learning/turn_valve_operation',
@@ -505,6 +506,11 @@ class learningReproductorSrv:
         @type goal: ValveTurningAction
         """
         self.goal_valve = goal.valve_id
+        self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
+                                           str(self.goal_valve)),
+                                          PoseWithCovarianceStamped,
+                                          self.updateGoalPose)
+
         rate = rospy.Rate(1.0/self.interval_time)
         success = False
         preempted = False
@@ -924,8 +930,8 @@ if __name__ == '__main__':
         else:
             rospy.logerr("Could not locate learning_reproductor_complete.yaml")
 
-        rospy.init_node('learning_reproductor_complete')
-        learning_reproductor = learningReproductorSrv(rospy.get_name())
+        rospy.init_node('learning_reproductor_action')
+        learning_reproductor = learningReproductorAct(rospy.get_name())
         learning_reproductor.play()
 #        rospy.spin()
     except rospy.ROSInterruptException:
