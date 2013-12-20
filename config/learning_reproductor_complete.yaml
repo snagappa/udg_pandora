@@ -1,4 +1,5 @@
-learning/reproductor/complete/parameters : learned_data_complete.txt
+learning/reproductor/complete/parameters : learned_data_complete_individual.txt
+#learning/reproductor/complete/parameters : learned_data_complete.txt
 learning/reproductor/complete/alpha : 2
 learning/reproductor/complete/s : 1
 learning/reproductor/complete/nbVar : 10
@@ -6,7 +7,8 @@ learning/reproductor/complete/landmark_id : /pose_ekf_slam/landmark_update/panel
 learning/reproductor/complete/interval_time : 0.2 #10Hz
 learning/reproductor/complete/simulation : 0
 learning/reproductor/complete/nbDataRepro : 500 
-learning/reproductor/complete/exportFile : trajectoryPlayed.csv
+learning/reproductor/complete/exportFile : trajectoryPlayed_individual.csv
+#learning/reproductor/complete/exportFile : trajectoryPlayed.csv
 learning/reproductor/complete/frame_id_goal : 'valve1'
 #en el mon Valve2 x:0.11 y:0.0 z:-0.2 
 learning/reproductor/complete/poseGoal_x : 0.0
