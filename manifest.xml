@@ -17,7 +17,7 @@
   <depend package="std_msgs"/>
   <depend package="std_srvs"/>
   <depend package="geometry_msgs"/>
-  <depend package="hwu_meta_data"/>
+<!--  <depend package="hwu_meta_data"/> -->
   <depend package="auv_msgs"/>
   <depend package="nav_msgs"/>
   <depend package="sensor_msgs"/>
@@ -30,7 +30,7 @@
   <depend package="pcl"/>
   <depend package="image_transport"/>
   <depend package="image_geometry"/>
-  <depend package="cola2_perception_dev"/>
+<!--  <depend package="cola2_perception_dev"/> -->
 
  <!-- <depend package="rfdm_pkg" /> -->
 </package>
