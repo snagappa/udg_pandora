@@ -63,10 +63,6 @@ class LearningRecord:
         param_dict = {'filename': 'learning/record/complete/filename',
                       'numberSample': 'learning/record/complete/number_sample',
                       'landmark_id': 'learning/record/complete/landmark_id',
-                      'frame_goal_id': 'learning/record/complete/frame_goal_id',
-                      'poseGoal_x': 'learning/record/complete/poseGoal_x',
-                      'poseGoal_y': 'learning/record/complete/poseGoal_y',
-                      'poseGoal_z': 'learning/record/complete/poseGoal_z',
                       'goal_valve': 'learning/record/complete/goal_valve',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori'
