@@ -43,8 +43,8 @@ from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
-from udg_pandora.msg import ValveTurningAction, ValveTurningActionFeedback
-from udg_pandora.msg import ValveTurningActionResult
+from udg_pandora.msg import ValveTurningAction, ValveTurningFeedback
+from udg_pandora.msg import ValveTurningResult
 
 #from rfdm_pkg.msg import rfdm_msg
 
@@ -170,7 +170,9 @@ class learningReproductorAct:
         self.valve_turning_action = actionlib.SimpleActionServer(
             '/learning/valve_turning_action',
             ValveTurningAction,
-            self.valve_turning_act, True)
+            self.valve_turning_act, False)
+
+        self.valve_turning_action.start()
 
     def get_config(self):
         """
@@ -522,20 +524,22 @@ class learningReproductorAct:
             else:
                 rospy.loginfo('Waiting to initialize all the data')
             if self.valve_turning_action.is_preempt_requested():
-                rospy.loginfo('%s: Preempted ABSOLUTE_X_Z_YAW', self.name)
+                rospy.loginfo('%s: Preempted Valve Turning', self.name)
                 self.valve_turning_action.set_preempted()
                 preempted = True
             else :
                 #Create Feedback response
-                feedback = ValveTurningActionFeedback()
-                feedback.dist_endeffector_valve = np.sum(
-                    np.sqrt(self.currPos[4:7]))
+                feedback = ValveTurningFeedback()
+                # rospy.loginfo('Values of pose ' + str(self.currPos[4:7]))
+                # rospy.loginfo('Sum ' + str(self.currPos[4:7]))
+                feedback.dist_endeffector_valve = np.sqrt(
+                    np.sum(self.currPos[4:7]**2))
                 feedback.time_spend = -math.log(self.s)/self.alpha
                 self.valve_turning_action.publish_feedback(feedback)
                 #Sleep
                 rate.sleep()
         #Finished or aborted
-        result = ValveTurningActionResult()
+        result = ValveTurningResult()
         if preempted:
             result.valve_turned = False
         else :
