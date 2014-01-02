@@ -756,9 +756,9 @@ class learningReproductorAct:
              self.goalPose.orientation.z,
              self.goalPose.orientation.w])
 
-        rospy.loginfo('Vel World ' + str(vel_world[0])
-                      + ', ' + str(vel_world[1])
-                      + ', ' + str(vel_world[2]))
+        # rospy.loginfo('Vel World ' + str(vel_world[0])
+        #               + ', ' + str(vel_world[1])
+        #               + ', ' + str(vel_world[2]))
 
         trans_auv = tf.transformations.quaternion_matrix(
             [self.robotPose.orientation.x,
@@ -780,9 +780,9 @@ class learningReproductorAct:
         # vel_auv2 = np.dot(inv_mat_auv, vel_world)
         vel_arm = np.dot(inv_mat_auv, vel_world_ee)
 
-        rospy.loginfo('Vel auv ' + str(vel_auv[0])
-                      + ', ' + str(vel_auv[1])
-                      + ', ' + str(vel_auv[2]))
+        # rospy.loginfo('Vel auv ' + str(vel_auv[0])
+        #               + ', ' + str(vel_auv[1])
+        #               + ', ' + str(vel_auv[2]))
 
         # if vel_auv[0] > 1.0:
         #     vel_auv[0] = 1.0
@@ -815,12 +815,38 @@ class learningReproductorAct:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append(vel_arm[0]*25.0)
-        joyCommand.axes.append(vel_arm[1]*25.0)
-        joyCommand.axes.append(vel_arm[2]*25.0)
-        # joyCommand.axes.append((vel_arm[0]-vel_auv[0])*25.0)
-        # joyCommand.axes.append((vel_arm[1]-vel_auv[1])*25.0)
-        # joyCommand.axes.append((vel_arm[2]-vel_auv[2])*25.0)
+        # joyCommand.axes.append(vel_arm[0]*60.0)
+        # joyCommand.axes.append(vel_arm[1]*60.0)
+        # joyCommand.axes.append(vel_arm[2]*60.0)
+        rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
+        rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
+        rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
+        rospy.loginfo('******************************************************')
+        x_arm = (vel_arm[0]-vel_auv[0])*60.0
+        y_arm = (vel_arm[1]-vel_auv[1])*60.0
+        z_arm = (vel_arm[2]-vel_auv[2])*60.0
+        if np.abs(x_arm) > np.abs(y_arm) :
+            if np.abs(x_arm) > np.abs(z_arm) :
+                y_arm = y_arm/2.0
+                z_arm = z_arm/2.0
+            else :
+                x_arm = z_arm/2.0
+                y_arm = y_arm/2.0
+        else:
+            if np.abs(y_arm) > np.abs(z_arm) :
+                y_arm = y_arm/2.0
+                z_arm = z_arm/2.0
+            else :
+                x_arm = x_arm/2.0
+                y_arm = y_arm/2.0
+
+        x_arm = vel_arm[0] * 60
+        y_arm = vel_arm[1] * 60
+        z_arm = vel_arm[2] * 60
+
+        joyCommand.axes.append(x_arm)
+        joyCommand.axes.append(y_arm)
+        joyCommand.axes.append(z_arm)
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8]*0.0)
         joyCommand.axes.append(self.desVel[9]*0.0)
