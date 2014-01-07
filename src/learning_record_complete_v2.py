@@ -229,7 +229,7 @@ class LearningRecord:
 
                 #Wrong orientation is not correct.
                 if self.valveOriInit:
-                    roll = self.valveOri - arm_ori[2]
+                    roll = cola2_lib.normalizeAngle(self.valveOri - arm_ori[2])
                 else:
                     roll = arm_ori[2]
 

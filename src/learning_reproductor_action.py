@@ -415,7 +415,8 @@ class learningReproductorAct:
                 self.prevPos[4:10] = self.currPos[4:10]
                 self.currPos[4:7] = self.armPose
                 if self.valveOriInit:
-                    self.currPos[7] = self.armOrientation[2] - self.valveOri
+                    self.currPos[7] = cola2_lib.normalizeAngle(
+                        self.valveOri - self.armOrientation[2])
                 else:
                     self.currPos[7] = self.armOrientation[2]
                 self.currPos[8:10] = self.armOrientation[1:3]
@@ -516,9 +517,9 @@ class learningReproductorAct:
                                           self.updateGoalPose)
         #Set the id of the file which will be learned
         if goal.long_approach == True:
-            self.learning_param_id = 1
-        elif goal.long_approach == False:
             self.learning_param_id = 0
+        elif goal.long_approach == False:
+            self.learning_param_id = 1
 
         #Load the learned data for the desired behaviour
         self.getLearnedParameters()
@@ -818,10 +819,10 @@ class learningReproductorAct:
         # joyCommand.axes.append(vel_arm[0]*60.0)
         # joyCommand.axes.append(vel_arm[1]*60.0)
         # joyCommand.axes.append(vel_arm[2]*60.0)
-        rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
-        rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
-        rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
-        rospy.loginfo('******************************************************')
+        # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
+        # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
+        # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
+        # rospy.loginfo('******************************************************')
         x_arm = (vel_arm[0]-vel_auv[0])*60.0
         y_arm = (vel_arm[1]-vel_auv[1])*60.0
         z_arm = (vel_arm[2]-vel_auv[2])*60.0
@@ -849,7 +850,8 @@ class learningReproductorAct:
         joyCommand.axes.append(z_arm)
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8]*0.0)
-        joyCommand.axes.append(self.desVel[9]*0.0)
+        rospy.loginfo('Desired Vel in Roll ' + str(self.desVel[9]))
+        joyCommand.axes.append(self.desVel[9]*0.5)
         self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
