@@ -43,8 +43,8 @@ from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
-from udg_pandora.msg import ValveTurningAction, ValveTurningActionFeedback
-from udg_pandora.msg import ValveTurningActionResult
+from udg_pandora.msg import ValveTurningAction, ValveTurningFeedback
+from udg_pandora.msg import ValveTurningResult
 
 #from rfdm_pkg.msg import rfdm_msg
 
@@ -61,7 +61,7 @@ from tf.transformations import euler_from_quaternion
 # numpy
 # .set_printoptions(threshold=100000)
 
-class learningReproductorSrv:
+class learningReproductorAct:
     """
     This class reproduce a trajectory learned with the AUV and the Manipulator
     to turn the valve. The algorithm is switched on using the action library.
@@ -135,9 +135,10 @@ class learningReproductorSrv:
 
         rospy.Subscriber('/pose_ekf_slam/map',
                          Map, self.updateGoalOri)
-        rospy.Subscriber('/valve_tracker/valve'+str(self.goal_valve),
-                         PoseWithCovarianceStamped,
-                         self.updateGoalPose)
+        self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
+                                           str(self.goal_valve)),
+                                          PoseWithCovarianceStamped,
+                                          self.updateGoalPose)
         rospy.Subscriber("/pose_ekf_slam/odometry",
                          Odometry, self.updateRobotPose)
         rospy.Subscriber('/arm/pose_stamped',
@@ -158,7 +159,7 @@ class learningReproductorSrv:
         self.disable_srv = rospy.Service(
             '/learning/disable_reproductor_complete',
             Empty,
-            self.disableSrv)
+            self.disable_srv)
 
         # self.valve_turning_srv = rospy.Service(
         #     '/learning/turn_valve_operation',
@@ -169,7 +170,9 @@ class learningReproductorSrv:
         self.valve_turning_action = actionlib.SimpleActionServer(
             '/learning/valve_turning_action',
             ValveTurningAction,
-            self.valve_turning_act, True)
+            self.valve_turning_act, False)
+
+        self.valve_turning_action.start()
 
     def get_config(self):
         """
@@ -188,10 +191,12 @@ class learningReproductorSrv:
                       'exportFile': 'learning/reproductor/complete/exportFile',
                       'frame_id_goal': 'learning/reproductor/complete/frame_id_goal',
                       'goal_valve': 'learning/reproductor/complete/goal_valve',
+                      'learning_param_id': 'learning/reproductor/complete/learning_param_id',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
+        rospy.loginfo('Value parameters ' + str(self.reproductor_parameters))
 
     def updateGoalPose(self, pose_msg):
         """
@@ -410,7 +415,8 @@ class learningReproductorSrv:
                 self.prevPos[4:10] = self.currPos[4:10]
                 self.currPos[4:7] = self.armPose
                 if self.valveOriInit:
-                    self.currPos[7] = self.armOrientation[2] - self.valveOri
+                    self.currPos[7] = cola2_lib.normalizeAngle(
+                        self.valveOri - self.armOrientation[2])
                 else:
                     self.currPos[7] = self.armOrientation[2]
                 self.currPos[8:10] = self.armOrientation[1:3]
@@ -505,6 +511,18 @@ class learningReproductorSrv:
         @type goal: ValveTurningAction
         """
         self.goal_valve = goal.valve_id
+        self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
+                                           str(self.goal_valve)),
+                                          PoseWithCovarianceStamped,
+                                          self.updateGoalPose)
+        #Set the id of the file which will be learned
+        if goal.long_approach == True:
+            self.learning_param_id = 0
+        elif goal.long_approach == False:
+            self.learning_param_id = 1
+
+        #Load the learned data for the desired behaviour
+        self.getLearnedParameters()
         rate = rospy.Rate(1.0/self.interval_time)
         success = False
         preempted = False
@@ -516,20 +534,22 @@ class learningReproductorSrv:
             else:
                 rospy.loginfo('Waiting to initialize all the data')
             if self.valve_turning_action.is_preempt_requested():
-                rospy.loginfo('%s: Preempted ABSOLUTE_X_Z_YAW', self.name)
+                rospy.loginfo('%s: Preempted Valve Turning', self.name)
                 self.valve_turning_action.set_preempted()
                 preempted = True
             else :
                 #Create Feedback response
-                feedback = ValveTurningActionFeedback()
-                feedback.dist_endeffector_valve = np.sum(
-                    np.sqrt(self.currPos[4:7]))
+                feedback = ValveTurningFeedback()
+                # rospy.loginfo('Values of pose ' + str(self.currPos[4:7]))
+                # rospy.loginfo('Sum ' + str(self.currPos[4:7]))
+                feedback.dist_endeffector_valve = np.sqrt(
+                    np.sum(self.currPos[4:7]**2))
                 feedback.time_spend = -math.log(self.s)/self.alpha
                 self.valve_turning_action.publish_feedback(feedback)
                 #Sleep
                 rate.sleep()
         #Finished or aborted
-        result = ValveTurningActionResult()
+        result = ValveTurningResult()
         if preempted:
             result.valve_turned = False
         else :
@@ -737,9 +757,9 @@ class learningReproductorSrv:
              self.goalPose.orientation.z,
              self.goalPose.orientation.w])
 
-        rospy.loginfo('Vel World ' + str(vel_world[0])
-                      + ', ' + str(vel_world[1])
-                      + ', ' + str(vel_world[2]))
+        # rospy.loginfo('Vel World ' + str(vel_world[0])
+        #               + ', ' + str(vel_world[1])
+        #               + ', ' + str(vel_world[2]))
 
         trans_auv = tf.transformations.quaternion_matrix(
             [self.robotPose.orientation.x,
@@ -761,14 +781,14 @@ class learningReproductorSrv:
         # vel_auv2 = np.dot(inv_mat_auv, vel_world)
         vel_arm = np.dot(inv_mat_auv, vel_world_ee)
 
-        rospy.loginfo('Vel auv ' + str(vel_auv[0])
-                      + ', ' + str(vel_auv[1])
-                      + ', ' + str(vel_auv[2]))
+        # rospy.loginfo('Vel auv ' + str(vel_auv[0])
+        #               + ', ' + str(vel_auv[1])
+        #               + ', ' + str(vel_auv[2]))
 
-        if vel_auv[0] > 1.0:
-            vel_auv[0] = 1.0
-        elif vel_auv[0] < -1.0:
-            vel_auv[0] = -1.0
+        # if vel_auv[0] > 1.0:
+        #     vel_auv[0] = 1.0
+        # elif vel_auv[0] < -1.0:
+        #     vel_auv[0] = -1.0
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
@@ -778,7 +798,7 @@ class learningReproductorSrv:
         vel_com.twist.linear.x = vel_auv[0] #/50.0
         vel_com.twist.linear.y = vel_auv[1] #/50.0
         vel_com.twist.linear.z = vel_auv[2] #/30.0
-        vel_com.twist.angular.z = -self.desVel[3]
+        vel_com.twist.angular.z = self.desVel[3]
 
         #disabled_axis boby_velocity_req
         vel_com.disable_axis.x = False
@@ -796,12 +816,42 @@ class learningReproductorSrv:
         ##############################################
 
         joyCommand = Joy()
-        joyCommand.axes.append((vel_arm[0]-vel_auv[0])*25.0)
-        joyCommand.axes.append((vel_arm[1]-vel_auv[1])*25.0)
-        joyCommand.axes.append((vel_arm[2]-vel_auv[2])*25.0)
+        # joyCommand.axes.append(vel_arm[0]*60.0)
+        # joyCommand.axes.append(vel_arm[1]*60.0)
+        # joyCommand.axes.append(vel_arm[2]*60.0)
+        # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
+        # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
+        # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
+        # rospy.loginfo('******************************************************')
+        x_arm = (vel_arm[0]-vel_auv[0])*60.0
+        y_arm = (vel_arm[1]-vel_auv[1])*60.0
+        z_arm = (vel_arm[2]-vel_auv[2])*60.0
+        if np.abs(x_arm) > np.abs(y_arm) :
+            if np.abs(x_arm) > np.abs(z_arm) :
+                y_arm = y_arm/2.0
+                z_arm = z_arm/2.0
+            else :
+                x_arm = z_arm/2.0
+                y_arm = y_arm/2.0
+        else:
+            if np.abs(y_arm) > np.abs(z_arm) :
+                y_arm = y_arm/2.0
+                z_arm = z_arm/2.0
+            else :
+                x_arm = x_arm/2.0
+                y_arm = y_arm/2.0
+
+        x_arm = vel_arm[0] * 60
+        y_arm = vel_arm[1] * 60
+        z_arm = vel_arm[2] * 60
+
+        joyCommand.axes.append(x_arm)
+        joyCommand.axes.append(y_arm)
+        joyCommand.axes.append(z_arm)
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8]*0.0)
-        joyCommand.axes.append(self.desVel[9]*0.0)
+        rospy.loginfo('Desired Vel in Roll ' + str(self.desVel[9]))
+        joyCommand.axes.append(self.desVel[9]*0.5)
         self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
@@ -817,7 +867,21 @@ class learningReproductorSrv:
         self.fileTraj.write(s)
 
     def getLearnedParameters(self):
-        logfile = open(self.reproductor_parameters, "r").readlines()
+        """
+        This method loads the data from a .txt file generated by the dmp
+        learning. This file have to be in the learning_data folder in the
+        udg_pandora package.
+        """
+        #find the subdirectory in the packge
+        path = roslib.packages.get_pkg_subdir('udg_pandora','learning_data',False)
+        # choose the file of the list in the learning directory
+        param_id = self.learning_param_id
+        # build the path and the file name
+        file_path = path + '/' + self.reproductor_parameters[param_id]
+        #rospy.loginfo('Name file ' + str(file_path))
+        #read the file
+        logfile = open(file_path, "r").readlines()
+
         logfile = [word.strip() for word in logfile]
         for i in xrange(len(logfile)):
             if logfile[i] == 'kV':
@@ -917,15 +981,15 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_reproductor_complete.yaml")
+            "udg_pandora", "learning_reproductor_action.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
             rospy.logerr("Could not locate learning_reproductor_complete.yaml")
 
-        rospy.init_node('learning_reproductor_complete')
-        learning_reproductor = learningReproductorSrv(rospy.get_name())
+        rospy.init_node('learning_reproductor_action')
+        learning_reproductor = learningReproductorAct(rospy.get_name())
         learning_reproductor.play()
 #        rospy.spin()
     except rospy.ROSInterruptException:

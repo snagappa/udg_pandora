@@ -42,7 +42,9 @@ from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
 
-from rfdm_pkg.msg import rfdm_msg
+from udg_pandora.msg import rfdm_msg
+
+
 
 #from udg_pandora.srv import WorkAreaError
 
@@ -470,7 +472,7 @@ class learningReproductor:
         for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
-        if np.sum(h) == 0:
+        if np.sum(h) <= 0.0001 :
             rospy.loginfo('The time used in the demonstration is exhausted')
             rospy.signal_shutdown(
                 'The time used in the demonstration is exhausted')
@@ -507,7 +509,7 @@ class learningReproductor:
         self.publishCommands()
 
         self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action*1.2
-        rospy.loginfo('Value of S ' + str(self.s) + ' Action Value ' + str(self.action) )
+        #rospy.loginfo('Value of S ' + str(self.s) + ' Action Value ' + str(self.action) )
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time
 
         #rospy.loginfo('Value of S ' + str(self.s))
@@ -533,9 +535,9 @@ class learningReproductor:
              self.goalPose.orientation.z,
              self.goalPose.orientation.w])
 
-        trans_panel[0, 3] = self.goalPose.position.x
-        trans_panel[1, 3] = self.goalPose.position.y
-        trans_panel[2, 3] = self.goalPose.position.z
+        # trans_panel[0, 3] = self.goalPose.position.x
+        # trans_panel[1, 3] = self.goalPose.position.y
+        # trans_panel[2, 3] = self.goalPose.position.z
 
         vel_world = np.dot(trans_panel, vel_panel)
 
@@ -545,9 +547,9 @@ class learningReproductor:
              self.robotPose.orientation.z,
              self.robotPose.orientation.w])
 
-        trans_auv[0, 3] = self.robotPose.position.x
-        trans_auv[1, 3] = self.robotPose.position.y
-        trans_auv[2, 3] = self.robotPose.position.z
+        # trans_auv[0, 3] = self.robotPose.position.x
+        # trans_auv[1, 3] = self.robotPose.position.y
+        # trans_auv[2, 3] = self.robotPose.position.z
 
         inv_mat = np.zeros([4, 4])
         inv_mat[3, 3] = 1.0
@@ -562,9 +564,9 @@ class learningReproductor:
         vel_com.goal.priority = 10
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
-        vel_com.twist.linear.x = vel_auv[0]/10.0#vel_auv[0]/50.0
-        vel_com.twist.linear.y = vel_auv[1]/50.0
-        vel_com.twist.linear.z = vel_auv[2]/20.0
+        vel_com.twist.linear.x = vel_auv[0] #/10.0#vel_auv[0]/50.0
+        vel_com.twist.linear.y = vel_auv[1] #/50.0
+        vel_com.twist.linear.z = vel_auv[2] #/20.0
         vel_com.twist.angular.z = -self.desVel[3]/40.0
 
         #disabled_axis boby_velocity_req
@@ -573,7 +575,7 @@ class learningReproductor:
         vel_com.disable_axis.z = False
         vel_com.disable_axis.roll = True
         vel_com.disable_axis.pitch = True
-        vel_com.disable_axis.yaw = False
+        vel_com.disable_axis.yaw = True
         #vel_com.disable_axis.yaw = True
 
         self.pub_auv_vel.publish(vel_com)
