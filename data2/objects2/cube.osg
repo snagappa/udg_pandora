@@ -1,0 +1,173 @@
+Group {
+  UniqueID Group_0
+  DataVariance STATIC
+  nodeMask 0xffffffff
+  cullingActive TRUE
+  StateSet {
+    rendering_hint DEFAULT_BIN
+    renderBinMode INHERIT
+    GL_NORMALIZE ON
+  }
+  num_children 1
+  Group {
+    name "cube.obj"
+    nodeMask 0xffffffff
+    cullingActive TRUE
+    num_children 1
+    Geode {
+      name "Cube"
+      nodeMask 0xffffffff
+      cullingActive TRUE
+      num_drawables 1
+      Geometry {
+        DataVariance STATIC
+        StateSet {
+          DataVariance STATIC
+          rendering_hint DEFAULT_BIN
+          renderBinMode INHERIT
+          Material {
+            name "Material_ar_cube_texture.jpg"
+            ColorMode OFF
+            ambientColor 0 0 0 1
+            diffuseColor 0.64 0.64 0.64 1
+            specularColor 0.5 0.5 0.5 1
+            emissionColor 0 0 0 1
+            shininess 12.288
+          }
+          textureUnit 0 {
+            GL_TEXTURE_2D ON
+            Texture2D {
+              file "workspace/cola2/cola2_detection/data/4x4/ar_cube_texture.jpg"
+              wrap_s REPEAT
+              wrap_t REPEAT
+              wrap_r REPEAT
+              min_filter LINEAR_MIPMAP_LINEAR
+              mag_filter LINEAR
+              maxAnisotropy 1
+              borderColor 0 0 0 0
+              borderWidth 0
+              useHardwareMipMapGeneration TRUE
+              unRefImageDataAfterApply TRUE
+              internalFormatMode USE_IMAGE_DATA_FORMAT
+              resizeNonPowerOfTwo TRUE
+              shadowComparison FALSE
+              shadowCompareFunc GL_LEQUAL
+              shadowTextureMode GL_LUMINANCE
+            }
+          }
+        }
+        useDisplayList TRUE
+        useVertexBufferObjects FALSE
+        PrimitiveSets 6
+        {
+          DrawElementsUShort TRIANGLE_STRIP 4
+          {
+            1 2 0 3 
+          }
+          DrawElementsUShort TRIANGLE_STRIP 4
+          {
+            7 4 6 5 
+          }
+          DrawElementsUShort TRIANGLE_STRIP 4
+          {
+            23 20 22 21 
+          }
+          DrawElementsUShort TRIANGLE_STRIP 4
+          {
+            19 16 18 17 
+          }
+          DrawElementsUShort TRIANGLE_STRIP 4
+          {
+            13 14 12 15 
+          }
+          DrawElementsUShort TRIANGLE_STRIP 4
+          {
+            9 10 8 11 
+          }
+        }
+        VertexArray Vec3Array 24
+        {
+          0.2 0.2 -0.2
+          0.2 -0.2 -0.2
+          -0.2 -0.2 -0.2
+          -0.2 0.2 -0.2
+          0.2 0.2 0.2
+          -0.2 0.2 0.2
+          -0.2 -0.2 0.2
+          0.2 -0.2 0.2
+          0.2 0.2 -0.2
+          0.2 0.2 0.2
+          0.2 -0.2 0.2
+          0.2 -0.2 -0.2
+          0.2 -0.2 -0.2
+          0.2 -0.2 0.2
+          -0.2 -0.2 0.2
+          -0.2 -0.2 -0.2
+          -0.2 -0.2 -0.2
+          -0.2 -0.2 0.2
+          -0.2 0.2 0.2
+          -0.2 0.2 -0.2
+          0.2 0.2 0.2
+          0.2 0.2 -0.2
+          -0.2 0.2 -0.2
+          -0.2 0.2 0.2
+        }
+        NormalBinding PER_VERTEX
+        NormalArray Vec3Array 24
+        {
+          0.666667 0.333333 -0.666667
+          0.408248 -0.816497 -0.408248
+          -0.666667 -0.333333 -0.666667
+          -0.408248 0.816497 -0.408248
+          0.333334 0.666667 0.666667
+          -0.816497 0.408248 0.408248
+          -0.333334 -0.666667 0.666667
+          0.816497 -0.408248 0.408248
+          0.666667 0.333333 -0.666667
+          0.333334 0.666667 0.666667
+          0.816497 -0.408248 0.408248
+          0.408248 -0.816497 -0.408248
+          0.408248 -0.816497 -0.408248
+          0.816497 -0.408248 0.408248
+          -0.333334 -0.666667 0.666667
+          -0.666667 -0.333333 -0.666667
+          -0.666667 -0.333333 -0.666667
+          -0.333334 -0.666667 0.666667
+          -0.816497 0.408248 0.408248
+          -0.408248 0.816497 -0.408248
+          0.333334 0.666667 0.666667
+          0.666667 0.333333 -0.666667
+          -0.408248 0.816497 -0.408248
+          -0.816497 0.408248 0.408248
+        }
+        TexCoordArray 0 Vec2Array 24
+        {
+          0.002119 0.515551
+          0.334433 0.514532
+          0.335453 0.996254
+          0.003139 0.997274
+          1 0.001019
+          1.0011 0.51771
+          0.668786 0.516691
+          0.667686 0
+          0.998981 0.511353
+          1 0.999433
+          0.667686 1.00045
+          0.666667 0.512372
+          0.336472 0.997274
+          0.333333 0.512372
+          0.665647 0.511353
+          0.668786 0.996254
+          0.333333 0.516691
+          0.00102 0.51771
+          0 0.00102
+          0.332314 0
+          0.333333 0.001019
+          0.665647 0
+          0.664548 0.513512
+          0.332234 0.514532
+        }
+      }
+    }
+  }
+}
