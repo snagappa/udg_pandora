@@ -105,6 +105,9 @@ class learningReproductorAct:
         self.currPosSim[5] = 0.0
         self.currPosSim[6] = 0.0
 
+        self.unnormalized_angle = 0.0
+        self.unnormalized_roll = 0.0
+
         self.currNbDataRepro = 0
         self.enabled = False
         self.action_in_process = False
@@ -277,6 +280,11 @@ class learningReproductorAct:
             self.fileAUVPose.write(s)
             if not self.dataRobotReceived:
                 rospy.loginfo('Odometry Initialised')
+                self.unnormalized_angle = euler_from_quaternion(
+                    [self.robotPose.orientation.x,
+                     self.robotPose.orientation.y,
+                     self.robotPose.orientation.z,
+                     self.robotPose.orientation.w])[2]
                 self.dataRobotReceived = True
             if self.dataGoalReceived:
                 trans_mat = tf.transformations.quaternion_matrix(
@@ -317,8 +325,11 @@ class learningReproductorAct:
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])[2]
-                self.currPos[3] = cola2_lib.normalizeAngle(
-                    goalYaw - robotYaw)
+                self.unnormalized_angle = self.unNormalizeAngle(
+                    self.unnormalized_angle, robotYaw)
+                # self.currPos[3] = cola2_lib.normalizeAngle(
+                #     goalYaw - robotYaw)
+                self.currPos[3] = goalYaw - self.unnormalized_angle
                 if self.dataReceived == 0:
                     self.currTime = (odometry.header.stamp.secs +
                                      (odometry.header.stamp.nsecs*1E-9))
@@ -414,12 +425,18 @@ class learningReproductorAct:
 
                 self.prevPos[4:10] = self.currPos[4:10]
                 self.currPos[4:7] = self.armPose
-                if self.valveOriInit:
-                    self.currPos[7] = cola2_lib.normalizeAngle(
-                        self.valveOri - self.armOrientation[2])
+
+                if self.dataReceivedArm == 0 :
+                    self.unnormalized_roll = self.armOrientation[2]
                 else:
-                    self.currPos[7] = self.armOrientation[2]
-                self.currPos[8:10] = self.armOrientation[1:3]
+                    self.unnormalized_roll = self.unNormalizeAngle(
+                        self.unnormalized_roll, self.armOrientation[2])
+
+                if self.valveOriInit:
+                    self.currPos[9] = self.valveOri - self.unnormalized_roll
+                else:
+                    self.currPos[9] = self.unnormalized_roll
+                self.currPos[7:9] = self.armOrientation[0:2]
 
                 if self.dataReceivedArm == 0:
                     self.currTimeArm = (data.header.stamp.secs +
@@ -530,7 +547,10 @@ class learningReproductorAct:
         self.action_in_process = True
         while not success and not preempted:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
-                success = self.generateNewPose()
+                if not self.simulation:
+                    success = self.generateNewPose()
+                else :
+                    success = self.simulatedNewPose()
             else:
                 rospy.loginfo('Waiting to initialize all the data')
             if self.valve_turning_action.is_preempt_requested():
@@ -565,7 +585,14 @@ class learningReproductorAct:
         for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
-        h = h / np.sum(h)
+        if np.sum(h) <= 0.0001:
+            rospy.loginfo('The time used in the demonstration is exhausted')
+            self.enabled = False
+            self.s = self.initial_s
+            self.pub_auv_finish.publish(True)
+            return True
+        else:
+            h = h / np.sum(h)
 
         #init to vectors
         currTar = np.zeros(self.nbVar)
@@ -672,6 +699,10 @@ class learningReproductorAct:
         #NOT needed
         self.desPos = self.currPos + self.desVel * self.interval_time
 
+        # rospy.loginfo('Desired Angle ' + str(self.desPos[3]) +
+        #               ' Current Angle ' + str(self.currPos[3]) +
+        #               ' Desired Vel ' + str(self.desVel[3]))
+
         desPose_msg = PoseStamped()
         desPose_msg.header.stamp = rospy.get_rostime()
         desPose_msg.header.frame_id = "valve2"
@@ -716,13 +747,22 @@ class learningReproductorAct:
         #               + ', ' + str(self.desPos[1])
         #               + ', ' + str(self.desPos[2]))
 
+        rospy.loginfo('Current Pose ' + str(self.currPos[9]))
+        rospy.loginfo('Desired Pose ' + str(self.desPos[9]))
+        rospy.loginfo('Desired Vel ' + str(self.desVel[9]))
+
+        # rospy.loginfo('Des Pose ' + str(self.desPos[0])
+        #               + ', ' + str(self.desPos[1])
+        #               + ', ' + str(self.desPos[2]))
+
+
         # rospy.loginfo('Curr Vel ' + str(self.currVel[0])
         #               + ', ' + str(self.currVel[1])
         #               + ', ' + str(self.currVel[2]))
 
-        rospy.loginfo('Des Vel ' + str(self.desVel[0])
-                      + ', ' + str(self.desVel[1])
-                      + ', ' + str(self.desVel[2]))
+        # rospy.loginfo('Des Vel ' + str(self.desVel[0])
+        #               + ', ' + str(self.desVel[1])
+        #               + ', ' + str(self.desVel[2]))
 
         vel_panel_ee = np.asarray(
             [self.desVel[4],
@@ -798,16 +838,15 @@ class learningReproductorAct:
         vel_com.twist.linear.x = vel_auv[0] #/50.0
         vel_com.twist.linear.y = vel_auv[1] #/50.0
         vel_com.twist.linear.z = vel_auv[2] #/30.0
-        vel_com.twist.angular.z = self.desVel[3]
+        vel_com.twist.angular.z = -self.desVel[3]
 
         #disabled_axis boby_velocity_req
-        vel_com.disable_axis.x = False
-        vel_com.disable_axis.y = False
-        vel_com.disable_axis.z = False
+        vel_com.disable_axis.x = True # True False
+        vel_com.disable_axis.y = True # True False
+        vel_com.disable_axis.z = True # True False
         vel_com.disable_axis.roll = True
         vel_com.disable_axis.pitch = True
-        vel_com.disable_axis.yaw = False
-        #vel_com.disable_axis.yaw = True
+        vel_com.disable_axis.yaw = True # True False
 
         self.pub_auv_vel.publish(vel_com)
 
@@ -845,13 +884,12 @@ class learningReproductorAct:
         y_arm = vel_arm[1] * 60
         z_arm = vel_arm[2] * 60
 
-        joyCommand.axes.append(x_arm)
-        joyCommand.axes.append(y_arm)
-        joyCommand.axes.append(z_arm)
+        joyCommand.axes.append(x_arm*0.0)
+        joyCommand.axes.append(y_arm*0.0)
+        joyCommand.axes.append(z_arm*0.0)
         joyCommand.axes.append(self.desVel[7]*0.0)
         joyCommand.axes.append(self.desVel[8]*0.0)
-        rospy.loginfo('Desired Vel in Roll ' + str(self.desVel[9]))
-        joyCommand.axes.append(self.desVel[9]*0.5)
+        joyCommand.axes.append(self.desVel[9]*0.0)
         self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
@@ -975,6 +1013,41 @@ class learningReproductorAct:
                               * (abs(np.linalg.det(Sigma))
                                  + np.finfo(np.double).tiny)))
             return prob
+
+    def unNormalizeAngle(self, current_angle, new_angle):
+        """
+        This function unNormalize the Angle obtaining a continuous values
+        avoiding the discontinuity, jumps from 3.14 to -3.14
+        @param currentAngle: contain the current angle not normalized
+        @type currentAngle: double
+        @param newAngle: contain the new angle normalized
+        @type newAngle: double
+        """
+        if abs(current_angle) > np.pi:
+            #We are over one lap over
+            norm_curr = cola2_lib.normalizeAngle(current_angle)
+            if abs(new_angle - norm_curr) > np.pi :
+                if new_angle < 0.0:
+                    inc0 = -1.0*(-np.pi - new_angle)
+                    inc1 = -1.0*(np.pi - norm_curr)
+                else:
+                    inc0 = -1.0*(np.pi - new_angle)
+                    inc1 = (-np.pi - norm_curr)
+                return current_angle + inc0 + inc1
+            else :
+                return current_angle + (new_angle-norm_curr)
+        else:
+            if abs(new_angle - current_angle) > np.pi:
+                if new_angle < 0.0:
+                    inc0 = -1.0*(-np.pi - new_angle)
+                    inc1 = -1.0*(np.pi - current_angle)
+                else:
+                    inc0 = -1.0*(np.pi - new_angle)
+                    inc1 = (-np.pi - current_angle)
+                return current_angle + inc0 + inc1
+            else:
+                return new_angle
+
 
 if __name__ == '__main__':
     try:

@@ -44,8 +44,11 @@ class LearningRecord:
         self.initGoalPose = False
         self.initGoalOri = False
         self.initRobotPose = False
+        self.initRoll = False
         self.valveOri = 0.0
         self.valveOriInit = False
+        self.unnormalized_angle = 0.0
+        self.unnormalized_roll = 0.0
 
         rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
 
@@ -128,6 +131,12 @@ class LearningRecord:
         self.lock.acquire()
         try:
             self.robotPose = odometry.pose.pose
+            if ( not self.initGoalPose ):
+                self.unnormalized_angle = euler_from_quaternion(
+                    [self.robotPose.orientation.x,
+                     self.robotPose.orientation.y,
+                     self.robotPose.orientation.z,
+                     self.robotPose.orientation.w])[2]
             self.initRobotPose = True
         finally:
             self.lock.release()
@@ -181,6 +190,11 @@ class LearningRecord:
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])[2]
 
+                rospy.loginfo('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                self.unnormalized_angle = self.unNormalizeAngle(
+                    self.unnormalized_angle, robotYaw)
+                rospy.loginfo('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
                 goalYaw = tf.transformations.euler_from_quaternion(
                     [self.goalPose.orientation.x,
                      self.goalPose.orientation.y,
@@ -227,16 +241,28 @@ class LearningRecord:
                                                  armPose.pose.orientation.z,
                                                  armPose.pose.orientation.w])
 
-                #Wrong orientation is not correct.
-                if self.valveOriInit:
-                    roll = cola2_lib.normalizeAngle(self.valveOri - arm_ori[2])
-                else:
-                    roll = arm_ori[2]
+                if self.initRoll :
+                    rospy.loginfo('*******************************************')
+                    self.unnormalized_roll = self.unNormalizeAngle(
+                        self.unnormalized_roll, arm_ori[2])
+                    rospy.loginfo('*******************************************')
+                else :
+                    self.unnormalized_roll = arm_ori[2]
+                    self.initRoll = True
 
+                if self.valveOriInit:
+                    roll = self.valveOri - self.unnormalized_roll
+                else:
+                    roll = self.unnormalized_roll
+
+                # rospy.loginfo('ValveOri ' + str(self.valveOri)
+                #               + ' Unnormalized ' + str(self.unnormalized_roll))
+                # rospy.loginfo('Roll Value ' + str(roll))
                 s = (repr(robotTrans[0]) + " " +
                      repr(robotTrans[1]) + " " +
                      repr(robotTrans[2]) + " " +
-                     repr(cola2_lib.normalizeAngle(goalYaw - robotYaw))
+                     repr(goalYaw - self.unnormalized_angle)
+                     #repr(cola2_lib.normalizeAngle(goalYaw - robotYaw))
                      + " " +
                      repr(arm_frame_pose[0]) + " " +
                      repr(arm_frame_pose[1]) + " " +
@@ -250,6 +276,46 @@ class LearningRecord:
                 rospy.loginfo('Goal pose Not initialized')
         finally:
             self.lock.release()
+
+    def unNormalizeAngle(self, current_angle, new_angle):
+        """
+        This function unNormalize the Angle obtaining a continuous values
+        avoiding the discontinuity, jumps from 3.14 to -3.14
+        @param current_angle: contain the current angle not normalized
+        @type current_angle: double
+        @param new_angle: contain the new angle normalized
+        @type new_angle: double
+        """
+        rospy.loginfo('Current angle ' + str(current_angle) +
+                      ' New angle ' + str(new_angle))
+        if abs(current_angle) > np.pi:
+            #We are over one lap over
+            norm_curr = cola2_lib.normalizeAngle(current_angle)
+            if abs(new_angle - norm_curr) > np.pi :
+                rospy.loginfo('Overflow 2')
+                if new_angle < 0.0:
+                    inc0 = -1.0*(-np.pi - new_angle)
+                    inc1 = -1.0*(np.pi - norm_curr)
+                else:
+                    inc0 = -1.0*(np.pi - new_angle)
+                    inc1 = (-np.pi - norm_curr)
+                return current_angle + inc0 + inc1
+            else :
+                rospy.loginfo('Actual plus diff')
+                return current_angle + (new_angle-norm_curr)
+        else:
+            if abs(new_angle - current_angle) > np.pi:
+                rospy.loginfo('Over Flow')
+                if new_angle < 0.0:
+                    inc0 = -1.0*(-np.pi - new_angle)
+                    inc1 = -1.0*(np.pi - current_angle)
+                else:
+                    inc0 = -1.0*(np.pi - new_angle)
+                    inc1 = (-np.pi - current_angle)
+                return current_angle + inc0 + inc1
+            else:
+                rospy.loginfo('Tal qual')
+                return new_angle
 
 if __name__ == '__main__':
     try:
