@@ -22,6 +22,7 @@ from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from sensor_msgs.msg import JointState
 #from geometry_msgs.msg import Quaternion
 from tf.transformations import euler_from_quaternion
 #import to use mutex
@@ -56,6 +57,9 @@ class LearningRecord:
 
         rospy.Subscriber(
             "/pose_ekf_slam/odometry", Odometry, self.updateRobotPose)
+
+        rospy.Subscriber(
+            "/csip_e5_arm/joint_state", JointState, self.updateRollEndEffector)
 
         rospy.Subscriber("/valve_tracker/valve" + str(self.goal_valve),
                          PoseWithCovarianceStamped,
@@ -141,6 +145,25 @@ class LearningRecord:
         finally:
             self.lock.release()
 
+    def updateRollEndEffector(self, joint_state):
+        """
+        This method is a work around to obatin only the orientation in the roll
+        of the end effector. This way we simply the learning because the arm for
+        the moment can't control only the Roll in the last joint.
+        @param joint_state: Contains an array with the position of each joint.
+        @type joint_state: JointState message from sensor_msgs
+        """
+        self.lock.acquire()
+        try:
+            if self.initRoll :
+                self.unnormalized_roll = self.unNormalizeAngle(
+                    self.unnormalized_roll, joint_state.position[3])
+            else :
+                self.unnormalized_roll = joint_state.position[3]
+                self.initRoll = True
+        finally:
+            self.lock.release()
+
     def updateArmPose(self, armPose):
         """
         This method update the pose of the end-effector using as a frame center
@@ -155,7 +178,7 @@ class LearningRecord:
         #euler = euler_from_quaternion(quaternion, 'sxyz')
         self.lock.acquire()
         try:
-            if self.initGoalPose:
+            if self.initGoalPose and self.initRoll:
                 #################################################
                 # Compute the pose of the AUV respect the Valve 2
                 #################################################
@@ -190,10 +213,8 @@ class LearningRecord:
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])[2]
 
-                rospy.loginfo('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 self.unnormalized_angle = self.unNormalizeAngle(
                     self.unnormalized_angle, robotYaw)
-                rospy.loginfo('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
                 goalYaw = tf.transformations.euler_from_quaternion(
                     [self.goalPose.orientation.x,
@@ -240,16 +261,6 @@ class LearningRecord:
                                                  armPose.pose.orientation.y,
                                                  armPose.pose.orientation.z,
                                                  armPose.pose.orientation.w])
-
-                if self.initRoll :
-                    rospy.loginfo('*******************************************')
-                    self.unnormalized_roll = self.unNormalizeAngle(
-                        self.unnormalized_roll, arm_ori[2])
-                    rospy.loginfo('*******************************************')
-                else :
-                    self.unnormalized_roll = arm_ori[2]
-                    self.initRoll = True
-
                 if self.valveOriInit:
                     roll = self.valveOri - self.unnormalized_roll
                 else:
@@ -286,13 +297,13 @@ class LearningRecord:
         @param new_angle: contain the new angle normalized
         @type new_angle: double
         """
-        rospy.loginfo('Current angle ' + str(current_angle) +
-                      ' New angle ' + str(new_angle))
+        # rospy.loginfo('Current angle ' + str(current_angle) +
+        #               ' New angle ' + str(new_angle))
         if abs(current_angle) > np.pi:
             #We are over one lap over
             norm_curr = cola2_lib.normalizeAngle(current_angle)
             if abs(new_angle - norm_curr) > np.pi :
-                rospy.loginfo('Overflow 2')
+                # rospy.loginfo('Overflow 2')
                 if new_angle < 0.0:
                     inc0 = -1.0*(-np.pi - new_angle)
                     inc1 = -1.0*(np.pi - norm_curr)
@@ -301,11 +312,11 @@ class LearningRecord:
                     inc1 = (-np.pi - norm_curr)
                 return current_angle + inc0 + inc1
             else :
-                rospy.loginfo('Actual plus diff')
+                # rospy.loginfo('Actual plus diff')
                 return current_angle + (new_angle-norm_curr)
         else:
             if abs(new_angle - current_angle) > np.pi:
-                rospy.loginfo('Over Flow')
+                # rospy.loginfo('Over Flow')
                 if new_angle < 0.0:
                     inc0 = -1.0*(-np.pi - new_angle)
                     inc1 = -1.0*(np.pi - current_angle)
@@ -314,7 +325,7 @@ class LearningRecord:
                     inc1 = (-np.pi - current_angle)
                 return current_angle + inc0 + inc1
             else:
-                rospy.loginfo('Tal qual')
+                # rospy.loginfo('Tal qual')
                 return new_angle
 
 if __name__ == '__main__':
