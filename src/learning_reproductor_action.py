@@ -51,6 +51,8 @@ from udg_pandora.msg import ValveTurningResult
 
 #from udg_pandora.srv import WorkAreaError
 
+from cola2_control.srv import TurnDesiredDegrees
+
 import threading
 import tf
 
@@ -572,7 +574,6 @@ class learningReproductorAct:
                 rospy.loginfo('Waiting to initialize all the data')
             if self.valve_turning_action.is_preempt_requested():
                 rospy.loginfo('%s: Preempted Valve Turning', self.name)
-                self.valve_turning_action.set_preempted()
                 preempted = True
             else :
                 #Create Feedback response
@@ -589,8 +590,18 @@ class learningReproductorAct:
         result = ValveTurningResult()
         if preempted:
             result.valve_turned = False
+            self.valve_turning_action.set_preempted()
         else :
-            result.valve_turned = True
+            # Turn the valve and the desired degrees
+            rospy.wait_for_service('/cola2_control/turnDesiredRadians')
+            try:
+                turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
+                                               TurnDesiredDegrees)
+                rospy.loginfo('desired increment ' + str(goal.desired_increment))
+                res = turn_srv(goal.desired_increment)
+                result.valve_turned = res.success
+            except rospy.ServiceException, e:
+                print "Service call failed: %s"%e
 
         self.enabled = False
         self.s = self.initial_s
@@ -605,10 +616,6 @@ class learningReproductorAct:
         joy_command.axes.append(0.0)
         joy_command.axes.append(0.0)
         self.pub_arm_command.publish(joy_command)
-        # self.pub_arm_command.publish(joy_command)
-        # self.pub_arm_command.publish(joy_command)
-        # self.pub_arm_command.publish(joy_command)
-        # self.pub_arm_command.publish(joy_command)
         rospy.loginfo('Joy Message stop sent !!!!!')
 
         vel_com = BodyVelocityReq()

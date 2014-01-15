@@ -3,4 +3,5 @@
 # Index with the valve has to be turnned
 int32 valve_id
 bool long_approach
+float64 desired_increment
 
