@@ -219,10 +219,10 @@ class learningReproductorAct:
         try:
             self.goalPose.position = pose_msg.pose.pose.position
             self.valveOri = euler_from_quaternion(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])[2]
+                            [pose_msg.pose.pose.orientation.x,
+                             pose_msg.pose.pose.orientation.y,
+                             pose_msg.pose.pose.orientation.z,
+                             pose_msg.pose.pose.orientation.w])[2]
             if not self.dataGoalPoseReceived:
                 self.dataGoalPoseReceived = True
                 if (self.dataGoalOriReceived and
@@ -547,10 +547,12 @@ class learningReproductorAct:
         @type goal: ValveTurningAction
         """
         self.goal_valve = goal.valve_id
+        self.sub_valve.unregister()
         self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
                                            str(self.goal_valve)),
                                           PoseWithCovarianceStamped,
                                           self.updateGoalPose)
+
         #Set the id of the file which will be learned
         if goal.long_approach == True:
             self.learning_param_id = 0
