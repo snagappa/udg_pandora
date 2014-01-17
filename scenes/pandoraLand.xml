@@ -144,9 +144,9 @@
     <name>girona500</name>
     <file>scenes/g500ARMPandora.urdf</file>
     <jointValues>
-      <joint> -0.00 </joint> <!--1.46 -->
-      <joint> 1.16 </joint> <!--1.07-->
-      <joint> 0.4  </joint> <!---1.175-->
+      <joint> 0.0134 </joint> <!-- 0.00, 1.46 -->
+      <joint> 1.0874 </joint> <!--1.16, 1.07-->
+      <joint> -0.8146  </joint> <!--0.4, -1.175-->
       <joint> 0.0 </joint>
       <joint> 0.0</joint>
     </jointValues>

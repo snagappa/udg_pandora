@@ -47,6 +47,7 @@ from sensor_msgs.msg import Joy
 from udg_pandora.msg import ValveTurningAction, ValveTurningFeedback
 from udg_pandora.msg import ValveTurningResult
 
+from udg_pandora.msg import rfdm_msg
 #from rfdm_pkg.msg import rfdm_msg
 
 #from udg_pandora.srv import WorkAreaError
@@ -151,8 +152,8 @@ class learningReproductorAct:
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
                          self.updateArmPosition)
-        rospy.Subscriber('/arm/safety_evaluation',
-                         Float64,
+        rospy.Subscriber('/rfdm_pkg/reactive',
+                         rfdm_msg,
                          self.updateSafety)
         rospy.Subscriber(
             "/csip_e5_arm/joint_state", JointState, self.updateRollEndEffector)
@@ -485,10 +486,10 @@ class learningReproductorAct:
         finally:
             self.lock.release()
 
-    def updateSafety(self, action):
+    def updateSafety(self, rfdm_msg):
         self.lock.acquire()
         try:
-            self.action = action.data
+            self.action = rfdm_msg.reactive_data
         finally:
             self.lock.release()
 
@@ -758,7 +759,7 @@ class learningReproductorAct:
         self.desAcc = (np.dot(
             currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
-        #self.desAcc = self.desAcc * math.fabs(self.action)
+        self.desAcc = self.desAcc * math.fabs(self.action)
 
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
@@ -923,7 +924,7 @@ class learningReproductorAct:
         # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
         # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
         # rospy.loginfo('******************************************************')
-        x_arm = (vel_arm[0]-vel_auv[0])*80.0
+        x_arm = (vel_arm[0]-vel_auv[0])*90.0
         y_arm = (vel_arm[1]-vel_auv[1])*60.0
         z_arm = (vel_arm[2]-vel_auv[2])*60.0
         # if np.abs(x_arm) > np.abs(y_arm) :
