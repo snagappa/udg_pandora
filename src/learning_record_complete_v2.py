@@ -90,10 +90,10 @@ class LearningRecord:
         try:
             self.goalPose.position = pose_msg.pose.pose.position
             self.valveOri = euler_from_quaternion(
-                            [self.goalPose.orientation.x,
-                             self.goalPose.orientation.y,
-                             self.goalPose.orientation.z,
-                             self.goalPose.orientation.w])[2]
+                            [pose_msg.pose.pose.orientation.x,
+                             pose_msg.pose.pose.orientation.y,
+                             pose_msg.pose.pose.orientation.z,
+                             pose_msg.pose.pose.orientation.w])[2]
             if not self.initGoalPose:
                 self.initGoalPose = True
                 if (self.initGoalOri and
