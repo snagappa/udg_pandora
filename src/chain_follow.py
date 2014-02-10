@@ -17,6 +17,7 @@ from nav_msgs.msg import Odometry
 import threading
 from visualization_msgs.msg import Marker
 import cola2_lib
+import threading
 
 class ChainFollow:
     def __init__(self, name):
@@ -34,7 +35,8 @@ class ChainFollow:
         self.look_around = False
         self.yaw_offset = 0.25 # 15 degrees
         self.do_turn_around = True 
-
+        self.lock = threading.RLock()
+        
         # self.get_config()
 
         self.pub_yaw_rate = rospy.Publisher('/cola2_control/body_velocity_req',
@@ -69,7 +71,9 @@ class ChainFollow:
  
 
     def odometry_update(self, data):
+        self.lock.acquire()
         self.odometry = data
+        self.lock.release()
 
 
     def sonar_img_pose_update(self, data):
@@ -78,7 +82,7 @@ class ChainFollow:
 
     def world_waypoint_req_update(self, data):
         self.lock.acquire()
-	self.waypoint_req = data
+        self.waypoint_req = data
         self.waypoint_req.goal.priority = GoalDescriptor.PRIORITY_NORMAL
         self.waypoint_req.goal.requester = self.name + '_pose'
         self.waypoint_req.disable_axis.z = True
@@ -102,10 +106,11 @@ class ChainFollow:
 
     def sonar_waypoint_update(self, data):
        # Transform all waypoint from world frame to sensor frame
-        wTs = tf.transformations.quaternion_matrix([self.odometry.pose.pose.orientation.x,
-                                                    self.odometry.pose.pose.orientation.y,
-                                                    self.odometry.pose.pose.orientation.z,
-                                                    self.odometry.pose.pose.orientation.w])
+        wTs = tf.transformations.quaternion_matrix(
+                        [self.odometry.pose.pose.orientation.x,
+                         self.odometry.pose.pose.orientation.y,
+                         self.odometry.pose.pose.orientation.z,
+                         self.odometry.pose.pose.orientation.w])
         wTs[0:3, 3] = [self.sonar_img_pose.pose.position.x,
                        self.sonar_img_pose.pose.position.y,
                        self.sonar_img_pose.pose.position.z]
@@ -145,8 +150,6 @@ class ChainFollow:
             self.body_velocity_req = self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
             if list_of_wp[max_wp_index][0] < 0.0:
                 self.do_turn_around = True           
-
-
  
             point = np.dot(wTs, list_of_wp[max_wp_index])
 
@@ -154,21 +157,21 @@ class ChainFollow:
             marker.header.stamp = rospy.Time.now()
             marker.header.frame_id = '/world'
             marker.pose.position.x = point[0]
-	    marker.pose.position.y = point[1]
-	    marker.pose.position.z = point[2]
-	    marker.pose.orientation.x = 0.0
-	    marker.pose.orientation.y = 0.0
-	    marker.pose.orientation.z = 0.0
-	    marker.pose.orientation.w = 1.0
-	    marker.scale.x = 0.1
+            marker.pose.position.y = point[1]
+            marker.pose.position.z = point[2]
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.1
             marker.scale.y = 0.1
-	    marker.scale.z = 0.1
-	    marker.color.r = 0.0
+            marker.scale.z = 0.1
+            marker.color.r = 0.0
             marker.color.g = 1.0
             marker.color.b = 1.0
             marker.color.a = 1.0
-	    marker.id = 66
-	    marker.type = Marker.SPHERE
+            marker.id = 66
+            marker.type = Marker.SPHERE
             self.pub_marker.publish(marker)
         else:
             rospy.loginfo("%s: No waypoints inside sonar FOV", self.name)
@@ -188,36 +191,65 @@ class ChainFollow:
 
 
     def look_around_movement(self):
+        self.lock.acquire()
         self.look_around = True
-	current_orientation = tf.transformations.euler_from_quaternion([
+        current_orientation = tf.transformations.euler_from_quaternion([
                                       self.odometry.pose.pose.orientation.x,
                                       self.odometry.pose.pose.orientation.y,
                                       self.odometry.pose.pose.orientation.z,
                                       self.odometry.pose.pose.orientation.w])
 
-	waypoint_req = WorldWaypointReq()
+        waypoint_req = WorldWaypointReq()
         waypoint_req.goal.priority = GoalDescriptor.PRIORITY_NORMAL
         waypoint_req.goal.requester = self.name + '_pose'
-        waypoint_req.disable_axis.x = True
-        waypoint_req.disable_axis.y = True
-        waypoint_req.disable_axis.z = True
+     
+        waypoint_req.disable_axis.x = False
+        waypoint_req.disable_axis.y = False
+        waypoint_req.disable_axis.z = False
         waypoint_req.disable_axis.roll = True
         waypoint_req.disable_axis.pitch = True
         waypoint_req.disable_axis.yaw = False
-        waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(current_orientation[2] + self.yaw_offset)
+        
+        waypoint_req.position.north = self.odometry.pose.pose.position.x
+        waypoint_req.position.east = self.odometry.pose.pose.position.y
+        waypoint_req.position.depth = self.odometry.pose.pose.position.z
+        waypoint_req.orientation.yaw = current_orientation[2]
+        
         for i in range(100):
             print 'look around!'
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
+            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
+                        current_orientation[2] + (self.yaw_offset/100.0)*i)
             rospy.sleep(0.1)
 
-        waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(current_orientation[2] - self.yaw_offset)
         for i in range(100):
+            print 'look around!'
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
+            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
+                        current_orientation[2] + self.yaw_offset - (self.yaw_offset/100.0)*i)
             rospy.sleep(0.1)
-
+            
+        for i in range(100):
+            print 'look around!'
+            waypoint_req.header.stamp = rospy.Time.now()        
+            self.pub_waypoint_req.publish(waypoint_req)
+            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
+                        current_orientation[2] - (self.yaw_offset/100.0)*i)
+            rospy.sleep(0.1)
+         
+        for i in range(100):
+            print 'look around!'
+            waypoint_req.header.stamp = rospy.Time.now()        
+            self.pub_waypoint_req.publish(waypoint_req)
+            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
+                        current_orientation[2] - self.yaw_offset + (self.yaw_offset/100.0)*i)
+            rospy.sleep(0.1)
+        
         self.look_around = False
+        self.lock.release()
+        
 
     def __compute_yaw_rate__(self, y_offset):
          # Publish Body Velocity Request
@@ -240,7 +272,6 @@ class ChainFollow:
         body_velocity_req.disable_axis.yaw = False
         return body_velocity_req	
         
-
 
 if __name__ == '__main__':
     rospy.init_node('chain_follow')
