@@ -24,7 +24,7 @@ class ChainFollow:
         self.name = name
 
         # Default parameters
-        self.window_lenght = 3.0
+        self.window_length = 3.0
         self.window_start = 1.0
         self.waypoint_req = WorldWaypointReq()
         self.body_velocity_req = BodyVelocityReq()
@@ -34,8 +34,9 @@ class ChainFollow:
         self.last_waypoint = WorldWaypointReq()
         self.look_around = False
         self.yaw_offset = 0.25 # 15 degrees
-        self.do_turn_around = True 
+        self.do_turn_around = False 
         self.lock = threading.RLock()
+        self.listener = tf.TransformListener()        
         
         # self.get_config()
 
@@ -50,7 +51,7 @@ class ChainFollow:
                          MarkerArray,
                          self.sonar_waypoint_update)
 
-        rospy.Subscriber('/cola2_perception/soundmetrics_aris300/sonar_info',
+        rospy.Subscriber('/cola2_perception/soundmetrics_aris3000/sonar_info',
                          SonarInfo,
                          self.sonar_info_update)
 
@@ -68,12 +69,16 @@ class ChainFollow:
 
         rospy.Timer(rospy.Duration(0.05), 
                     self.publish_control)
- 
+
+        rospy.Timer(rospy.Duration(0.5), 
+                    self.update_sonar_img_tf) 
+
+    def update_sonar_img_tf(self, data):
+        (self.trans, self.rot) = self.listener.lookupTransform('/world', '/soundmetrics_aris3000_img', rospy.Time(0))
+        # print 'Trans: ', self.trans
 
     def odometry_update(self, data):
-        self.lock.acquire()
         self.odometry = data
-        self.lock.release()
 
 
     def sonar_img_pose_update(self, data):
@@ -100,7 +105,7 @@ class ChainFollow:
 
 
     def sonar_info_update(self, data):
-        self.window_lenght = data.window_lenght
+        self.window_length = data.window_length
         self.window_start = data.window_start
 
 
@@ -126,13 +131,15 @@ class ChainFollow:
             Ps = np.dot(sTw, Pw)
             list_of_wp.append(Ps)
 
+	# print 'WP wrt SONAR: ', list_of_wp
+
         # take those points inside field of view
         # Rectangle that approximates FOV
         # cross range = total range / 2 (Tali says)
-        min_x = -self.window_lenght/2.0
-        max_x = self.window_lenght/2.0
-        min_y = -(self.window_lenght + self.window_start)/4.0
-        max_y = (self.window_lenght + self.window_start)/4.0
+        min_x = -self.window_length/2.0
+        max_x = self.window_length/2.0
+        min_y = -(self.window_length + self.window_start)/4.0
+        max_y = (self.window_length + self.window_start)/4.0
         max_wp_x = -999
         max_wp_index = -1
         i = 0
@@ -148,7 +155,8 @@ class ChainFollow:
             # It is the waypoint in the sonar fov with larger x
             rospy.loginfo("%s: Compute yaw rate", self.name) 
             self.body_velocity_req = self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
-            if list_of_wp[max_wp_index][0] < 0.0:
+            print 'MAX X: ', list_of_wp[max_wp_index][0], '/', -(self.window_length/4.0)
+            if list_of_wp[max_wp_index][0] < -(self.window_length/4.0):
                 self.do_turn_around = True           
  
             point = np.dot(wTs, list_of_wp[max_wp_index])
@@ -181,17 +189,16 @@ class ChainFollow:
         if not self.look_around:
             self.lock.acquire()
             self.pub_yaw_rate.publish(self.body_velocity_req)
-            print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
+            # print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
            
             if abs(self.body_velocity_req.twist.angular.z) < 0.05 and self.body_velocity_req.twist.angular.z != 0.0:
-                print self.name, ', WP: ', self.waypoint_req.position.north, ', ', self.waypoint_req.position.east
+                # print self.name, ', WP: ', self.waypoint_req.position.north, ', ', self.waypoint_req.position.east
                 self.waypoint_req.header.stamp = rospy.Time.now()
                 self.pub_waypoint_req.publish(self.waypoint_req)
             self.lock.release()
 
 
     def look_around_movement(self):
-        self.lock.acquire()
         self.look_around = True
         current_orientation = tf.transformations.euler_from_quaternion([
                                       self.odometry.pose.pose.orientation.x,
@@ -205,33 +212,36 @@ class ChainFollow:
      
         waypoint_req.disable_axis.x = False
         waypoint_req.disable_axis.y = False
-        waypoint_req.disable_axis.z = False
+        waypoint_req.disable_axis.z = True
         waypoint_req.disable_axis.roll = True
         waypoint_req.disable_axis.pitch = True
         waypoint_req.disable_axis.yaw = False
-        
-        waypoint_req.position.north = self.odometry.pose.pose.position.x
-        waypoint_req.position.east = self.odometry.pose.pose.position.y
-        waypoint_req.position.depth = self.odometry.pose.pose.position.z
-        waypoint_req.orientation.yaw = current_orientation[2]
-        
-        for i in range(100):
-            print 'look around!'
-            waypoint_req.header.stamp = rospy.Time.now()        
-            self.pub_waypoint_req.publish(waypoint_req)
-            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
-                        current_orientation[2] + (self.yaw_offset/100.0)*i)
-            rospy.sleep(0.1)
 
+        waypoint_req.position.north = float(self.odometry.pose.pose.position.x)
+        waypoint_req.position.east = float(self.odometry.pose.pose.position.y)
+        waypoint_req.orientation.yaw = current_orientation[2] + self.yaw_offset
+        
         for i in range(100):
             print 'look around!'
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
-            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
-                        current_orientation[2] + self.yaw_offset - (self.yaw_offset/100.0)*i)
             rospy.sleep(0.1)
-            
+        
+        waypoint_req.orientation.yaw = current_orientation[2] - self.yaw_offset
         for i in range(100):
+            print 'look around!'
+            waypoint_req.header.stamp = rospy.Time.now()        
+            self.pub_waypoint_req.publish(waypoint_req)
+            rospy.sleep(0.1)
+ 
+        waypoint_req.orientation.yaw = current_orientation[2]
+        for i in range(50):
+            print 'look around!'
+            waypoint_req.header.stamp = rospy.Time.now()        
+            self.pub_waypoint_req.publish(waypoint_req)
+            rospy.sleep(0.1) 
+   
+        """for i in range(100):
             print 'look around!'
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
@@ -246,9 +256,8 @@ class ChainFollow:
             waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
                         current_orientation[2] - self.yaw_offset + (self.yaw_offset/100.0)*i)
             rospy.sleep(0.1)
-        
+        """
         self.look_around = False
-        self.lock.release()
         
 
     def __compute_yaw_rate__(self, y_offset):
