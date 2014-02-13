@@ -33,11 +33,12 @@ class ChainFollow:
         self.lock = threading.RLock()
         self.last_waypoint = WorldWaypointReq()
         self.look_around = False
-        self.yaw_offset = 0.25 # 15 degrees
+        self.yaw_offset = 0.35 # 25 degrees
         self.do_turn_around = False 
         self.lock = threading.RLock()
         self.listener = tf.TransformListener()        
-        
+        self.odometry_updated = False 
+        self.big_turn_around = False
         # self.get_config()
 
         self.pub_yaw_rate = rospy.Publisher('/cola2_control/body_velocity_req',
@@ -79,11 +80,10 @@ class ChainFollow:
 
     def odometry_update(self, data):
         self.odometry = data
-
+        self.odometry_updated = True
 
     def sonar_img_pose_update(self, data):
         self.sonar_img_pose = data
-
 
     def world_waypoint_req_update(self, data):
         self.lock.acquire()
@@ -100,7 +100,13 @@ class ChainFollow:
             # Change waypoint
             if self.do_turn_around:
                 self.last_waypoint = self.waypoint_req
-                self.look_around_movement()
+                if self.big_turn_around:
+                    print 'Big turn around'
+                    self.look_around_movement(2)
+                    self.big_turn_around = False
+                else:
+                    print 'Normal turn around'
+                    self.look_around_movement(1)
                 self.do_turn_around = False
 
 
@@ -183,7 +189,10 @@ class ChainFollow:
             self.pub_marker.publish(marker)
         else:
             rospy.loginfo("%s: No waypoints inside sonar FOV", self.name)
-        
+            self.do_turn_around = True
+            self.big_turn_around = True
+            # if not self.look_around:
+            #    self.look_around_movement(2) 
 
     def publish_control(self, event):
         if not self.look_around:
@@ -198,8 +207,9 @@ class ChainFollow:
             self.lock.release()
 
 
-    def look_around_movement(self):
+    def look_around_movement(self, factor = 1):
         self.look_around = True
+        print 'look around!'
         current_orientation = tf.transformations.euler_from_quaternion([
                                       self.odometry.pose.pose.orientation.x,
                                       self.odometry.pose.pose.orientation.y,
@@ -210,8 +220,8 @@ class ChainFollow:
         waypoint_req.goal.priority = GoalDescriptor.PRIORITY_NORMAL
         waypoint_req.goal.requester = self.name + '_pose'
      
-        waypoint_req.disable_axis.x = False
-        waypoint_req.disable_axis.y = False
+        waypoint_req.disable_axis.x = not self.odometry_updated
+        waypoint_req.disable_axis.y = not self.odometry_updated
         waypoint_req.disable_axis.z = True
         waypoint_req.disable_axis.roll = True
         waypoint_req.disable_axis.pitch = True
@@ -219,44 +229,25 @@ class ChainFollow:
 
         waypoint_req.position.north = float(self.odometry.pose.pose.position.x)
         waypoint_req.position.east = float(self.odometry.pose.pose.position.y)
-        waypoint_req.orientation.yaw = current_orientation[2] + self.yaw_offset
+        waypoint_req.orientation.yaw = current_orientation[2] + (factor * self.yaw_offset)
         
-        for i in range(100):
-            print 'look around!'
+        for i in range(int(100*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
             rospy.sleep(0.1)
         
-        waypoint_req.orientation.yaw = current_orientation[2] - self.yaw_offset
-        for i in range(100):
-            print 'look around!'
+        waypoint_req.orientation.yaw = current_orientation[2] - (factor * self.yaw_offset)
+        for i in range(int(150*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
             rospy.sleep(0.1)
  
         waypoint_req.orientation.yaw = current_orientation[2]
-        for i in range(50):
-            print 'look around!'
+        for i in range(int(50*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
             rospy.sleep(0.1) 
    
-        """for i in range(100):
-            print 'look around!'
-            waypoint_req.header.stamp = rospy.Time.now()        
-            self.pub_waypoint_req.publish(waypoint_req)
-            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
-                        current_orientation[2] - (self.yaw_offset/100.0)*i)
-            rospy.sleep(0.1)
-         
-        for i in range(100):
-            print 'look around!'
-            waypoint_req.header.stamp = rospy.Time.now()        
-            self.pub_waypoint_req.publish(waypoint_req)
-            waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(
-                        current_orientation[2] - self.yaw_offset + (self.yaw_offset/100.0)*i)
-            rospy.sleep(0.1)
-        """
         self.look_around = False
         
 
