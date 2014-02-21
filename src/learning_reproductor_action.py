@@ -595,6 +595,11 @@ class learningReproductorAct:
 
         #Load the learned data for the desired behaviour
         self.getLearnedParameters()
+        #Restartin position data aboid multiple loop while waiting to call the action
+        self.dataRollReceived = False
+        self.dataReceivedArm = 0
+        self.dataReceived = 0
+
         rate = rospy.Rate(1.0/self.interval_time)
         success = False
         preempted = False
@@ -640,6 +645,8 @@ class learningReproductorAct:
         if preempted:
             result.valve_turned = False
             self.valve_turning_action.set_preempted()
+            #retart the time
+            self.s = self.initial_s
         else :
             # Push until it touch the valve
             # Turn the valve and the desired degrees
