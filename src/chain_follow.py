@@ -33,11 +33,12 @@ class ChainFollow:
         self.lock = threading.RLock()
         self.last_waypoint = WorldWaypointReq()
         self.look_around = False
-        self.yaw_offset = 0.35 # 25 degrees
+        self.yaw_offset = 0.45 # 0.35 => 25 degrees
         self.do_turn_around = False 
         self.lock = threading.RLock()
         self.listener = tf.TransformListener()        
-        self.odometry_updated = False 
+        self.broadcaster = tf.TransformBroadcaster()
+	self.odometry_updated = False 
         self.big_turn_around = False
         # self.get_config()
 
@@ -48,7 +49,7 @@ class ChainFollow:
         self.pub_marker = rospy.Publisher('/udg_pandora/orientation_link', Marker)
 
         # Create Subscriber Updates (z)
-        rospy.Subscriber('/ntua_planner/sonar_waypoints',
+        rospy.Subscriber('/udg_pandora/link_waypoints',
                          MarkerArray,
                          self.sonar_waypoint_update)
 
@@ -56,7 +57,7 @@ class ChainFollow:
                          SonarInfo,
                          self.sonar_info_update)
 
-        rospy.Subscriber('/ntua_planner/world_waypoint_req',
+        rospy.Subscriber('/udg_pandora/world_waypoint_req',
                          WorldWaypointReq,
                          self.world_waypoint_req_update)
 
@@ -97,18 +98,21 @@ class ChainFollow:
         self.lock.release()
        
         if self.last_waypoint.goal.id != self.waypoint_req.goal.id:
+            print 'Change WP'
+            self.last_waypoint = self.waypoint_req
             # Change waypoint
             if self.do_turn_around:
-                self.last_waypoint = self.waypoint_req
+                print 'Turn around is true'
                 if self.big_turn_around:
                     print 'Big turn around'
-                    self.look_around_movement(2)
+                    self.look_around_movement(1)
                     self.big_turn_around = False
                 else:
                     print 'Normal turn around'
                     self.look_around_movement(1)
                 self.do_turn_around = False
-
+            else:
+                print 'Turn around is False'
 
     def sonar_info_update(self, data):
         self.window_length = data.window_length
@@ -125,6 +129,15 @@ class ChainFollow:
         wTs[0:3, 3] = [self.sonar_img_pose.pose.position.x,
                        self.sonar_img_pose.pose.position.y,
                        self.sonar_img_pose.pose.position.z]
+
+	self.broadcaster.sendTransform(
+	    (self.sonar_img_pose.pose.position.x, self.sonar_img_pose.pose.position.y, self.sonar_img_pose.pose.position.z),
+            (self.odometry.pose.pose.orientation.x, self.odometry.pose.pose.orientation.y,self.odometry.pose.pose.orientation.z, self.odometry.pose.pose.orientation.w),
+            rospy.Time.now(),
+            '/sonar_tf', 
+            '/world'
+	)     
+
         # print 'robot orientation: \n',self.odometry.pose.pose.orientation
         # print 'sonar position: \n', self.sonar_img_pose.pose.position 
         sTw = np.linalg.pinv(wTs)
@@ -155,15 +168,41 @@ class ChainFollow:
                 if waypoint[0] > max_wp_x:
                     max_wp_x = waypoint[0]
                     max_wp_index = i
+
+                # MARKER ARRAY
+                marker = Marker()
+                marker.header.stamp = rospy.Time.now()
+                marker.header.frame_id = '/sonar_tf'
+                marker.pose.position.x = waypoint[0]
+                marker.pose.position.y = waypoint[1]
+                marker.pose.position.z = 0.0
+                marker.pose.orientation.x = 0.0
+                marker.pose.orientation.y = 0.0
+                marker.pose.orientation.z = 0.0
+                marker.pose.orientation.w = 1.0
+                marker.scale.x = 0.1
+                marker.scale.y = 0.1
+                marker.scale.z = 0.1
+                marker.color.r = 1.0
+                marker.color.g = 1.0
+                marker.color.b = 1.0
+                marker.color.a = 1.0
+                marker.id = i*3
+                marker.lifetime = rospy.Duration(1.0)
+                marker.type = Marker.SPHERE
+                self.pub_marker.publish(marker)
+ 
             i = i + 1
 
         if max_wp_index >= 0:
             # It is the waypoint in the sonar fov with larger x
-            rospy.loginfo("%s: Compute yaw rate", self.name) 
+            # rospy.loginfo("%s: Compute yaw rate", self.name) 
             self.body_velocity_req = self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
             print 'MAX X: ', list_of_wp[max_wp_index][0], '/', -(self.window_length/4.0)
             if list_of_wp[max_wp_index][0] < -(self.window_length/4.0):
-                self.do_turn_around = True           
+                self.do_turn_around = True
+            else:
+                self.do_turn_around = False           
  
             point = np.dot(wTs, list_of_wp[max_wp_index])
 
@@ -177,7 +216,7 @@ class ChainFollow:
             marker.pose.orientation.y = 0.0
             marker.pose.orientation.z = 0.0
             marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.1
+            marker.scale.x = 0.3
             marker.scale.y = 0.1
             marker.scale.z = 0.1
             marker.color.r = 0.0
@@ -185,7 +224,7 @@ class ChainFollow:
             marker.color.b = 1.0
             marker.color.a = 1.0
             marker.id = 66
-            marker.type = Marker.SPHERE
+            marker.type = Marker.ARROW
             self.pub_marker.publish(marker)
         else:
             rospy.loginfo("%s: No waypoints inside sonar FOV", self.name)
@@ -193,6 +232,8 @@ class ChainFollow:
             self.big_turn_around = True
             # if not self.look_around:
             #    self.look_around_movement(2) 
+        # print 'do turn around: ', self.do_turn_around
+        # print 'big turn: ', self.big_turn_around
 
     def publish_control(self, event):
         if not self.look_around:
@@ -200,8 +241,11 @@ class ChainFollow:
             self.pub_yaw_rate.publish(self.body_velocity_req)
             # print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
            
-            if abs(self.body_velocity_req.twist.angular.z) < 0.05 and self.body_velocity_req.twist.angular.z != 0.0:
-                # print self.name, ', WP: ', self.waypoint_req.position.north, ', ', self.waypoint_req.position.east
+            if abs(self.body_velocity_req.twist.angular.z) < 0.05:
+                print self.name, ', WP: ', self.waypoint_req.goal.id 
+                print 'Distance: ', np.sqrt((self.odometry.pose.pose.position.x - self.waypoint_req.position.north)**2 + 
+                                              (self.odometry.pose.pose.position.y - self.waypoint_req.position.east)**2)
+
                 self.waypoint_req.header.stamp = rospy.Time.now()
                 self.pub_waypoint_req.publish(self.waypoint_req)
             self.lock.release()
@@ -209,7 +253,6 @@ class ChainFollow:
 
     def look_around_movement(self, factor = 1):
         self.look_around = True
-        print 'look around!'
         current_orientation = tf.transformations.euler_from_quaternion([
                                       self.odometry.pose.pose.orientation.x,
                                       self.odometry.pose.pose.orientation.y,
@@ -235,19 +278,22 @@ class ChainFollow:
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
             rospy.sleep(0.1)
-        
+            print 'look around.'
+
         waypoint_req.orientation.yaw = current_orientation[2] - (factor * self.yaw_offset)
         for i in range(int(150*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
             rospy.sleep(0.1)
- 
+            print 'look around..'
+
         waypoint_req.orientation.yaw = current_orientation[2]
         for i in range(int(50*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
             rospy.sleep(0.1) 
-   
+            print 'look around...'
+
         self.look_around = False
         
 

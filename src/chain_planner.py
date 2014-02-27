@@ -29,14 +29,15 @@ class ChainPlanner:
         self.name = name
         
         self.min_num_det_x_cluster = 3
-        self.orientation_line = 0
+        self.orientation_line = 0.7
         self.rot_matrix = np.array([[np.cos(self.orientation_line), np.sin(self.orientation_line), 0],
                                      [-np.sin(self.orientation_line), np.cos(self.orientation_line), 0],
                                       [0, 0, 1]])
 
-        self.error_threshold = 0.7
+        self.error_threshold = 0.3
         self.iter_wps = 0
-        self.cluster_centers_sorted = None        
+        self.cluster_centers_sorted = None    
+        self.markerArray = None
         
         # Create Subscriber Updates (z)
         rospy.Subscriber('/link_pose2',
@@ -50,6 +51,16 @@ class ChainPlanner:
         self.pub_sonar_wps = rospy.Publisher("/udg_pandora/link_waypoints", MarkerArray)  
         self.pub_sonar_next_wp = rospy.Publisher("/udg_pandora/next_waypoint", Marker)
         self.pub_wwr = rospy.Publisher("/udg_pandora/world_waypoint_req", WorldWaypointReq)
+        
+        #Timer
+        rospy.Timer(rospy.Duration(0.1), self.iterate)
+        
+    def iterate(self, event):
+
+    
+        
+        if self.markerArray != None:
+            self.pub_sonar_wps.publish(self.markerArray)   
         
     def updateNavSts(self, nav_sts):
         x = nav_sts.position.north
@@ -186,9 +197,7 @@ class ChainPlanner:
         
         print("number of estimated clusters : %d" % n_clusters_)
               
-        
-        markerArray = MarkerArray()
-
+        self.markerArray = MarkerArray()
         #fig = pl.figure(1)
         #pl.ion()        
         #pl.clf()
@@ -233,13 +242,13 @@ class ChainPlanner:
                     marker.color.b = 0.0
                     marker.color.a = 1.0
                     marker.id = k
-                    markerArray.markers.append(marker)
+                    self.markerArray.markers.append(marker)
                     if len(cluster_centers_filtered) != 0:
                         cluster_centers_filtered = np.vstack((cluster_centers_filtered,cluster_centers[k]))                   
                     else:
                         cluster_centers_filtered = cluster_centers[k]
         
-        self.pub_sonar_wps.publish(markerArray)        
+            
         #my_members = labels == -1             
         #pl.plot(X[my_members, 0], X[my_members, 1], 'k' + '.')
             
