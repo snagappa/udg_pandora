@@ -1,6 +1,6 @@
 learning/reproductor/complete/parameters : ['learned_data_complete_individual_long.txt', 'learned_data_complete_individual_short.txt']
 #learning/reproductor/complete/parameters : learned_data_complete.txt
-learning/reproductor/complete/alpha : 2
+learning/reproductor/complete/alpha : 0.9
 learning/reproductor/complete/s : 1
 learning/reproductor/complete/nbVar : 10
 learning/reproductor/complete/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
@@ -17,3 +17,4 @@ learning/reproductor/complete/poseGoal_z : 0.11
 learning/reproductor/complete/goal_valve : 2
 #default parameter for
 learning/reproductor/complete/learning_param_id : 0
+learning/reproductor/complete/force_torque_enable : False
