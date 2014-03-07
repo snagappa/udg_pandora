@@ -207,20 +207,33 @@ class LearningRecord:
 
                 robotTrans = np.dot(inv_mat, robotPose)
 
-                robotYaw = euler_from_quaternion(
+                # robotYaw = euler_from_quaternion(
+                #     [self.robotPose.orientation.x,
+                #      self.robotPose.orientation.y,
+                #      self.robotPose.orientation.z,
+                #      self.robotPose.orientation.w])[2]
+
+                # self.unnormalized_angle = self.unNormalizeAngle(
+                #     self.unnormalized_angle, robotYaw)
+
+                # goalYaw = tf.transformations.euler_from_quaternion(
+                #     [self.goalPose.orientation.x,
+                #      self.goalPose.orientation.y,
+                #      self.goalPose.orientation.z,
+                #      self.goalPose.orientation.w])[1]
+                
+                robotOri = tf.transformations.quaternion_matrix(
                     [self.robotPose.orientation.x,
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
-                     self.robotPose.orientation.w])[2]
+                     self.robotPose.orientation.w])
 
-                self.unnormalized_angle = self.unNormalizeAngle(
-                    self.unnormalized_angle, robotYaw)
+                mat_ori = np.dot(robotOri[0:3, 0:3],trans_matrix[0:3,0:3])
+#                mat_ori = np.dot(robotOri[0:3, 0:3], inv_mat[0:3, 0:3])
 
-                goalYaw = tf.transformations.euler_from_quaternion(
-                    [self.goalPose.orientation.x,
-                     self.goalPose.orientation.y,
-                     self.goalPose.orientation.z,
-                     self.goalPose.orientation.w])[1]
+                dif_ori = tf.transformations.euler_from_matrix(mat_ori)[2]
+                
+                #rospy.loginfo('Dif Ori ' + str(tf.transformations.euler_from_matrix(mat_ori)))
 
                 #################################################
                 # End-Effector Pose from the Base_arm without TF
@@ -272,7 +285,7 @@ class LearningRecord:
                 s = (repr(robotTrans[0]) + " " +
                      repr(robotTrans[1]) + " " +
                      repr(robotTrans[2]) + " " +
-                     repr(goalYaw - self.unnormalized_angle)
+                     repr(dif_ori)
                      #repr(cola2_lib.normalizeAngle(goalYaw - robotYaw))
                      + " " +
                      repr(arm_frame_pose[0]) + " " +
