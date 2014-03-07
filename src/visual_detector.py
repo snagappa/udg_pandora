@@ -241,10 +241,10 @@ class VisualDetector(object):
                                          Detection)
 
         # DEBUG Code publish the canny and the blur_img
-        self.canny_pub = rospy.Publisher(
-                '/visual_detector_ee/canny_img', Image)
-        self.blur_pub = rospy.Publisher(
-                '/visual_detector_ee/blur_img', Image)
+        # self.canny_pub = rospy.Publisher(
+        #         '/visual_detector_ee/canny_img', Image)
+        # self.blur_pub = rospy.Publisher(
+        #         '/visual_detector_ee/blur_img', Image)
 
 
         rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
@@ -1052,9 +1052,9 @@ class VisualDetector(object):
         # im_edges *= mask
 
         # DEBUG
-        img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_edges))                                         #encoding="bgr8")
-        img_msg.header.stamp = rospy.Time.now()
-        self.canny_pub.publish(img_msg)        
+        # img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_edges))                                         #encoding="bgr8")
+        # img_msg.header.stamp = rospy.Time.now()
+        # self.canny_pub.publish(img_msg)        
         
         
         lines = np.squeeze(cv2.HoughLinesP(im_edges, HoughRho, HoughTheta,
