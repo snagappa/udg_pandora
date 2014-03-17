@@ -1,8 +1,8 @@
 learning/reproductor/complete/parameters : ['learned_data_complete_individual_long.txt', 'learned_data_complete_individual_short.txt']
 #learning/reproductor/complete/parameters : learned_data_complete.txt
-learning/reproductor/complete/alpha : 0.9
+learning/reproductor/complete/alpha : 2
 learning/reproductor/complete/s : 1
-learning/reproductor/complete/nbVar : 10
+learning/reproductor/complete/nbVar : 13
 learning/reproductor/complete/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
 learning/reproductor/complete/interval_time : 0.2 #10Hz
 learning/reproductor/complete/simulation : 0

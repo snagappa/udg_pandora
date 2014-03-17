@@ -24,6 +24,7 @@ from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from sensor_msgs.msg import JointState
 #from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import WrenchStamped
 from tf.transformations import euler_from_quaternion
 #import to use mutex
 import threading
@@ -48,6 +49,9 @@ class LearningRecord:
         self.initRoll = False
         self.valveOri = 0.0
         self.valveOriInit = False
+        self.initForce = False
+        self.initial_Forces = WrenchStamped()
+        self.current_Forces = WrenchStamped()
         self.unnormalized_angle = 0.0
         self.unnormalized_roll = 0.0
 
@@ -64,6 +68,11 @@ class LearningRecord:
         rospy.Subscriber("/valve_tracker/valve" + str(self.goal_valve),
                          PoseWithCovarianceStamped,
                          self.updateGoalPose)
+
+        rospy.Subscriber("/ForceTorque_IIT/forceTorqueAvgData",
+                         WrenchStamped,
+                         self.updateForceSensor)
+
         self.tflistener = tf.TransformListener()
 
     def getConfig(self):
@@ -178,7 +187,7 @@ class LearningRecord:
         #euler = euler_from_quaternion(quaternion, 'sxyz')
         self.lock.acquire()
         try:
-            if self.initGoalPose and self.initRoll:
+            if self.initGoalPose and self.initRoll and self.initForce:
                 #################################################
                 # Compute the pose of the AUV respect the Valve 2
                 #################################################
@@ -207,33 +216,20 @@ class LearningRecord:
 
                 robotTrans = np.dot(inv_mat, robotPose)
 
-                # robotYaw = euler_from_quaternion(
-                #     [self.robotPose.orientation.x,
-                #      self.robotPose.orientation.y,
-                #      self.robotPose.orientation.z,
-                #      self.robotPose.orientation.w])[2]
-
-                # self.unnormalized_angle = self.unNormalizeAngle(
-                #     self.unnormalized_angle, robotYaw)
-
-                # goalYaw = tf.transformations.euler_from_quaternion(
-                #     [self.goalPose.orientation.x,
-                #      self.goalPose.orientation.y,
-                #      self.goalPose.orientation.z,
-                #      self.goalPose.orientation.w])[1]
-                
-                robotOri = tf.transformations.quaternion_matrix(
+                robotYaw = euler_from_quaternion(
                     [self.robotPose.orientation.x,
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
-                     self.robotPose.orientation.w])
+                     self.robotPose.orientation.w])[2]
 
-                mat_ori = np.dot(robotOri[0:3, 0:3],trans_matrix[0:3,0:3])
-#                mat_ori = np.dot(robotOri[0:3, 0:3], inv_mat[0:3, 0:3])
+                self.unnormalized_angle = self.unNormalizeAngle(
+                    self.unnormalized_angle, robotYaw)
 
-                dif_ori = tf.transformations.euler_from_matrix(mat_ori)[2]
-                
-                #rospy.loginfo('Dif Ori ' + str(tf.transformations.euler_from_matrix(mat_ori)))
+                goalYaw = tf.transformations.euler_from_quaternion(
+                    [self.goalPose.orientation.x,
+                     self.goalPose.orientation.y,
+                     self.goalPose.orientation.z,
+                     self.goalPose.orientation.w])[1]
 
                 #################################################
                 # End-Effector Pose from the Base_arm without TF
@@ -285,7 +281,7 @@ class LearningRecord:
                 s = (repr(robotTrans[0]) + " " +
                      repr(robotTrans[1]) + " " +
                      repr(robotTrans[2]) + " " +
-                     repr(dif_ori)
+                     repr(goalYaw - self.unnormalized_angle)
                      #repr(cola2_lib.normalizeAngle(goalYaw - robotYaw))
                      + " " +
                      repr(arm_frame_pose[0]) + " " +
@@ -294,12 +290,34 @@ class LearningRecord:
                      repr(arm_ori[0]) + " " +
                      repr(arm_ori[1]) + " " +
                      repr(roll) + " " +
+                     repr(self.current_Forces.wrench.force.x -
+                          self.initial_Forces.wrench.force.x) + " " +
+                     repr(self.current_Forces.wrench.force.y -
+                          self.initial_Forces.wrench.force.y) + " " +
+                     repr(self.current_Forces.wrench.force.z -
+                          self.initial_Forces.wrench.force.z) + " " +
                      repr(rospy.get_time()) + "\n")
+                
                 self.file.write(s)
+                rospy.loginfo('Current Force Z ' + repr(self.current_Forces.wrench.force.z) +
+                              ' - ' + repr(self.initial_Forces.wrench.force.z))
             else:
                 rospy.loginfo('Goal pose Not initialized')
         finally:
             self.lock.release()
+
+    def updateForceSensor(self, wrench_msg):
+        """
+        This function records the force and not the torque received in the
+        end-effector. Its not transform in the coordinate system of the robot.
+        @param wrench: Contain the Force X,Y,Z and Torque in X,Y,Z
+        """
+        if not self.initForce:
+            self.initForce = True
+            self.initial_Forces = wrench_msg
+            self.current_Forces = wrench_msg
+        else:
+            self.current_Forces = wrench_msg
 
     def unNormalizeAngle(self, current_angle, new_angle):
         """
@@ -346,14 +364,14 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_record_complete.yaml")
+            "udg_pandora", "learning_record_force.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            rospy.logerr("Could not locate learning_record.yaml")
+            rospy.logerr("Could not locate learning_record_force.yaml")
 
-        rospy.init_node('learning_record_complete')
+        rospy.init_node('learning_record_force')
 #        acoustic_detectorvisual_detector = AcousticDetector(rospy.get_name())
         learning_record = LearningRecord(rospy.get_name())
         rospy.spin()

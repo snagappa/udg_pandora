@@ -20,6 +20,7 @@ import cola2_lib
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Wrench
 from sensor_msgs.msg import JointState
 
 # include the message of the ekf giving the position of the robot
@@ -34,6 +35,8 @@ from pose_ekf_slam.msg import Map
 
 #include the message to send velocities to the robot
 from auv_msgs.msg import BodyVelocityReq
+from auv_msgs.msg import BodyForceReq
+
 
 import math
 import numpy as np
@@ -56,8 +59,6 @@ from udg_pandora.msg import rfdm_msg
 #from udg_pandora.srv import WorkAreaError
 
 from cola2_control.srv import TurnDesiredDegrees, PushWithAUV
-
-from cola2_control.srv import EFPose
 
 import threading
 import tf
@@ -93,6 +94,8 @@ class learningReproductorAct:
         self.currTimeArm = 0.0
         self.prevTimeAUV = 0.0
         self.currTimeAUV = 0.0
+        self.prevTimeForce = 0.0
+        self.currTimeForce = 0.0
         self.currPos = np.zeros(self.nbVar)
         self.currVel = np.zeros(self.nbVar)
         self.currAcc = np.zeros(self.nbVar)
@@ -104,6 +107,7 @@ class learningReproductorAct:
         self.dataGoalOriReceived = False
         self.dataRobotReceived = False
         self.dataRollReceived = False
+        self.dataForceReceived = 0
         self.dataComputed = 0
         #Simulation parameter
         self.currPosSim = np.zeros(self.nbVar)
@@ -118,10 +122,8 @@ class learningReproductorAct:
         self.unnormalized_angle = 0.0
         self.unnormalized_roll = 0.0
 
-        self.force_vector = np.zeros(6)
-        self.force_vector_old = np.zeros(6)
-        self.force_big_update = 0
-        self.force_new_data = False
+        self.current_Force = WrenchStamped()
+        self.initial_Force = WrenchStamped()
 
         self.currNbDataRepro = 0
         self.enabled = False
@@ -151,6 +153,9 @@ class learningReproductorAct:
             "learning/auv_finish", Bool)
         self.pub_arm_des_pose = rospy.Publisher(
             "learning/end_effector_desired_pose", PoseStamped)
+        self.pub_auv_force = rospy.Publisher(
+            "/cola2_control/body_force_req", BodyForceReq)
+
 
         rospy.Subscriber('/pose_ekf_slam/map',
                          Map, self.updateGoalOri)
@@ -166,6 +171,9 @@ class learningReproductorAct:
         rospy.Subscriber('/rfdm_pkg/reactive',
                          rfdm_msg,
                          self.updateSafety)
+        rospy.Subscriber("/ForceTorque_IIT/forceTorqueAvgData",
+                         WrenchStamped,
+                         self.updateForceTorque)
         rospy.Subscriber(
             "/csip_e5_arm/joint_state", JointState, self.updateRollEndEffector)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
@@ -182,12 +190,6 @@ class learningReproductorAct:
             Empty,
             self.disable_srv)
 
-        if self.force_torque_enable:
-            rospy.loginfo('Force Torque Enabled ')
-            rospy.Subscriber('/ForceTorque_IIT/forceTorqueData',
-                             WrenchStamped,
-                             self.updateForceTorque)
-            
         # self.valve_turning_srv = rospy.Service(
         #     '/learning/turn_valve_operation',
         #     TurnningValve,
@@ -220,8 +222,7 @@ class learningReproductorAct:
                       'goal_valve': 'learning/reproductor/complete/goal_valve',
                       'learning_param_id': 'learning/reproductor/complete/learning_param_id',
                       'base_pose': '/arm_controller/base_pose',
-                      'base_ori': '/arm_controller/base_ori',
-                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable'
+                      'base_ori': '/arm_controller/base_ori'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Value parameters ' + str(self.reproductor_parameters))
@@ -310,11 +311,6 @@ class learningReproductorAct:
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])[2]
-                robotOriV2 = tf.transformations.quaternion_matrix(
-                    [self.robotPose.orientation.x,
-                     self.robotPose.orientation.y,
-                     self.robotPose.orientation.z,
-                     self.robotPose.orientation.w])
                 self.dataRobotReceived = True
             if self.dataGoalReceived:
                 trans_mat = tf.transformations.quaternion_matrix(
@@ -322,11 +318,6 @@ class learningReproductorAct:
                      self.goalPose.orientation.y,
                      self.goalPose.orientation.z,
                      self.goalPose.orientation.w])
-                robotOriV2 = tf.transformations.quaternion_matrix(
-                    [self.robotPose.orientation.x,
-                     self.robotPose.orientation.y,
-                     self.robotPose.orientation.z,
-                     self.robotPose.orientation.w])
 
                 trans_mat[0, 3] = self.goalPose.position.x
                 trans_mat[1, 3] = self.goalPose.position.y
@@ -360,22 +351,11 @@ class learningReproductorAct:
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])[2]
-                # self.unnormalized_angle = self.unNormalizeAngle(
-                #    self.unnormalized_angle, robotYaw)
+                self.unnormalized_angle = self.unNormalizeAngle(
+                    self.unnormalized_angle, robotYaw)
                 # self.currPos[3] = cola2_lib.normalizeAngle(
                 #     goalYaw - robotYaw)
-                # self.currPos[3] = goalYaw - self.unnormalized_angle
-                
-                dif_ori = np.dot(robotOriV2[0:3, 0:3],trans_mat[0:3,0:3])
-
-
-                self.currPos[3] = tf.transformations.euler_from_matrix(dif_ori)[2]
-
-                # rospy.loginfo('Diff in roll ' + str(tf.transformations.euler_from_matrix(dif_ori)[0]))
-                # rospy.loginfo('Diff in pitch ' + str(tf.transformations.euler_from_matrix(dif_ori)[1]))
-                # rospy.loginfo('Diff in yaw ' + str(tf.transformations.euler_from_matrix(dif_ori)[2]))
-                # rospy.loginfo('*************************************************')
-
+                self.currPos[3] = goalYaw - self.unnormalized_angle
                 if self.dataReceived == 0:
                     self.currTime = (odometry.header.stamp.secs +
                                      (odometry.header.stamp.nsecs*1E-9))
@@ -536,16 +516,48 @@ class learningReproductorAct:
     def updateForceTorque(self, wrench_msg):
         self.lock_force.acquire()
         try:
-            self.force_vector[0] = wrench_msg.wrench.force.x
-            self.force_vector[1] = wrench_msg.wrench.force.y
-            self.force_vector[2] = wrench_msg.wrench.force.z
-            self.force_vector[3] = wrench_msg.wrench.torque.x
-            self.force_vector[4] = wrench_msg.wrench.torque.y
-            self.force_vector[5] = wrench_msg.wrench.torque.z
-            self.force_new_data = True
+            self.current_Force = wrench_msg
+            #rospy.loginfo('Readed Wrench ' + str(self.initial_Force.wrench.force.x))
+            self.prevPos[10:13] = self.currPos[10:13]
+            self.currPos[10] = (self.current_Force.wrench.force.x -
+                                self.initial_Force.wrench.force.x)
+            self.currPos[11] = (self.current_Force.wrench.force.y -
+                                self.initial_Force.wrench.force.y)
+            self.currPos[12] = (self.current_Force.wrench.force.z -
+                                self.initial_Force.wrench.force.z)
+            rospy.loginfo('Current Force Z ' + repr(self.current_Force.wrench.force.z) 
+                          + ' - ' + repr(self.initial_Force.wrench.force.z))
+            if self.dataForceReceived == 0 :
+                self.initial_Force = wrench_msg
+                self.currTimeForce = (wrench_msg.header.stamp.secs +
+                                      (wrench_msg.header.stamp.nsecs*1E-9))
+                self.prevTimeForce = self.currTimeForce
+                self.dataForceReceived += 1
+
+            elif self.dataForceReceived == 1 :
+                # ERROR
+                self.prevPos[10:13] = self.currPos[10:13]
+                #######
+                self.prevTimeForce = self.currTimeForce
+                self.currTimeForce = (wrench_msg.header.stamp.secs +
+                                      (wrench_msg.header.stamp.nsecs*1E-9))
+                self.currVel[10:13] = (
+                    (self.currPos[10:13]-self.prevPos[10:13])/
+                    (self.currTimeForce-self.prevTimeForce))
+                self.dataForceReceived += 1
+
+            else:
+                # ERROR
+                self.prevPos[10:13] = self.currPos[10:13]
+                #######
+                self.prevTimeForce = self.currTimeForce
+                self.currTimeForce = (wrench_msg.header.stamp.secs +
+                                      (wrench_msg.header.stamp.nsecs*1E-9))
+                self.currVel[10:13] = (
+                    (self.currPos[10:13]-self.prevPos[10:13]) /
+                    (self.currTimeForce-self.prevTimeForce))
         finally:
             self.lock_force.release()
-
 
     def enable_srv(self, req):
         if not self.action_in_process :
@@ -580,7 +592,9 @@ class learningReproductorAct:
                 #               + ', ' + str(self.currPos[6]))
                 if self.enabled:
                     if not self.simulation:
-                        if self.dataReceived > 1 and self.dataReceivedArm > 1:
+                        if (self.dataReceived > 1 
+                            and self.dataReceivedArm > 1
+                            and self.dataForceReceived > 1):
                             self.generateNewPose()
                     else:
                         self.simulatedNewPose()
@@ -618,33 +632,15 @@ class learningReproductorAct:
 
         #Load the learned data for the desired behaviour
         self.getLearnedParameters()
-        #Restartin position data aboid multiple loop while waiting to call the action
-        self.dataRollReceived = False
-        self.dataReceivedArm = 0
-        self.dataReceived = 0
-
         rate = rospy.Rate(1.0/self.interval_time)
         success = False
         preempted = False
         self.enabled = False
         self.action_in_process = True
-        self.force_vector_old = np.copy(self.force_vector)
-        while not success and not preempted and self.force_big_update < 10:
+        while not success and not preempted:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
                 if not self.simulation:
                     success = self.generateNewPose()
-                    if self.force_torque_enable:
-                        self.lock_force.acquire()
-                        try:
-                            if self.force_new_data:
-                                if np.abs(self.force_vector_old[2] - self.force_vector[2]) > 20:
-                                    self.force_big_update = self.force_big_update + 1
-                                else:
-                                    self.force_big_update = 0
-                                    self.force_vector_old = np.copy(self.force_vector)
-                                self.force_new_data = False
-                        finally:
-                            self.lock_force.release()
                 else :
                     success = self.simulatedNewPose()
             else:
@@ -668,41 +664,20 @@ class learningReproductorAct:
         if preempted:
             result.valve_turned = False
             self.valve_turning_action.set_preempted()
-            #retart the time
-            self.s = self.initial_s
         else :
             # Push until it touch the valve
             # Turn the valve and the desired degrees
             # stop pushing and go back
-            # fold the arm
-            # rospy.wait_for_service('/cola2_control/push_desired_froce')
-            # rospy.wait_for_service('/cola2_control/turnDesiredRadians')
-            # rospy.wait_for_service('/cola2_control/disable_push')
+            rospy.wait_for_service('/cola2_control/push_desired_froce')
+            rospy.wait_for_service('/cola2_control/turnDesiredRadians')
+            rospy.wait_for_service('/cola2_control/disable_push')
             try:
                 push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
                                               PushWithAUV)
                 rospy.loginfo('Pushing the valve ')
                 push_srv = push_srv([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-                
-                if self.force_torque_enable:
-                    iterations = 0 
-                    rate = rospy.Rate(1.0/self.interval_time)
-                    while iterations <= 20 and self.force_big_update < 5 and not rospy.is_shutdown():
-                        self.lock_force.acquire()
-                        try:
-                            if self.force_new_data:
-                                if np.abs(self.force_vector_old[2] - self.force_vector[2]) > 20:
-                                    self.force_big_update = self.force_big_update + 1
-                                else:
-                                    self.force_big_update = 0
-                                    self.force_vector_old = np.copy(self.force_vector)
-                                self.force_new_data = False
-                        finally:
-                            self.lock_force.release()
-                        rate.sleep()
-                #wait until it feel the valve
-                else:
-                    rospy.sleep(4.0)
+
+                rospy.sleep(4.0)
 
                 turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
                                                TurnDesiredDegrees)
@@ -712,42 +687,12 @@ class learningReproductorAct:
                 #stop the push
                 dis_push_srv = rospy.ServiceProxy('/cola2_control/disable_push',
                                                   Empty)
-          
                 dis_push_srv()
                 rospy.loginfo('Stop Pushing and go backwards')
                 #go backward
                 rate = rospy.Rate(10)
                 #rospy.loginfo('Init bucle')
-                for i in range(80):
-                    #rospy.loginfo('Going backward')
-                    vel_com = BodyVelocityReq()
-                    vel_com.header.stamp = rospy.get_rostime()
-                    vel_com.goal.priority = 10
-                    #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
-                    vel_com.goal.requester = 'learning_algorithm'
-                    vel_com.twist.linear.x = -0.1
-                    vel_com.twist.linear.y = 0.0
-                    vel_com.twist.linear.z = 0.0
-                    vel_com.twist.angular.z = 0.0
-
-                    #disabled_axis boby_velocity_req
-                    vel_com.disable_axis.x = False # True False
-                    vel_com.disable_axis.y = False # True False
-                    vel_com.disable_axis.z = True # True False
-                    vel_com.disable_axis.roll = True
-                    vel_com.disable_axis.pitch = True
-                    vel_com.disable_axis.yaw = False # True False
-                    self.pub_auv_vel.publish(vel_com)
-                    rate.sleep()
-
-                # Fold the arm
-                fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF',
-                                                  EFPose)
-
-                
-                value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
-
-                for i in range(80):
+                for i in range(150):
                     #rospy.loginfo('Going backward')
                     vel_com = BodyVelocityReq()
                     vel_com.header.stamp = rospy.get_rostime()
@@ -767,14 +712,13 @@ class learningReproductorAct:
                     vel_com.disable_axis.pitch = True
                     vel_com.disable_axis.yaw = False # True False
                     self.pub_auv_vel.publish(vel_com)
-                    rate.sleep()                
-                
+                    rate.sleep()
+
                 rospy.loginfo('Finish')
                 result.valve_turned = res.success
-
             except rospy.ServiceException, e:
                 print "Service call failed: %s"%e
-            
+
         self.enabled = False
         self.s = self.initial_s
         self.action = 1.0
@@ -917,25 +861,17 @@ class learningReproductorAct:
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
 
-
         for i in xrange(self.numStates):
             currTar = currTar + self.Mu_x[:, i]*h[i]
             currWp = currWp + self.Wp[i, :, :]*h[i]
 
-        rospy.loginfo('Current Tar '+ str(currTar))
-        #rospy.loginfo('Current Wp '+ str(currWp))
         #Compute acceleration
         #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
 
-
-        diff = currTar-self.currPos
-        diff[3] = cola2_lib.normalizeAngle(diff[3])
-
-        self.desAcc = np.dot(
-            currWp, diff) - (self.kV*self.currVel)
+        self.desAcc = (np.dot(
+            currWp, (currTar-self.currPos))) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
-        self.desAcc = self.desAcc #* math.fabs(self.action)
-        rospy.loginfo('Des Acc' + str(self.desAcc))
+        self.desAcc = self.desAcc * math.fabs(self.action)
 
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
@@ -1097,15 +1033,15 @@ class learningReproductorAct:
             if(abs(vel_auv[2]) <= 0.1):
                 vel_com.twist.linear.z = vel_auv[2] #/30.0
             else:
-                vel_com.twist.linear.z = np.sign(vel_auv[1])*0.1 
+                vel_com.twist.linear.z = np.sign(vel_auv[1])*0.1
         else:
             vel_com.twist.linear.z = 0.0
-            
+
         if not np.isnan(self.desVel[3]):
             if(abs(vel_auv[2]) <= 0.1):
-                vel_com.twist.angular.z = self.desVel[3]
+                vel_com.twist.angular.z = -self.desVel[3]
             else:
-                vel_com.twist.angular.z = np.sign(self.desVel[3])*0.1
+                vel_com.twist.angular.z = np.sign(self.desVel[3])*-0.1
         else:
             vel_com.twist.angular.z = 0.0
 
@@ -1181,6 +1117,72 @@ class learningReproductorAct:
 
         self.pub_arm_command.publish(joyCommand)
 
+        ##############################################
+        # Compute the Forces for the End Effector
+        ##############################################
+
+        trans_arm_ee = tf.transformations.euler_matrix(
+            self.armOrientation[0],
+            self.armOrientation[1],
+            self.armOrientation[2])
+
+        # forces = np.asarray(
+        #     [-1.0*self.desVel[10],
+        #      -1.0*self.desVel[11],
+        #      -1.0*self.desVel[12],
+        #      0])
+
+        forces = np.array(
+            [0.0*self.desPos[10],
+             0.0*self.desPos[11],
+             -1.0*self.desPos[12],
+             0])
+
+        des_force = np.dot(trans_arm_ee, forces)
+
+        # rospy.loginfo('Force Controller Command ' + str(self.desPos[10])
+        #               + ' ' + str(self.desPos[11])
+        #               + ' ' + str(self.desPos[12]))
+
+        force_com = BodyForceReq()
+        force_com.header.stamp = rospy.get_rostime()
+        force_com.goal.priority = 10 + 1
+        #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
+        force_com.goal.requester = 'learning_algorithm'
+        
+        if(abs(des_force[0]) <= 15.0 and abs(des_force[0]) >= 0.0):
+            force_com.wrench.force.x = des_force[0]
+            force_com.disable_axis.x = False
+        elif (des_force[0] == 0.0 or abs(des_force[0])<=0.0):
+            force_com.disable_axis.x = True            
+        else:
+            force_com.wrench.force.x = np.sign(des_force[0])*15.0
+            force_com.disable_axis.x = False
+
+        if(abs(des_force[1]) <= 15.0 and abs(des_force[1]) >= 0.0):
+            force_com.wrench.force.y = des_force[1]
+            force_com.disable_axis.y = False
+        elif (des_force[1] == 0.0 or abs(des_force[1])<=0.0):
+            force_com.disable_axis.y = True            
+        else:
+            force_com.wrench.force.y = np.sign(des_force[1])*15.0
+            force_com.disable_axis.y = False
+
+        if(abs(des_force[2]) <= 15.0 and abs(des_force[2]) >= 0.0):
+            force_com.wrench.force.z = des_force[2]
+            force_com.disable_axis.z = False
+        elif (des_force[2] == 0.0 or abs(des_force[2])<=0.0):
+            force_com.disable_axis.z = True
+        else:
+            force_com.wrench.force.z = np.sign(des_force[2])*15.0
+            force_com.disable_axis.z = False
+
+        force_com.disable_axis.roll = True
+        force_com.disable_axis.pitch = True
+        force_com.disable_axis.yaw = True
+
+        self.pub_auv_force.publish(force_com)
+
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
              repr(self.currPos[2]) + " " +
@@ -1190,7 +1192,11 @@ class learningReproductorAct:
              repr(self.currPos[6]) + " " +
              repr(self.currPos[7]) + " " +
              repr(self.currPos[8]) + " " +
-             repr(self.currPos[9]) + "\n")
+             repr(self.currPos[9]) + " " +
+             repr(self.currPos[10]) + " " +
+             repr(self.currPos[11]) + " " +
+             repr(self.currPos[12]) + " " +
+             repr(rospy.get_time()) + "\n")
         self.fileTraj.write(s)
 
     def getLearnedParameters(self):
@@ -1343,12 +1349,12 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_reproductor_action.yaml")
+            "udg_pandora", "learning_reproductor_force.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            rospy.logerr("Could not locate learning_reproductor_complete.yaml")
+            rospy.logerr("Could not locate learning_reproductor_force.yaml")
 
         rospy.init_node('learning_reproductor_action')
         learning_reproductor = learningReproductorAct(rospy.get_name())

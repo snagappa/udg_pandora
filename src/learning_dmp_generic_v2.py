@@ -61,7 +61,9 @@ class learningDmp:
                                   self.nbVar))
 
         self.Mu_t = np.linspace(0, self.nbData*self.dt, self.nbStates)
-        self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
+        # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
+        #                        [self.nbStates, 1, 1])
+        self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates),
                                [self.nbStates, 1, 1])
 
         rospy.loginfo('Loaded demonstrations')

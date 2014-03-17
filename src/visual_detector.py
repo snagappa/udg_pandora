@@ -31,6 +31,7 @@ RED = (0, 0, 255)
 BLUE = (255, 0, 0)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
 
 # Check if ORB/SURF detector is available
 try:
@@ -238,6 +239,13 @@ class VisualDetector(object):
         # Create publisher
         self.pub_chain = rospy.Publisher('/visual_detector/chain',
                                          Detection)
+
+        # DEBUG Code publish the canny and the blur_img
+        # self.canny_pub = rospy.Publisher(
+        #         '/visual_detector_ee/canny_img', Image)
+        # self.blur_pub = rospy.Publisher(
+        #         '/visual_detector_ee/blur_img', Image)
+
 
         rospy.timer.Timer(rospy.Duration(0.1), self.publish_transforms)
         # Enable panel detection by default
@@ -1041,10 +1049,24 @@ class VisualDetector(object):
             (int((box_width/2)+centre_border_px),
              int((box_height/2)-centre_border_px)),
             (0, 0, 0), thickness=-1)
-        im_edges *= mask
+        # im_edges *= mask
+
+        # DEBUG
+        # img_msg = self.ros2cvimg.img_msg(cv2.cv.fromarray(im_edges))                                         #encoding="bgr8")
+        # img_msg.header.stamp = rospy.Time.now()
+        # self.canny_pub.publish(img_msg)        
+        
+        
         lines = np.squeeze(cv2.HoughLinesP(im_edges, HoughRho, HoughTheta,
             HoughThreshold, minLineLength=HoughMinLineLength,
             maxLineGap=HoughMaxLineGap))
+            
+        # Draw the images detected by the Hough
+        # print 'lines: ', lines
+        # li = lines.flatten()
+        # for i in range(lines.ndim):
+        #     cv2.line(img, (li[0+i*4],li[1+i*4]), (li[2+i*4],li[3+i*4]), GREEN, 6)
+
         # if multiple lines, choose the longest
         if lines.ndim == 1:
             valve_points = lines

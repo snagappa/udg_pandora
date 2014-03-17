@@ -184,7 +184,7 @@ class learningReproductorAct:
 
         if self.force_torque_enable:
             rospy.loginfo('Force Torque Enabled ')
-            rospy.Subscriber('/ForceTorque_IIT/forceTorqueData',
+            rospy.Subscriber('/forceTorque_controller/forceTorqueData',
                              WrenchStamped,
                              self.updateForceTorque)
             
@@ -542,7 +542,6 @@ class learningReproductorAct:
             self.force_vector[3] = wrench_msg.wrench.torque.x
             self.force_vector[4] = wrench_msg.wrench.torque.y
             self.force_vector[5] = wrench_msg.wrench.torque.z
-            self.force_new_data = True
         finally:
             self.lock_force.release()
 
@@ -628,21 +627,17 @@ class learningReproductorAct:
         preempted = False
         self.enabled = False
         self.action_in_process = True
-        self.force_vector_old = np.copy(self.force_vector)
-        while not success and not preempted and self.force_big_update < 10:
+        while not success and not preempted: #and self.force_big_update == 0:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
                 if not self.simulation:
                     success = self.generateNewPose()
                     if self.force_torque_enable:
                         self.lock_force.acquire()
                         try:
-                            if self.force_new_data:
-                                if np.abs(self.force_vector_old[2] - self.force_vector[2]) > 20:
-                                    self.force_big_update = self.force_big_update + 1
-                                else:
-                                    self.force_big_update = 0
-                                    self.force_vector_old = np.copy(self.force_vector)
-                                self.force_new_data = False
+                            #rospy.loginfo('Force in Z ' + str(self.force_vector[2]))
+                            if np.abs(self.force_vector[2]) >= 20:
+                                #self.force_big_update = 1
+                                success = True
                         finally:
                             self.lock_force.release()
                 else :
@@ -684,25 +679,28 @@ class learningReproductorAct:
                 rospy.loginfo('Pushing the valve ')
                 push_srv = push_srv([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 
-                if self.force_torque_enable:
-                    iterations = 0 
-                    rate = rospy.Rate(1.0/self.interval_time)
-                    while iterations <= 20 and self.force_big_update < 5 and not rospy.is_shutdown():
-                        self.lock_force.acquire()
-                        try:
-                            if self.force_new_data:
-                                if np.abs(self.force_vector_old[2] - self.force_vector[2]) > 20:
-                                    self.force_big_update = self.force_big_update + 1
-                                else:
-                                    self.force_big_update = 0
-                                    self.force_vector_old = np.copy(self.force_vector)
-                                self.force_new_data = False
-                        finally:
-                            self.lock_force.release()
-                        rate.sleep()
-                #wait until it feel the valve
-                else:
-                    rospy.sleep(4.0)
+                # Keep stable force
+                # if self.force_torque_enable:
+                #     iterations = 0 
+                #     rate = rospy.Rate(1.0/self.interval_time)
+                #     while iterations <= 20 and self.force_big_update < 5 and not rospy.is_shutdown():
+                #         self.lock_force.acquire()
+                #         try:
+                #             if self.force_new_data:
+                #                 if np.abs(self.force_vector_old[2] - self.force_vector[2]) > 20:
+                #                     self.force_big_update = self.force_big_update + 1
+                #                 else:
+                #                     self.force_big_update = 0
+                #                     self.force_vector_old = np.copy(self.force_vector)
+                #                 self.force_new_data = False
+                #         finally:
+                #             self.lock_force.release()
+                #         rate.sleep()
+                # #wait until it feel the valve
+                # else:
+                #     rospy.sleep(4.0)
+
+                rospy.sleep(4.0)
 
                 turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
                                                TurnDesiredDegrees)
@@ -853,14 +851,14 @@ class learningReproductorAct:
             currWp, (currTar - self.currPosSim))) - (self.kV*self.currVel))
 
         #rospy.loginfo('Curr Diff ' + str((currTar - self.currPosSim)[0:3].tolist()))
-        rospy.loginfo('Curr Wp ' + str(currWp[0:3, 0:3]))
-        rospy.loginfo('Curr Dot ' + str((np.dot(
-            currWp, (currTar - self.currPosSim)))[0:3].tolist()))
-        rospy.loginfo('Curr Acc ' + str(self.currAcc[0:3].tolist()))
+        #rospy.loginfo('Curr Wp ' + str(currWp[0:3, 0:3]))
+        #rospy.loginfo('Curr Dot ' + str((np.dot(
+        #    currWp, (currTar - self.currPosSim)))[0:3].tolist()))
+        #rospy.loginfo('Curr Acc ' + str(self.currAcc[0:3].tolist()))
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
 
-        rospy.loginfo('Pos ' +str(self.desPos[0]) + ' ' +str(self.desPos[1]) + ' ' +str(self.desPos[2]))
+        #rospy.loginfo('Pos ' +str(self.desPos[0]) + ' ' +str(self.desPos[1]) + ' ' +str(self.desPos[2]))
         des_pose_msg = PoseStamped()
         des_pose_msg.header.stamp = rospy.get_rostime()
         des_pose_msg.header.frame_id = "valve2"
@@ -922,7 +920,7 @@ class learningReproductorAct:
             currTar = currTar + self.Mu_x[:, i]*h[i]
             currWp = currWp + self.Wp[i, :, :]*h[i]
 
-        rospy.loginfo('Current Tar '+ str(currTar))
+        #rospy.loginfo('Current Tar '+ str(currTar))
         #rospy.loginfo('Current Wp '+ str(currWp))
         #Compute acceleration
         #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
@@ -935,7 +933,7 @@ class learningReproductorAct:
             currWp, diff) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
         self.desAcc = self.desAcc #* math.fabs(self.action)
-        rospy.loginfo('Des Acc' + str(self.desAcc))
+        #rospy.loginfo('Des Acc' + str(self.desAcc))
 
         self.desVel = self.currVel + self.desAcc * self.interval_time
         #NOT needed
