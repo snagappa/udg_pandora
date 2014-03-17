@@ -402,8 +402,8 @@ class valveTracker():
                 #eul[2] = self.kf_valves_ori[i]
                 # quat = tf.transformations.quaternion_from_euler(
                 #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
-                rospy.loginfo('Euler values ' + str(eul))
-                rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
+                #rospy.loginfo('Euler values ' + str(eul))
+                #rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
                 rot_matrix = tf.transformations.euler_matrix(
                     0.0, 0.0, self.kf_valves_ori[i])
                 panel_matrix = tf.transformations.quaternion_matrix([
@@ -431,7 +431,7 @@ class valveTracker():
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
                 self.lock.release()
-        rospy.loginfo('****************************')
+        #rospy.loginfo('****************************')
     def run(self):
         """
         This is the main loop where the prediction of the filter is done and the
