@@ -57,12 +57,12 @@ class valveTracker():
             self.valve_publishers.append(rospy.Publisher(
                 pub_name, PoseWithCovarianceStamped))
             self.valve_poses.append([0, 0, 0])
-            pub_name_ori = '/valve_tracker/valve_ori'+str(i)
-            self.valve_ori_pub.append(rospy.Publisher(
-                pub_name_ori, Float64))
-            pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
-            self.valve_ori_cov.append(rospy.Publisher(
-                pub_name_cov, Float64))
+            # pub_name_ori = '/valve_tracker/valve_ori'+str(i)
+            # self.valve_ori_pub.append(rospy.Publisher(
+            #     pub_name_ori, Float64))
+            # pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
+            # self.valve_ori_cov.append(rospy.Publisher(
+            #     pub_name_cov, Float64))
             self.valve_msg.append(PoseWithCovarianceStamped())
             self.last_update_tf.append(time)
         self.pub_valve_landmark = rospy.Publisher(
@@ -362,7 +362,7 @@ class valveTracker():
                 self.kf_valves_ori[i] = (self.kf_valves_ori_hat[i] +
                                          kalman_gain[i] * self.kf_innov[i])
                 self.kf_p[i] = (1-kalman_gain[i]*self.kf_h[i])*self.kf_p_hat[i]
-            # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+                #self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
             # self.valve_ori_cov[i].publish(self.kf_p[i])
         #rospy.loginfo('********************************************')
 
@@ -400,23 +400,38 @@ class valveTracker():
                 eul = tf.transformations.euler_from_quaternion(np.asarray(quat))
                 #replacing the yaw
                 #eul[2] = self.kf_valves_ori[i]
-                quat = tf.transformations.quaternion_from_euler(
-                    eul[0], eul[1], self.kf_valves_ori[i])
                 # quat = tf.transformations.quaternion_from_euler(
-                #     0.0, 0.0, self.kf_valves_ori[i])
-                self.valve_msg[i].pose.pose.orientation.x = quat[0]
-                self.valve_msg[i].pose.pose.orientation.y = quat[1]
-                self.valve_msg[i].pose.pose.orientation.z = quat[2]
-                self.valve_msg[i].pose.pose.orientation.w = quat[3]
+                #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
+                rospy.loginfo('Euler values ' + str(eul))
+                rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
+                rot_matrix = tf.transformations.euler_matrix(
+                    0.0, 0.0, self.kf_valves_ori[i])
+                panel_matrix = tf.transformations.quaternion_matrix([
+                    self.valve_msg[i].pose.pose.orientation.x,
+                    self.valve_msg[i].pose.pose.orientation.y,
+                    self.valve_msg[i].pose.pose.orientation.z,
+                    self.valve_msg[i].pose.pose.orientation.w])
+                #res = np.dot(rot_matrix, panel_matrix)
+                res = np.dot( panel_matrix, rot_matrix )
+                quat = tf.transformations.quaternion_from_matrix(
+                     res)
+                valve_msg = PoseWithCovarianceStamped()
+                valve_msg.pose.pose.position = self.valve_msg[i].pose.pose.position
+                valve_msg.pose.pose.orientation.x = quat[0]
+                valve_msg.pose.pose.orientation.y = quat[1]
+                valve_msg.pose.pose.orientation.z = quat[2]
+                valve_msg.pose.pose.orientation.w = quat[3]
                 cov = np.asarray(self.valve_msg[i].pose.covariance[:])
                 cov[35] = self.kf_p[i]
+                valve_msg.pose.covariance = cov
                 self.valve_msg[i].pose.covariance = cov
-                self.valve_msg[i].header.stamp = rospy.Time.now()
-                self.valve_publishers[i].publish(self.valve_msg[i])
+                valve_msg.header.stamp = rospy.Time.now()
+                self.valve_publishers[i].publish(valve_msg)
                 # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
                 self.lock.release()
+        rospy.loginfo('****************************')
     def run(self):
         """
         This is the main loop where the prediction of the filter is done and the
