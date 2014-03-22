@@ -304,6 +304,7 @@ class LearningRecord:
                 # rospy.loginfo('ValveOri ' + str(self.valveOri)
                 #               + ' Unnormalized ' + str(self.unnormalized_roll))
                 # rospy.loginfo('Roll Value ' + str(roll))
+                #rospy.loginfo('Pose ' + str(arm_frame_pose))
                 s = (repr(arm_frame_pose[0]) + " " +
                      repr(arm_frame_pose[1]) + " " +
                      repr(arm_frame_pose[2]) + " " +
@@ -362,7 +363,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_record_complete.yaml")
+            "udg_pandora", "learning_record_uvms.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
