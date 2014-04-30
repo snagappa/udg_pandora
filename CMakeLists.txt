@@ -1,76 +1,123 @@
-cmake_minimum_required(VERSION 2.4.6)
-include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+cmake_minimum_required(VERSION 2.8.3)
+project(udg_pandora)
 
-# Set the build type.  Options are:
-#  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
-#  Debug          : w/ debug symbols, w/o optimization
-#  Release        : w/o debug symbols, w/ optimization
-#  RelWithDebInfo : w/ debug symbols, w/ optimization
-#  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-#set(ROS_BUILD_TYPE RelWithDebInfo)
+## Find catkin macros and libraries
+## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
+## is used, also find other catkin packages
+find_package(catkin REQUIRED COMPONENTS uwsim)
 
-#add the message library.
-rosbuild_find_ros_package(actionlib_msgs)
-include(${actionlib_msgs_PACKAGE_PATH}/cmake/actionbuild.cmake)
-genaction()
+## System dependencies are found with CMake's conventions
+# find_package(Boost REQUIRED COMPONENTS system)
+#find_package(Eigen REQUIRED)
 
-rosbuild_init()
+## Uncomment this if the package has a setup.py. This macro ensures
+## modules and global scripts declared therein get installed
+## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
+# catkin_python_setup()
 
-#set the default path for built executables to the "bin" directory
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-#set the default path for built libraries to the "lib" directory
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
-#add extra cmake files to search path
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+#######################################
+## Declare ROS messages and services ##
+#######################################
 
-#uncomment if you have defined messages
-rosbuild_genmsg()
-#uncomment if you have defined services
-rosbuild_gensrv()
+## Generate messages in the 'msg' folder
+# add_message_files(
+#   FILES
+# )
 
-#common commands for building c++ executables and libraries
-#rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
-#target_link_libraries(${PROJECT_NAME} another_library)
-#rosbuild_add_boost_directories()
-#rosbuild_link_boost(${PROJECT_NAME} thread)
-#rosbuild_add_executable(example examples/example.cpp)
-#target_link_libraries(example ${PROJECT_NAME})
+## Generate services in the 'srv' folder
+# add_service_files(
+#   FILES
+# )
 
-find_package(PythonInterp REQUIRED)
-# Find if a Python module is installed
-# Found at http://www.cmake.org/pipermail/cmake/2011-January/041666.html
-# To use do: find_python_module(PyQt4 REQUIRED)
-function(find_python_module module)
-	string(TOUPPER ${module} module_upper)
-	if(NOT PY_${module_upper})
-		if(ARGC GREATER 1 AND ARGV1 STREQUAL "REQUIRED")
-			set(${module}_FIND_REQUIRED TRUE)
-		endif()
-		# A module's location is usually a directory, but for binary modules
-		# it's a .so file.
-		execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c" 
-			"import re, ${module}; print re.compile('/__init__.py.*').sub('',${module}.__file__)"
-			RESULT_VARIABLE _${module}_status 
-			OUTPUT_VARIABLE _${module}_location
-			ERROR_QUIET 
-			OUTPUT_STRIP_TRAILING_WHITESPACE)
-		if(NOT _${module}_status)
-			set(PY_${module_upper} ${_${module}_location} CACHE STRING 
-				"Location of Python module ${module}")
-		endif(NOT _${module}_status)
-	endif(NOT PY_${module_upper})
-	find_package_handle_standard_args(PY_${module} DEFAULT_MSG PY_${module_upper})
-endfunction(find_python_module)
+# add_action_files(
+#   DIRECTORY
+#   FILES
+# )
 
-find_package(OpenCV REQUIRED)
-find_package(GSL REQUIRED)
-find_python_module(numpy REQUIRED)
-find_python_module(scipy REQUIRED)
-find_python_module(pygtk)
-find_python_module(gtk)
-find_python_module(gtk.glade)
+## Generate added messages and services with any dependencies listed here
+# generate_messages(
+#   DEPENDENCIES
+# )
 
-include_directories(/usr/include/vtk-5.8)
+###################################
+## catkin specific configuration ##
+###################################
+## The catkin_package macro generates cmake config files for your package
+## Declare things to be passed to dependent projects
+## LIBRARIES: libraries you create in this project that dependent projects also need
+## CATKIN_DEPENDS: catkin_packages dependent projects also need
+## DEPENDS: system dependencies of this project that dependent projects also need
+catkin_package(
+  CATKIN_DEPENDS message_runtime uwsim
+#  INCLUDE_DIRS include
+#  LIBRARIES cola2_control
+#  CATKIN_DEPENDS other_catkin_pkg
+#  DEPENDS system_lib
+)
 
-rosbuild_add_executable(cv2_test_cpp src/cv2_tests/cv2_test_cpp.cpp)
-target_link_libraries(cv2_test_cpp ${PCL_LIBRARIES} libvtkCommon.so libvtkFiltering.so libvtkRendering.so)
+###########
+## Build ##
+###########
+
+## Specify additional locations of header files
+## Your package locations should be listed before other locations
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+  #${Boost_INCLUDE_DIRS}
+)
+
+#include_directories(${EIGEN_INCLUDE_DIRS})
+#add_definitions(${EIGEN_DEFINITIONS})
+
+## Declare a cpp library
+# add_library(cola2_control
+#   src/${PROJECT_NAME}/cola2_control.cpp
+# )
+
+#############
+## Install ##
+#############
+
+# all install targets should use catkin DESTINATION variables
+# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
+
+## Mark executable scripts (Python etc.) for installation
+## in contrast to setup.py, you can choose the destination
+# install(PROGRAMS
+#   scripts/my_python_script
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
+
+## Mark executables and/or libraries for installation
+# install(TARGETS cola2_control cola2_control_node
+#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
+
+## Mark cpp header files for installation
+# install(DIRECTORY include/${PROJECT_NAME}/
+#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+#   FILES_MATCHING PATTERN "*.h"
+#   PATTERN ".svn" EXCLUDE
+# )
+
+## Mark other files for installation (e.g. launch and bag files, etc.)
+# install(FILES
+#   # myfile1
+#   # myfile2
+#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+# )
+
+#############
+## Testing ##
+#############
+
+## Add gtest based cpp test target and link libraries
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_cola2_control.cpp)
+# if(TARGET ${PROJECT_NAME}-test)
+#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+# endif()
+
+## Add folders to be run by python nosetests
+# catkin_add_nosetests(test)
