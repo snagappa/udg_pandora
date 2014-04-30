@@ -3,42 +3,38 @@
 	<arg name="enableLog" value="false" />
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
-        <arg name="enableValveNtua" value="false" />
-        <arg name="enableValveTracker" value="false" />
+    <arg name="enableValveNtua" value="false" />
+    <arg name="enableValveTracker" value="false" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 
 	<!-- Load G500 components -->
  	<include file="$(find cola2_launch)/launch/g500-sim.launch">
-        	<arg name="enableTeleopArm" value="true" />
-        	<arg name="enableJoystick" value="true" />
+        	<arg name="enableTeleopArm" value="false" />
+        	<arg name="enableJoystick" value="false" />
                 <arg name="enableNtuaControl" value="false" />
         	<arg name="joystickDevice" value="/dev/input/js0"/>
         </include>
 
 
-	<!-- Run UWSim -->
-	<node if="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args=" --configfile $(find
-    udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/ " respawn="false" output="screen"/>
+	<!-- Run uwsim -->
+	<node if="$(arg enableShadders)" name="uwsim" pkg="uwsim" type="uwsim" args=" --configfile $(find
+    udg_pandora_sim)/scenes/pandoraLand.xml --dataPath $(find udg_pandora_sim)/ " respawn="false" output="screen"/>
 
-	<node unless="$(arg enableShadders)" name="UWSim" pkg="UWSim" type="UWSim" args="--disableShaders --configfile
-    $(find udg_pandora)/scenes/pandoraLand.xml --dataPath $(find udg_pandora)/" respawn="false"/>
+	<node unless="$(arg enableShadders)" name="uwsim" pkg="uwsim" type="uwsim" args="--disableShaders --configfile
+    $(find udg_pandora_sim)/scenes/pandoraLand.xml --dataPath $(find udg_pandora_sim)/" respawn="false"/>
 
 
 	<!-- Run RViz -->
 	<node if="$(arg enableRViz)" pkg="rviz" type="rviz" name="rviz" args="-d $(find cola2_launch)/config/rviz_sim.vcg"/>
 
-	<!-- Load meta-data -->
-	<rosparam command="load" file="$(find udg_pandora)/meta_data/visual_detector_meta_data.yaml" />
-	<rosparam command="load" file="$(find udg_pandora)/meta_data/acoustic_detector_meta_data.yaml" />
 
 	<!-- Load config files -->
-	<rosparam command="load" file="$(find udg_pandora)/config/visual_detector.yaml" />
+	<rosparam command="load" file="$(find cola2_detection)/config/visual_detector.yaml" />
 
 	<!-- Load nodes -->
-<!--	<node name="visual_detector" pkg="udg_pandora" type="visual_detector.py"/> -->
-<!--	<node name="acoustic_detector" pkg="udg_pandora" type="acoustic_detector.py"/> -->
-<!--    <node name="phdslam" pkg="udg_pandora" type="g500slam.py" />  -->
+    <!--	<node name="visual_detector" pkg="cola2_detection" type="visual_detector.py"/> -->
+
 
         <!-- Load control position -->
 <!--        <node if="$(arg enableValveNtua)" name="valveTrackingControllerUpdate" pkg="ntua_pandora" type="valveTrackingControllerUpdate.py" /> -->
@@ -55,9 +51,9 @@
  	<include if="$(arg enableLandmarks)" file="$(find cola2_detection)/launch/ar_landmark_sim.launch"/>
 
         <group if="$(arg enableValveTracker)">
-            <node name="visual_detector" pkg="udg_pandora" type="visual_detector.py" />
-            <node name="visual_detector_ee" pkg="udg_pandora" type="visual_detector_ee.py"/>
-            <node name="valve_tracker" pkg="udg_pandora" type="valve_tracker.py" />
+            <node name="visual_detector" pkg="cola2_detection" type="visual_detector.py" />
+            <node name="visual_detector_ee" pkg="cola2_detection" type="visual_detector_ee.py"/>
+            <node name="valve_tracker" pkg="cola2_detection" type="valve_tracker.py" />
         </group>
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e

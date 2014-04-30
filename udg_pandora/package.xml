@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
   <name>udg_pandora</name>
-  <version>0.0.1</version>
-  <description>UdG code for PANDORA FP7 project</description>
+  <version>0.0.0</version>
+  <description>The udg_pandora metapakage</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <maintainer email="narcispr@gmail.com">narcis</maintainer>
@@ -11,7 +11,7 @@
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
-  <license>TODO</license>
+  <license>BSD</license>
 
 
   <!-- Url tags are optional, but mutiple are allowed, one per tag -->
@@ -39,7 +39,8 @@
   <!--   <test_depend>gtest</test_depend> -->
   <!-- a former stack run depends only on all its child packages -->
   <buildtool_depend>catkin</buildtool_depend>
-  <run_depend>uwsim</run_depend>
+  <run_depend>udg_pandora_sim</run_depend>
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

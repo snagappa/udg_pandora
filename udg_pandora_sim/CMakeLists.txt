@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(udg_pandora)
+project(udg_pandora_sim)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS uwsim)
+find_package(catkin REQUIRED COMPONENTS rospy)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-#find_package(Eigen REQUIRED)
+
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -19,25 +19,6 @@ find_package(catkin REQUIRED COMPONENTS uwsim)
 ## Declare ROS messages and services ##
 #######################################
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-# )
-
-## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-# )
-
-# add_action_files(
-#   DIRECTORY
-#   FILES
-# )
-
-## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-# )
 
 ###################################
 ## catkin specific configuration ##
@@ -48,9 +29,8 @@ find_package(catkin REQUIRED COMPONENTS uwsim)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  CATKIN_DEPENDS message_runtime uwsim
 #  INCLUDE_DIRS include
-#  LIBRARIES cola2_control
+#  LIBRARIES cola2_safety
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
@@ -61,17 +41,23 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-  #${Boost_INCLUDE_DIRS}
-)
-
-#include_directories(${EIGEN_INCLUDE_DIRS})
-#add_definitions(${EIGEN_DEFINITIONS})
+# include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
 ## Declare a cpp library
-# add_library(cola2_control
-#   src/${PROJECT_NAME}/cola2_control.cpp
+# add_library(cola2_safety
+#   src/${PROJECT_NAME}/cola2_safety.cpp
+# )
+
+## Declare a cpp executable
+# add_executable(cola2_safety_node src/cola2_safety_node.cpp)
+
+## Add cmake target dependencies of the executable/library
+## as an example, message headers may need to be generated before nodes
+# add_dependencies(cola2_safety_node cola2_safety_generate_messages_cpp)
+
+## Specify libraries to link a library or executable target against
+# target_link_libraries(cola2_safety_node
+#   ${catkin_LIBRARIES}
 # )
 
 #############
@@ -89,7 +75,7 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS cola2_control cola2_control_node
+# install(TARGETS cola2_safety cola2_safety_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -114,7 +100,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_cola2_control.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_cola2_safety.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
