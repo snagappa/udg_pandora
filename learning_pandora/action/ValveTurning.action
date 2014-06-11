@@ -1,0 +1,16 @@
+# Define the goal
+# Index with the valve has to be turnned
+int32 valve_id
+bool long_approach
+float64 desired_increment
+
+---
+# Define the result
+
+bool valve_turned
+
+---
+
+# Define the feedback
+float64 dist_endeffector_valve
+float64 time_spend
