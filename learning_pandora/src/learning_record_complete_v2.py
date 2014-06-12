@@ -2,14 +2,14 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_pandora')
+roslib.load_manifest('learning_pandora')
 import rospy
 
 import numpy as np
 #use to load the configuration function
-import cola2_ros_lib
+from cola2_lib import cola2_ros_lib
 #use to normalize the angle
-import cola2_lib
+#import cola2_lib
 #include "geometry_msgs/PoseStamped.h"
 from geometry_msgs.msg import PoseStamped
 #include message of the ekf giving the valve position
@@ -221,7 +221,7 @@ class LearningRecord:
                 #      self.goalPose.orientation.y,
                 #      self.goalPose.orientation.z,
                 #      self.goalPose.orientation.w])[1]
-                
+
                 robotOri = tf.transformations.quaternion_matrix(
                     [self.robotPose.orientation.x,
                      self.robotPose.orientation.y,
@@ -232,7 +232,7 @@ class LearningRecord:
 #                mat_ori = np.dot(robotOri[0:3, 0:3], inv_mat[0:3, 0:3])
 
                 dif_ori = tf.transformations.euler_from_matrix(mat_ori)[2]
-                
+
                 #rospy.loginfo('Dif Ori ' + str(tf.transformations.euler_from_matrix(mat_ori)))
 
                 #################################################
@@ -346,7 +346,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_record_complete.yaml")
+            "learning_pandora", "learning_record_complete.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

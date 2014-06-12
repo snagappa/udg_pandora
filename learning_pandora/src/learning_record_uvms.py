@@ -2,14 +2,14 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_pandora')
+roslib.load_manifest('learning_pandora')
 import rospy
 
 import numpy as np
 #use to load the configuration function
-import cola2_ros_lib
+from cola2_lib import cola2_ros_lib
 #use to normalize the angle
-import cola2_lib
+#import cola2_lib
 #include "geometry_msgs/PoseStamped.h"
 from geometry_msgs.msg import PoseStamped
 #include message of the ekf giving the valve position
@@ -363,7 +363,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_record_uvms.yaml")
+            "learning_pandora", "learning_record_uvms.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

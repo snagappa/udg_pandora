@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   nav_msgs
   geometry_msgs
+  sensor_msgs
   tf
   tf_conversions
   cola2_lib

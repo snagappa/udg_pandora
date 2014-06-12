@@ -47,7 +47,7 @@
   <build_depend>nav_msgs</build_depend>
   <build_depend>auv_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
-  <build_depend>geometry_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
   <build_depend>tf</build_depend>
   <build_depend>tf_conversions</build_depend>
   <build_depend>cola2_lib</build_depend>
@@ -62,7 +62,7 @@
   <run_depend>nav_msgs</run_depend>
   <run_depend>auv_msgs</run_depend>
   <run_depend>geometry_msgs</run_depend>
-  <run_depend>geometry_msgs</run_depend>
+  <run_depend>sensor_msgs</run_depend>
   <run_depend>tf</run_depend>
   <run_depend>tf_conversions</run_depend>
   <run_depend>cola2_lib</run_depend>
