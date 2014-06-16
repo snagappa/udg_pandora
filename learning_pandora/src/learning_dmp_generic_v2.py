@@ -11,7 +11,7 @@ The last value of the csv file is the time.
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_pandora')
+roslib.load_manifest('learning_pandora')
 import rospy
 import math
 import numpy as np
@@ -21,7 +21,7 @@ from scipy import interpolate
 # numpy.set_printoptions(threshold=100000)
 
 #use to load the configuration function
-import cola2_ros_lib
+from cola2_lib import cola2_ros_lib
 
 class learningDmp:
 

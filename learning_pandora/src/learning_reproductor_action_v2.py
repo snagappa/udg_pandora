@@ -2,16 +2,17 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_pandora')
+roslib.load_manifest('learning_pandora')
 import rospy
 
 #use to load the configuration function
-import cola2_ros_lib
+from cola2_lib import cola2_ros_lib
 
 import actionlib
 
 #use to normalize the angle
-import cola2_lib
+from cola2_lib import cola2_lib
+
 
 # import the service to call the service
 # Warnning I don't know if is needed may be can be seen directly
@@ -44,13 +45,13 @@ from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
-from udg_pandora.msg import ValveTurningAction, ValveTurningFeedback
-from udg_pandora.msg import ValveTurningResult
+from learning_pandora.msg import ValveTurningAction, ValveTurningFeedback
+from learning_pandora.msg import ValveTurningResult
 
 #import for the force torque sensor
 from geometry_msgs.msg import WrenchStamped
 
-from udg_pandora.msg import rfdm_msg
+from learning_pandora.msg import rfdm_msg
 #from rfdm_pkg.msg import rfdm_msg
 
 #from udg_pandora.srv import WorkAreaError
@@ -187,7 +188,7 @@ class learningReproductorAct:
             rospy.Subscriber('/forceTorque_controller/forceTorqueData',
                              WrenchStamped,
                              self.updateForceTorque)
-            
+
         # self.valve_turning_srv = rospy.Service(
         #     '/learning/turn_valve_operation',
         #     TurnningValve,
@@ -365,7 +366,7 @@ class learningReproductorAct:
                 # self.currPos[3] = cola2_lib.normalizeAngle(
                 #     goalYaw - robotYaw)
                 # self.currPos[3] = goalYaw - self.unnormalized_angle
-                
+
                 dif_ori = np.dot(robotOriV2[0:3, 0:3],trans_mat[0:3,0:3])
 
 
@@ -678,10 +679,10 @@ class learningReproductorAct:
                                               PushWithAUV)
                 rospy.loginfo('Pushing the valve ')
                 push_srv = push_srv([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-                
+
                 # Keep stable force
                 # if self.force_torque_enable:
-                #     iterations = 0 
+                #     iterations = 0
                 #     rate = rospy.Rate(1.0/self.interval_time)
                 #     while iterations <= 20 and self.force_big_update < 5 and not rospy.is_shutdown():
                 #         self.lock_force.acquire()
@@ -710,7 +711,7 @@ class learningReproductorAct:
                 #stop the push
                 dis_push_srv = rospy.ServiceProxy('/cola2_control/disable_push',
                                                   Empty)
-          
+
                 dis_push_srv()
                 rospy.loginfo('Stop Pushing and go backwards')
                 #go backward
@@ -742,7 +743,6 @@ class learningReproductorAct:
                 fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF',
                                                   EFPose)
 
-                
                 value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
 
                 for i in range(80):
@@ -765,14 +765,14 @@ class learningReproductorAct:
                     vel_com.disable_axis.pitch = True
                     vel_com.disable_axis.yaw = False # True False
                     self.pub_auv_vel.publish(vel_com)
-                    rate.sleep()                
-                
+                    rate.sleep()
+
                 rospy.loginfo('Finish')
                 result.valve_turned = res.success
 
             except rospy.ServiceException, e:
                 print "Service call failed: %s"%e
-            
+
         self.enabled = False
         self.s = self.initial_s
         self.action = 1.0
@@ -1095,10 +1095,10 @@ class learningReproductorAct:
             if(abs(vel_auv[2]) <= 0.1):
                 vel_com.twist.linear.z = vel_auv[2] #/30.0
             else:
-                vel_com.twist.linear.z = np.sign(vel_auv[1])*0.1 
+                vel_com.twist.linear.z = np.sign(vel_auv[1])*0.1
         else:
             vel_com.twist.linear.z = 0.0
-            
+
         if not np.isnan(self.desVel[3]):
             if(abs(vel_auv[2]) <= 0.1):
                 vel_com.twist.angular.z = self.desVel[3]
@@ -1198,7 +1198,7 @@ class learningReproductorAct:
         udg_pandora package.
         """
         #find the subdirectory in the packge
-        path = roslib.packages.get_pkg_subdir('udg_pandora','learning_data',False)
+        path = roslib.packages.get_pkg_subdir('learning_pandora','learning_data',False)
         # choose the file of the list in the learning directory
         param_id = self.learning_param_id
         # build the path and the file name
@@ -1341,7 +1341,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_reproductor_action.yaml")
+            "learning_pandora", "learning_reproductor_action.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

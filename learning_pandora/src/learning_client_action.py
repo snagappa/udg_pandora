@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import roslib
-roslib.load_manifest('actionlib_tutorials')
+roslib.load_manifest('learning_pandora')
 import rospy
 
 # Brings in the SimpleActionClient
@@ -9,7 +9,7 @@ import actionlib
 
 # Brings in the messages used by the fibonacci action, including the
 # goal message and the result message.
-import udg_pandora.msg
+import learning_pandora.msg
 
 import numpy as np
 
@@ -17,7 +17,7 @@ def learning_client():
     # Creates the SimpleActionClient, passing the type of the action
     # (FibonacciAction) to the constructor.
     client = actionlib.SimpleActionClient('/learning/valve_turning_action',
-                                          udg_pandora.msg.ValveTurningAction)
+                                          learning_pandora.msg.ValveTurningAction)
 
 
     # Waits until the action server has started up and started
@@ -26,9 +26,9 @@ def learning_client():
     rospy.on_shutdown(client.cancel_goal)
     # Creates a goal to send to the action server.
     # goal = udg_pandora.msg.ValveTurningAction(valve_id=2, long_approach=False)
-    goal = udg_pandora.msg.ValveTurningGoal()
+    goal = learning_pandora.msg.ValveTurningGoal()
     goal.valve_id = 2
-    goal.long_approach = False
+    goal.long_approach = True
     goal.desired_increment = np.deg2rad(90)
 
     # Sends the goal to the action server.
