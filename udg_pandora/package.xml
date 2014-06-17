@@ -40,7 +40,9 @@
   <!-- a former stack run depends only on all its child packages -->
   <buildtool_depend>catkin</buildtool_depend>
   <run_depend>udg_pandora_sim</run_depend>
-
+  <run_depend>learning_pandora</run_depend>
+  <run_depend>udg_planning_interface</run_depend>
+  <run_depend>valve_utils_pandora</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
