@@ -16,7 +16,7 @@ from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
-from cola2_perception_dev.msg import SonarInfo
+from cola2_perception.msg import SonarInfo
 
 import tf
 import numpy as np

@@ -70,13 +70,13 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  geometry_msgs
-  nav_msgs
-  pose_ekf_slam
-)
+#generate_messages(
+#  DEPENDENCIES
+#  std_msgs
+#  geometry_msgs
+#  nav_msgs
+#  pose_ekf_slam
+#)
 
 ###################################
 ## catkin specific configuration ##
