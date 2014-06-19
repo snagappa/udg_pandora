@@ -15,6 +15,9 @@ from auv_msgs.msg import NavSts
 from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseStamped
+from cola2_perception_dev.msg import SonarInfo
+
 import tf
 import numpy as np
 import random
@@ -36,16 +39,26 @@ class SimLinkDetector():
         self.aris_hz = 5
         self.naviagtion_init = False
         self.chain_detections = MarkerArray()
+        self.broadcaster = tf.TransformBroadcaster()
+        self.img_center = [0.0, 0.0]
         self.id = 0
         self.chain_links = [[0, 0, 5.5], 
                             [0.5, 0, 5.5], 
-                            [1.0, 0, 5.5], 
-                            [1.5, 0, 5.5], 
-                            [2.0, 0, 5.5]]
+                            [1.0, 0.1, 5.5], 
+                            [1.5, 0.3, 5.5], 
+                            [2.0, 0.5, 5.5],
+                            [2.5, 0.5, 5.5],
+                            [3.0, 0.5, 5.5],
+                            [3.3, 0.8, 5.5],
+                            [3.5, 1.1, 5.5],
+                            [3.5, 1.5, 5.5],
+                            [3.6, 2.0, 5.5]]
         
         # Create Publisher
         self.pub_marker = rospy.Publisher("/link_pose", MarkerArray)
         self.pub_aris_footprint = rospy.Publisher('/aris_foot_print', Marker)
+        self.pub_aris_img_pose = rospy.Publisher('/cola2_perception/soundmetrics_aris3000/sonar_img_pose', PoseStamped)
+        self.pub_aris_ifo = rospy.Publisher('/cola2_perception/soundmetrics_aris3000/sonar_info', SonarInfo)
         
         # Create Subscriber
         rospy.Subscriber("/cola2_navigation/nav_sts", NavSts,
@@ -62,13 +75,15 @@ class SimLinkDetector():
     def update_nav_sts(self, nav_sts):
         self.nav = nav_sts
         self.naviagtion_init = True
-    
+          
     
     def update_odometry(self, odom):
         self.odometry = odom
 
     
     def compute_link_detections(self, event):
+        self.publish_aris_info()
+        
         result = self.compute_distances()
         
         if len(result) == 2:
@@ -80,16 +95,16 @@ class SimLinkDetector():
                          [result[1], -y2, self.nav.altitude],
                          [result[0], -y1, self.nav.altitude],
                          [result[0], y1, self.nav.altitude]]
+            self.img_center = [(result[0] + result[1])/2.0, 0.0]
             self.draw_footprint(footprint)
             
-            [detections,
-             link_pose] = self.compute_detetcted_links(footprint)
+            detections = self.compute_detetcted_links(footprint)
             self.draw_chain_links(detections)
-            result = self.simulate_noisy_detection(detections, link_pose)
+            result = self.simulate_noisy_detection(detections)
             if result != None:
                 marker = Marker()
                 marker.header.stamp = rospy.Time.now()
-                marker.header.frame_id = "/girona500"
+                marker.header.frame_id = "/world"
                 marker.ns = "link_detection"
                 marker.id = 100 + self.id
                 self.id = self.id + 1
@@ -97,7 +112,7 @@ class SimLinkDetector():
                 marker.action = 0 # Add/Modify an object
                 marker.pose.position.x = result[0]
                 marker.pose.position.y = result[1]
-                marker.pose.position.z = self.nav.altitude
+                marker.pose.position.z = self.chain_links[0][2]
                 marker.scale.x = 0.2
                 marker.scale.y = 0.03
                 marker.scale.z = 0.03
@@ -113,7 +128,45 @@ class SimLinkDetector():
         
         # Print current detections
         self.pub_marker.publish(self.chain_detections)
-            
+    
+    
+    def publish_aris_info(self):
+        # When simulating the ARIS this TF is not available        
+        self.broadcaster.sendTransform(
+    	    (0.01, 0.0, 0.0),
+          (0, 0, 0, 1),
+          rospy.Time.now(),
+          '/soundmetrics_aris3000_img', 
+          '/girona500')
+        
+        wTv = tf.transformations.quaternion_matrix(
+                        [self.odometry.pose.pose.orientation.x,
+                         self.odometry.pose.pose.orientation.y,
+                         self.odometry.pose.pose.orientation.z,
+                         self.odometry.pose.pose.orientation.w])
+        wTv[0:3, 3] = [self.odometry.pose.pose.position.x,
+                       self.odometry.pose.pose.position.y,
+                       self.odometry.pose.pose.position.z]
+        Pw = np.array([0, 0, 0, 1.0])
+        Pw[0] = self.img_center[0]
+        Pw[1] = self.img_center[1]
+        Pw[2] = self.nav.altitude
+        Ps = np.dot(wTv, Pw)
+        aris_img_center = PoseStamped()
+        aris_img_center.header.frame_id = "/world"
+        aris_img_center.header.stamp = rospy.Time.now()
+        aris_img_center.pose.position.x = Ps[0]
+        aris_img_center.pose.position.y = Ps[1]
+        aris_img_center.pose.position.z = Ps[2]
+        self.pub_aris_img_pose.publish(aris_img_center)
+        
+        sonar_info = SonarInfo()
+        sonar_info.window_length = self.aris_window_length
+        sonar_info.window_start = self.aris_window_start       
+        self.pub_aris_ifo.publish(sonar_info)
+        
+        
+          
     def compute_distances(self):
         if not self.naviagtion_init:
             rospy.loginfo("%s: Navigation not initialized", self.name)
@@ -312,10 +365,10 @@ class SimLinkDetector():
                 ret.append(True)
             else:
                 ret.append(False)
-        return [ret, chain_links_wt_vehicle]
+        return ret
         
         
-    def simulate_noisy_detection(self, detections, link_pose):
+    def simulate_noisy_detection(self, detections):
         r = (int)(random.random()*self.aris_hz)
         if r == 0: # Un image per second
             r = (int)(random.random()*len(detections))
@@ -325,8 +378,8 @@ class SimLinkDetector():
                 r = (r + 1) % len(detections)
                 
             if detections[r]:        
-                return [link_pose[r].x + random.gauss(0.0, 0.05),
-                        link_pose[r].y + random.gauss(0.0, 0.05)]
+                return [self.chain_links[r][0] + random.gauss(0.0, 0.05),
+                        self.chain_links[r][1] + random.gauss(0.0, 0.05)]
         return None                
             
 def __same_side__(p1, p2, a, b):
