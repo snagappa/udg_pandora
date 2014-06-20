@@ -2,7 +2,7 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_pandora')
+roslib.load_manifest('udg_pandora_misc')
 import rospy
 
 import numpy as np
@@ -21,7 +21,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from pose_ekf_slam.msg import Map
 
 #include the message to send velocities to the robot
-from udg_pandora.msg import rfdm_msg
+from learning_pandora.msg import rfdm_msg
 
 #import to use mutex
 import threading
@@ -251,7 +251,7 @@ class WorkAreaController:
             rospy.loginfo('Robot Outsite')
             if (self.distance_goal < self.limit_distance_goal[0] or
                 self.distance_goal > self.limit_distance_goal[1] ):
-                rospy.loginfo('Distance: ' + str(self.limit_distance_goal[0]) 
+                rospy.loginfo('Distance: ' + str(self.limit_distance_goal[0])
                               + ' < ' + str(self.distance_goal)
                               + ' < ' + str(self.limit_distance_goal[1]))
             if np.abs(self.gamma) > self.limit_gamma :
@@ -264,7 +264,7 @@ class WorkAreaController:
                               + ' < ' + str(self.limit_alpha))
             if (self.beta < self.limit_beta[0] or
               self.beta > self.limit_beta[1]):
-                rospy.loginfo('Beta: ' + str(self.limit_beta[0]) 
+                rospy.loginfo('Beta: ' + str(self.limit_beta[0])
                               + ' < ' + str(self.beta)
                               + ' < ' + str(self.limit_beta[1]))
             return -1.0
@@ -324,7 +324,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "work_area_v2.yaml")
+            "udg_pandora_misc", "work_area_v2.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

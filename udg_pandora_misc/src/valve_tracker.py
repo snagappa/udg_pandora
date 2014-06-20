@@ -4,7 +4,7 @@ author Arnau
 """
 # ROS imports
 import roslib
-roslib.load_manifest('valve_utils_pandora')
+roslib.load_manifest('udg_pandora_misc')
 import rospy
 #use to load the configuration function
 from cola2_lib import cola2_ros_lib
@@ -457,7 +457,7 @@ if __name__ == '__main__':
     try:
         import subprocess
         # Load ROS parameters
-        config_file_list = roslib.packages.find_resource("valve_utils_pandora",
+        config_file_list = roslib.packages.find_resource("udg_pandora_misc",
             "valve_tracker.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
