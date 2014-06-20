@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>valve_utils_pandora</name>
-  <version>0.0.0</version>
-  <description>This package contains some programs used to improve the valve turning, like the valve tracker or a function to apply forces with the AUV</description>
+  <name>udg_pandora_misc</name>
+  <version>1.0.0</version>
+  <description>This package contains some programs used to improve the valve turning, like the valve tracker or a function to apply forces with the AUV. Also includes nodes to fit and follow the Pandora chain.</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->

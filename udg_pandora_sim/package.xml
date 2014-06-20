@@ -39,6 +39,15 @@
   <!--   <test_depend>gtest</test_depend> -->
   <!-- a former stack run depends only on all its child packages -->
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_depend>auv_msgs</build_depend>
+
+  <run_depend>rospy</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>visualization_msgs</run_depend>
+  <run_depend>auv_msgs</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

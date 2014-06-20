@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(valve_utils_pandora)
+project(udg_pandora_misc)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -70,13 +70,13 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  geometry_msgs
-  nav_msgs
-  pose_ekf_slam
-)
+#generate_messages(
+#  DEPENDENCIES
+#  std_msgs
+#  geometry_msgs
+#  nav_msgs
+#  pose_ekf_slam
+#)
 
 ###################################
 ## catkin specific configuration ##
