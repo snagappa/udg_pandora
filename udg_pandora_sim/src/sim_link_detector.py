@@ -34,25 +34,25 @@ class SimLinkDetector():
         self.aris_tilt = math.radians(15)
         self.aris_elevation_angle = math.radians(14)
         self.aris_fov = math.radians(30)
-        self.aris_window_start = 2.0
-        self.aris_window_length = 3.5
+        self.aris_window_start = 1.5
+        self.aris_window_length = 3.0
         self.aris_hz = 5
         self.naviagtion_init = False
         self.chain_detections = MarkerArray()
         self.broadcaster = tf.TransformBroadcaster()
         self.img_center = [0.0, 0.0]
         self.id = 0
-        self.chain_links = [[0, 0, 5.5], 
-                            [0.5, 0, 5.5], 
-                            [1.0, 0.1, 5.5], 
-                            [1.5, 0.3, 5.5], 
-                            [2.0, 0.5, 5.5],
-                            [2.5, 0.5, 5.5],
-                            [3.0, 0.5, 5.5],
-                            [3.3, 0.8, 5.5],
-                            [3.5, 1.1, 5.5],
-                            [3.5, 1.5, 5.5],
-                            [3.6, 2.0, 5.5]]
+        self.chain_links = [[0, 0, 5.75], 
+                            [0.5, 0, 5.75], 
+                            [1.0, 0.1, 5.75], 
+                            [1.5, 0.3, 5.75], 
+                            [2.0, 0.5, 5.75],
+                            [2.5, 0.5, 5.75],
+                            [3.0, 0.5, 5.75],
+                            [3.3, 0.8, 5.75],
+                            [3.5, 1.1, 5.75],
+                            [3.5, 1.5, 5.75],
+                            [3.6, 2.0, 5.75]]
         
         # Create Publisher
         self.pub_marker = rospy.Publisher("/link_pose", MarkerArray)
@@ -90,11 +90,11 @@ class SimLinkDetector():
             y1 = math.tan(self.aris_fov/2) * result[0]
             y2 = math.tan(self.aris_fov/2) * result[1]
             
-            footprint = [[result[0], y1, self.nav.altitude],
-                         [result[1], y2, self.nav.altitude],
-                         [result[1], -y2, self.nav.altitude],
-                         [result[0], -y1, self.nav.altitude],
-                         [result[0], y1, self.nav.altitude]]
+            footprint = [[result[0], y1, self.nav.altitude+0.5],
+                         [result[1], y2, self.nav.altitude+0.5],
+                         [result[1], -y2, self.nav.altitude+0.5],
+                         [result[0], -y1, self.nav.altitude+0.5],
+                         [result[0], y1, self.nav.altitude+0.5]]
             self.img_center = [(result[0] + result[1])/2.0, 0.0]
             self.draw_footprint(footprint)
             
@@ -369,11 +369,11 @@ class SimLinkDetector():
         
         
     def simulate_noisy_detection(self, detections):
-        r = (int)(random.random()*self.aris_hz)
-        if r == 0: # Un image per second
+        r = (int)(random.random()*(self.aris_hz/2))
+        if r == 0: # Two images per second
             r = (int)(random.random()*len(detections))
             i = 0
-            while i <  len(detections) and not detections[r]:
+            while i < len(detections) and not detections[r]:
                 i = i + 1
                 r = (r + 1) % len(detections)
                 

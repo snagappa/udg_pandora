@@ -328,20 +328,71 @@
   </object>
 
  <object>
-    <name> chain </name>
-	<file>data2/objects2/chain.osg</file>
-    <position>
-      <x> 6.0 </x>
-      <y> 8.0 </y>
-      <z> 5.75 </z>
-    </position>
-    <orientation>
-      <r>3.14</r>
-      <p>0</p>
-      <y>0</y>
-    </orientation>
+    <name> chain_link1 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 0.0 </x> <y> 0.0 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
   </object>
-
+ <object>
+    <name> chain_link2 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 0.5 </x> <y> 0.0 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link3 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 1.0 </x> <y> 0.1 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link4 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 1.5 </x> <y> 0.3 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link5 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 2.0 </x> <y> 0.5 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link6 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 2.5 </x> <y> 0.5 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link7 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 3.0 </x> <y> 0.5 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link8 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 3.3 </x> <y> 0.8 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link9 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 3.5 </x> <y> 1.1 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link10 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 3.5 </x> <y> 1.5 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
+ <object>
+    <name> chain_link11 </name>
+	<file>data2/objects2/chain_link.osg</file>
+    <position> <x> 3.6 </x> <y> 2.0 </y> <z> 5.90 </z> </position>
+    <orientation> <r>0</r> <p>0</p> <y>0</y> </orientation>
+  </object>
 
   <object>
     <name> panel </name>

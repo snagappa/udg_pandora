@@ -9,7 +9,7 @@ from auv_msgs.msg import WorldWaypointReq
 from auv_msgs.msg import BodyVelocityReq
 from visualization_msgs.msg import MarkerArray
 import tf
-from cola2_perception_dev.msg import SonarInfo
+from cola2_perception.msg import SonarInfo
 import numpy as np
 from auv_msgs.msg import GoalDescriptor
 from geometry_msgs.msg import PoseStamped
