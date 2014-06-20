@@ -2,7 +2,7 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_pandora')
+roslib.load_manifest('learning_pandora')
 import rospy
 
 #use to load the configuration function
@@ -44,13 +44,13 @@ from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import Bool
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Joy
-from udg_pandora.msg import ValveTurningAction, ValveTurningFeedback
-from udg_pandora.msg import ValveTurningResult
+from learning_pandora.msg import ValveTurningAction, ValveTurningFeedback
+from learning_pandora.msg import ValveTurningResult
 
 #import for the force torque sensor
 from geometry_msgs.msg import WrenchStamped, Twist
 
-from udg_pandora.msg import rfdm_msg
+from learning_pandora.msg import rfdm_msg
 #from rfdm_pkg.msg import rfdm_msg
 
 #from udg_pandora.srv import WorkAreaError
@@ -1256,7 +1256,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "udg_pandora", "learning_reproductor_uvms_action.yaml")
+            "learning_pandora", "learning_reproductor_uvms_action.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
