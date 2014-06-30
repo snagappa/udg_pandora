@@ -8,7 +8,7 @@ Created on June 17 2014
 
 # ROS imports
 import roslib
-roslib.load_manifest('cola2_perception_dev')
+roslib.load_manifest('udg_pandora_sim')
 import rospy
 from visualization_msgs.msg import MarkerArray, Marker
 from auv_msgs.msg import NavSts
