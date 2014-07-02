@@ -61,10 +61,14 @@ class SimLinkDetector():
         self.pub_aris_ifo = rospy.Publisher('/cola2_perception/soundmetrics_aris3000/sonar_info', SonarInfo)
         
         # Create Subscriber
-        rospy.Subscriber("/cola2_navigation/nav_sts", NavSts,
-                         self.update_nav_sts)
-        rospy.Subscriber("/pose_ekf_slam/odometry", Odometry,
-                         self.update_odometry)
+        rospy.Subscriber("/cola2_navigation/nav_sts",
+                         NavSts,
+                         self.update_nav_sts,
+                         queue_size = 1)
+        rospy.Subscriber("/pose_ekf_slam/odometry",
+                         Odometry,
+                         self.update_odometry,
+                         queue_size = 1)
         # Enable Aris timer
         rospy.Timer(rospy.Duration(1.0/self.aris_hz), 
                     self.compute_link_detections)

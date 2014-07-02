@@ -42,10 +42,14 @@ class ChainPlanner:
         # Create Subscriber Updates (z)
         rospy.Subscriber('/link_pose',
                          MarkerArray,
-                         self.sonar_waypoint_update)
+                         self.sonar_waypoint_update,
+                         queue_size = 1)
                          
                          
-        rospy.Subscriber("/cola2_navigation/nav_sts", NavSts, self.updateNavSts)
+        rospy.Subscriber("/cola2_navigation/nav_sts",
+                         NavSts,
+                         self.updateNavSts,
+                         queue_size = 1)
         
         #Create Publisher
         self.pub_sonar_wps = rospy.Publisher("/udg_pandora/link_waypoints", MarkerArray)  

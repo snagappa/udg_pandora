@@ -51,19 +51,32 @@ class LearningRecord:
         self.unnormalized_angle = 0.0
         self.unnormalized_roll = 0.0
 
-        rospy.Subscriber("/arm/pose_stamped", PoseStamped, self.updateArmPose)
+        rospy.Subscriber("/arm/pose_stamped",
+                         PoseStamped,
+                         self.updateArmPose,
+                         queue_size = 1)
 
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalOri)
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.updateGoalOri,
+                         queue_size = 1)
 
         rospy.Subscriber(
-            "/pose_ekf_slam/odometry", Odometry, self.updateRobotPose)
+            "/pose_ekf_slam/odometry",
+            Odometry,
+            self.updateRobotPose, 
+            queue_size = 1)
 
         rospy.Subscriber(
-            "/csip_e5_arm/joint_state", JointState, self.updateRollEndEffector)
+            "/csip_e5_arm/joint_state",
+            JointState,
+            self.updateRollEndEffector,
+            queue_size = 1)
 
         rospy.Subscriber("/valve_tracker/valve" + str(self.goal_valve),
                          PoseWithCovarianceStamped,
-                         self.updateGoalPose)
+                         self.updateGoalPose,
+                         queue_size = 1)
         self.tflistener = tf.TransformListener()
 
     def getConfig(self):
@@ -233,7 +246,7 @@ class LearningRecord:
 
                 dif_ori = tf.transformations.euler_from_matrix(mat_ori)[2]
 
-                #rospy.loginfo('Dif Ori ' + str(tf.transformations.euler_from_matrix(mat_ori)))
+                rospy.loginfo('Dif Ori ' + str(tf.transformations.euler_from_matrix(mat_ori)))
 
                 #################################################
                 # End-Effector Pose from the Base_arm without TF

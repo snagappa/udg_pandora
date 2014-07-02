@@ -68,9 +68,14 @@ class valveTracker():
         self.pub_valve_landmark = rospy.Publisher(
             self.publisher_landmark, PoseWithCovarianceStamped)
         #subscrive to the Map where is the position of the center
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updatepanelpose)
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.updatepanelpose,
+                         queue_size = 1)
         rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
-                         PoseWithCovarianceStamped, self.updatecovariance)
+                         PoseWithCovarianceStamped,
+                         self.updatecovariance,
+                         queue_size = 1)
 
         self.lock = threading.Lock()
         self.lock_error = threading.Lock()
@@ -454,10 +459,10 @@ class valveTracker():
             self.predictpose()
             self.updatebumbleebetf()
             self.updatekf()
-            self.updatehandcameraoritf()
-            self.updatekfhand()
+            #self.updatehandcameraoritf()
+            #self.updatekfhand()
             self.publish()
-            self.updatehandcameraposetf()
+            #self.updatehandcameraposetf()
             rospy.sleep(self.period)
 
     def set_default_parameters(self):
