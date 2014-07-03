@@ -1111,7 +1111,7 @@ class learningReproductorAct:
             if(abs(vel_auv[2]) <= 0.1):
                 vel_com.twist.linear.z = vel_auv[2] #/30.0
             else:
-                vel_com.twist.linear.z = np.sign(vel_auv[1])*0.1
+                vel_com.twist.linear.z = np.sign(vel_auv[2])*0.1
         else:
             vel_com.twist.linear.z = 0.0
 
@@ -1131,6 +1131,11 @@ class learningReproductorAct:
         vel_com.disable_axis.pitch = True
         vel_com.disable_axis.yaw = False # True False
 
+        # rospy.loginfo('Desired Velocities X : '
+        #               + str(vel_com.twist.linear.x)
+        #               + ' Y: ' + str(vel_com.twist.linear.y)
+        #               + ' Z: ' + str(vel_com.twist.linear.z)
+        #               + ' Yaw: ' + str(vel_com.twist.angular.z))
         self.pub_auv_vel.publish(vel_com)
 
         ##############################################
