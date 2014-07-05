@@ -50,6 +50,7 @@ class learningDmp:
 
         self.Data = np.zeros(shape=(self.nbVar*3,
                                     self.nbSamples*self.nbData))
+        self.tranning_dt = 0.0
 
         self.loadDemonstration()
 
@@ -60,12 +61,12 @@ class learningDmp:
                                   self.nbVar,
                                   self.nbVar))
 
-        self.Mu_t = np.linspace(0, self.nbData*self.dt, self.nbStates)
+        self.Mu_t = np.linspace(0, self.nbData*self.tranning_dt, self.nbStates)
         # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
-        #                        [self.nbStates, 1, 1])
-        self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates),
+        #                       [self.nbStates, 1, 1])
+        self.Sigma_t = np.tile((self.nbData*self.tranning_dt/self.nbStates),
                                [self.nbStates, 1, 1])
-
+        
         rospy.loginfo('Loaded demonstrations')
         # dimensions, trajectory DoF, samples of One Demo
 
@@ -131,7 +132,9 @@ class learningDmp:
             aux[:, 0:-1] = yy[:, 1:]
             aux[:, -1] = yy[:, -1]
 
-            self.dt = (last_time.astype(np.float) - first_time.astype(np.float)) / number_data
+            #self.dt = (last_time.astype(np.float) - first_time.astype(np.float)) / number_data
+            # rospy.loginfo('Dt ' + str(self.dt))
+            self.tranning_dt = (last_time.astype(np.float) - first_time.astype(np.float)) / self.nbData
 
             self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.dt)
 
@@ -159,15 +162,17 @@ class learningDmp:
 
         for n in range(self.nbData):
 #Update of decay term
-            s = s + (-self.alpha*s)*self.dt
+            s = s + (-self.alpha*s)*self.tranning_dt
+            #s = s + (-self.alpha*s)*self.dt
             t = -math.log(s)/self.alpha
             for i in range(self.nbStates):
 #Probability to be in a given state
                 h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i, 0, 0])
 #Normalization
-                H[n, :] = h/np.sum(h)
+            H[n, :] = h/np.sum(h)
         #tile equivalent to repmat of matlab
-# Repeat the process for each demonstration
+        # Repeat the process for each demonstration
+            #rospy.loginfo('Time ' + str(t))
         self.H = np.tile(H, (self.nbSamples, 1))
 
         #Batch least norm solution to find the centers of the states
