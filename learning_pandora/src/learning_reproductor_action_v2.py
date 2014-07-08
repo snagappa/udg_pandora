@@ -133,6 +133,9 @@ class learningReproductorAct:
         self.valveOri = 0.0
         self.valveOriInit = False
 
+        #finish condition
+        self.h_value = 0.0
+
         if self.simulation:
             self.file = open(self.exportFile, 'w')
         else:
@@ -594,11 +597,11 @@ class learningReproductorAct:
                             self.generateNewPose()
                     else:
                         self.simulatedNewPose()
-                        if self.currNbDataRepro >= self.nbDataRepro:
-                            rospy.loginfo('Finish !!!!')
-                            self.enabled = False
-                            self.s = self.initial_s
-                            rospy.signal_shutdown('The reproduction has finish')
+                        # if self.currNbDataRepro >= self.nbDataRepro:
+                        #     rospy.loginfo('Finish !!!!')
+                        #     self.enabled = False
+                        #     self.s = self.initial_s
+                        #     rospy.signal_shutdown('The reproduction has finish')
             finally:
                 self.lock.release()
             rate.sleep()
@@ -827,6 +830,7 @@ class learningReproductorAct:
         self.valve_turning_action.set_succeeded(result)
 
     def simulatedNewPose(self):
+        #rospy.loginfo('S : ' + str(self.s))
         t = -math.log(self.s)/self.alpha
         # for each atractor or state obtain the weigh
         #rospy.loginfo('Time :' + str(t) )
@@ -834,14 +838,26 @@ class learningReproductorAct:
         for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
         # normalize the value
-        if np.sum(h) <= 0.0001:
-            rospy.loginfo('The time used in the demonstration is exhausted')
+        #rospy.loginfo('Vavlues on h ' + str(h))
+        #rospy.loginfo('H Real ' + str(h.tolist()))
+        if self.h_value > h[self.numStates-1]:
+            rospy.loginfo('New end condition')
             self.enabled = False
             self.s = self.initial_s
             self.pub_auv_finish.publish(True)
             return True
         else:
+            self.h_value = h[self.numStates-1]
             h = h / np.sum(h)
+
+        # if np.sum(h) <= 0.0001:
+        #     rospy.loginfo('The time used in the demonstration is exhausted')
+        #     self.enabled = False
+        #     self.s = self.initial_s
+        #     self.pub_auv_finish.publish(True)
+        #     return True
+        # else:
+        #     h = h / np.sum(h)
 
         #init to vectors
         currTar = np.zeros(self.nbVar)
@@ -851,7 +867,7 @@ class learningReproductorAct:
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
 
-        #rospy.loginfo('H Values ' + str(h.tolist()))
+        rospy.loginfo('H Norm ' + str(h.tolist()))
 
         for i in xrange(self.numStates):
             currTar = currTar + self.Mu_x[:, i]*h[i]
@@ -897,12 +913,15 @@ class learningReproductorAct:
              repr(self.desPos[6]) + " " +
              repr(self.desPos[7]) + " " +
              repr(self.desPos[8]) + " " +
-             repr(self.desPos[9]) + "\n")
+             repr(self.desPos[9]) + " " +
+             repr(rospy.get_time()) + " "+
+             repr(t) + "\n")        
         self.file.write(s)
 
-        self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
-        #self.s = self.s + (-self.alpha*self.s)*self.interval_time
-
+        # why the interval time is here ????
+        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
+        self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        #rospy.loginfo('S - Salpah : ' + str(self.s) + '- ' + str(self.alpha*self.s*self.interval_time))
         self.currNbDataRepro = self.currNbDataRepro+1
         self.currPosSim = self.desPos
 
@@ -913,15 +932,29 @@ class learningReproductorAct:
         h = np.zeros(self.numStates)
         for i in xrange(self.numStates):
             h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
+
+
         # normalize the value
-        if np.sum(h) <= 0.00001:
+        if self.h_value > h[self.numStates-1]:
             rospy.loginfo('The time used in the demonstration is exhausted')
             self.enabled = False
             self.s = self.initial_s
             self.pub_auv_finish.publish(True)
             return True
         else:
+            self.h_value = h[self.numStates-1]
             h = h / np.sum(h)
+
+        rospy.loginfo('H values ' + str(h.tolist()))
+
+        # if np.sum(h) <= 0.00001:
+        #     rospy.loginfo('The time used in the demonstration is exhausted')
+        #     self.enabled = False
+        #     self.s = self.initial_s
+        #     self.pub_auv_finish.publish(True)
+        #     return True
+        # else:
+        #     h = h / np.sum(h)
 
         #init to vectors
         currTar = np.zeros(self.nbVar)
@@ -944,7 +977,7 @@ class learningReproductorAct:
 
         diff = currTar-self.currPos
         diff[3] = cola2_lib.normalizeAngle(diff[3])
-
+        rospy.loginfo('Kv ' + str(self.kV.tolist()))
         self.desAcc = np.dot(
             currWp, diff) - (self.kV*self.currVel)
         # action is a scalar value to evaluate the safety
@@ -973,8 +1006,9 @@ class learningReproductorAct:
 
         self.publishCommands()
 
-        self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
+        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time
+        self.s = self.s - self.alpha*self.s*self.interval_time
 
         #rospy.loginfo('Value of S ' + str(self.s))
         if (self.s < 1E-200):
@@ -1108,18 +1142,18 @@ class learningReproductorAct:
             vel_com.twist.linear.y = 0.0
 
         if not np.isnan(vel_auv[2]):
-            if(abs(vel_auv[2]) <= 0.1):
+            if(abs(vel_auv[2]) <= 0.07):
                 vel_com.twist.linear.z = vel_auv[2] #/30.0
             else:
-                vel_com.twist.linear.z = np.sign(vel_auv[2])*0.1
+                vel_com.twist.linear.z = np.sign(vel_auv[2])*0.07
         else:
             vel_com.twist.linear.z = 0.0
 
         if not np.isnan(self.desVel[3]):
-            if(abs(vel_auv[2]) <= 0.1):
+            if(abs(vel_auv[2]) <= 0.05):
                 vel_com.twist.angular.z = self.desVel[3]
             else:
-                vel_com.twist.angular.z = np.sign(self.desVel[3])*0.1
+                vel_com.twist.angular.z = np.sign(self.desVel[3])*0.05
         else:
             vel_com.twist.angular.z = 0.0
 
@@ -1131,11 +1165,11 @@ class learningReproductorAct:
         vel_com.disable_axis.pitch = True
         vel_com.disable_axis.yaw = False # True False
 
-        # rospy.loginfo('Desired Velocities X : '
-        #               + str(vel_com.twist.linear.x)
-        #               + ' Y: ' + str(vel_com.twist.linear.y)
-        #               + ' Z: ' + str(vel_com.twist.linear.z)
-        #               + ' Yaw: ' + str(vel_com.twist.angular.z))
+        rospy.loginfo('Desired Velocities X : '
+                      + str(vel_com.twist.linear.x)
+                      + ' Y: ' + str(vel_com.twist.linear.y)
+                      + ' Z: ' + str(vel_com.twist.linear.z)
+                      + ' Yaw: ' + str(vel_com.twist.angular.z))
         self.pub_auv_vel.publish(vel_com)
 
         ##############################################
@@ -1209,7 +1243,10 @@ class learningReproductorAct:
              repr(self.currPos[6]) + " " +
              repr(self.currPos[7]) + " " +
              repr(self.currPos[8]) + " " +
-             repr(self.currPos[9]) + "\n")
+             repr(self.currPos[9]) + " " +
+             repr(rospy.get_time()) + "\n")
+             #repr(t) + "\n")
+
         self.fileTraj.write(s)
 
     def getLearnedParameters(self):
