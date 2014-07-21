@@ -136,6 +136,10 @@ class learningReproductorAct:
         #finish condition
         self.h_value = 0.0
 
+        #reverse time value
+        self.tf = 0.0
+        self.backward = False
+
         if self.simulation:
             self.file = open(self.exportFile, 'w')
         else:
@@ -543,6 +547,11 @@ class learningReproductorAct:
     def updateSafety(self, rfdm_msg):
         self.lock.acquire()
         try:
+            if np.sign(self.action) == 1.0 and np.sign(rfdm_msg.reactive_data) == -1 :
+                self.tf = -math.log(self.s)/self.alpha
+                self.backward = True
+            if np.sign(rfdm_msg.reactive_data) == 1.0 and np.sign(self.action) == -1 :
+                self.backward = False
             self.action = rfdm_msg.reactive_data
         finally:
             self.lock.release()
@@ -915,7 +924,7 @@ class learningReproductorAct:
              repr(self.desPos[8]) + " " +
              repr(self.desPos[9]) + " " +
              repr(rospy.get_time()) + " "+
-             repr(t) + "\n")        
+             repr(t) + "\n")
         self.file.write(s)
 
         # why the interval time is here ????
@@ -926,7 +935,12 @@ class learningReproductorAct:
         self.currPosSim = self.desPos
 
     def generateNewPose(self):
-        t = -math.log(self.s)/self.alpha
+        # t = -math.log(self.s)/self.alpha
+        #self.tf
+        if self.backward :
+            t = self.tf + math.log(self.s)/self.alpha
+        else :
+            t = -math.log(self.s)/self.alpha
         # for each atractor or state obtain the weigh
         #rospy.loginfo('Time :' + str(t) )
         h = np.zeros(self.numStates)
@@ -1008,7 +1022,7 @@ class learningReproductorAct:
 
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
         #self.s = self.s + (-self.alpha*self.s)*self.interval_time
-        self.s = self.s - self.alpha*self.s*self.interval_time
+        self.s = self.s - self.alpha*self.s*self.interval_time*self.action
 
         #rospy.loginfo('Value of S ' + str(self.s))
         if (self.s < 1E-200):
