@@ -3,6 +3,7 @@
 	<arg name="enableLog" value="false" />
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
+        <arg name="enableCameraTF" value="true" />
     <arg name="enableValveNtua" value="false" />
     <arg name="enableValveTracker" value="false" />
 
@@ -54,6 +55,10 @@
             <node name="visual_detector" pkg="cola2_detection" type="visual_detector.py" />
             <node name="visual_detector_ee" pkg="cola2_detection" type="visual_detector_ee.py"/>
             <node name="valve_tracker" pkg="cola2_detection" type="valve_tracker.py" />
+        </group>
+
+        <group if="$(arg enableCameraTF)">
+            <node pkg="tf" type="static_transform_publisher" name="g500_to_bumblebee2" args="0.45 -0.06 -0.12 1.57 0.0 1.4 girona500 /g500/stereo_front 200" />
         </group>
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
