@@ -32,21 +32,24 @@ class ChainFollow:
         self.sonar_img_pose = PoseStamped()
         self.lock = threading.RLock()
         self.last_waypoint = WorldWaypointReq()
+        self.last_waypoint_update = rospy.Time.now().to_sec()
         self.look_around = False
         self.yaw_offset = 0.45 # 0.35 => 25 degrees
         self.do_turn_around = False 
         self.lock = threading.RLock()
         self.listener = tf.TransformListener()        
         self.broadcaster = tf.TransformBroadcaster()
-	self.odometry_updated = False 
+        self.odometry_updated = False 
         self.big_turn_around = False
+        
         # self.get_config()
 
         self.pub_yaw_rate = rospy.Publisher('/cola2_control/body_velocity_req',
                                             BodyVelocityReq)
         self.pub_waypoint_req = rospy.Publisher('/cola2_control/world_waypoint_req',
                                                 WorldWaypointReq)
-        self.pub_marker = rospy.Publisher('/udg_pandora/orientation_link', Marker)
+        self.pub_marker = rospy.Publisher('/udg_pandora/orientation_link', 
+                                          Marker)
 
         # Create Subscriber Updates (z)
         rospy.Subscriber('/udg_pandora/link_waypoints',
@@ -88,6 +91,7 @@ class ChainFollow:
 
     def world_waypoint_req_update(self, data):
         self.lock.acquire()
+        self.last_waypoint_update = rospy.Time.now().to_sec()
         self.waypoint_req = data
         self.waypoint_req.goal.priority = GoalDescriptor.PRIORITY_NORMAL
         self.waypoint_req.goal.requester = self.name + '_pose'
@@ -244,18 +248,18 @@ class ChainFollow:
 
     def publish_control(self, event):
         if not self.look_around:
-            self.lock.acquire()
-            self.pub_yaw_rate.publish(self.body_velocity_req)
-            # print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
-           
-            if abs(self.body_velocity_req.twist.angular.z) < 0.05:
-                print self.name, ', WP: ', self.waypoint_req.goal.id 
-                print 'Distance: ', np.sqrt((self.odometry.pose.pose.position.x - self.waypoint_req.position.north)**2 + 
-                                              (self.odometry.pose.pose.position.y - self.waypoint_req.position.east)**2)
-
-                self.waypoint_req.header.stamp = rospy.Time.now()
-                self.pub_waypoint_req.publish(self.waypoint_req)
-            self.lock.release()
+            if self.last_waypoint_update > rospy.Time.now().to_sec() - 2.0:
+                self.lock.acquire()
+                self.pub_yaw_rate.publish(self.body_velocity_req)
+                
+                if abs(self.body_velocity_req.twist.angular.z) < 0.05:
+                    print self.name, ', WP: ', self.waypoint_req.goal.id 
+                    print 'Distance: ', np.sqrt((self.odometry.pose.pose.position.x - self.waypoint_req.position.north)**2 + 
+                                                  (self.odometry.pose.pose.position.y - self.waypoint_req.position.east)**2)
+    
+                    self.waypoint_req.header.stamp = rospy.Time.now()
+                    self.pub_waypoint_req.publish(self.waypoint_req)
+                self.lock.release()
 
 
     def look_around_movement(self, factor = 1):
