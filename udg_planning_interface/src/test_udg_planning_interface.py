@@ -105,6 +105,30 @@ class PlanningInterface(object):
             self.is_action_enabled = False
 
 
+    def execute_chain_follow(self):
+        if not self.is_action_running:
+            self.is_action_running = True
+            action = ActionDispatch()
+            action.action_id = self.action_id
+            self.action_id = self.action_id + 1
+            action.name = 'enable_chain_follow'
+            while not self.is_action_enabled:
+                print 'Action: \n', action
+                self.pub_action_dispatch.publish(action)
+                rospy.sleep(1.0)
+            self.is_action_enabled = False
+            
+            rospy.sleep(10.0)
+            action.action_id = self.action_id
+            self.action_id = self.action_id + 1
+            action.name = 'disable_chain_follow'
+            while not self.is_action_enabled:
+                print 'Action: \n', action
+                self.pub_action_dispatch.publish(action)
+                rospy.sleep(1.0)
+            self.is_action_enabled = False
+            
+    
 def __set_params__(param_list):
     ret = list()
     for key in param_list:
@@ -121,8 +145,9 @@ if __name__ == '__main__':
         rospy.init_node('test_udg_planning_interface')
         planning_interface = PlanningInterface(rospy.get_name())
         # planning_interface.execute_goto(0.0, 0.0, 2.6, -3.0)
-        planning_interface.execute_check_panel()
+        # planning_interface.execute_check_panel()
         # planning_interface.execute_turn_valve(3, 1.57)
+        planning_interface.execute_chain_follow()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
