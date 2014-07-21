@@ -49,8 +49,10 @@ class ChainPlanner:
                          queue_size = 1)
                          
                          
-        rospy.Subscriber("/cola2_navigation/nav_sts", 
-                         NavSts, self.updateNavSts,
+
+        rospy.Subscriber("/cola2_navigation/nav_sts",
+                         NavSts,
+                         self.updateNavSts,
                          queue_size = 1)
         
         #Create Publisher

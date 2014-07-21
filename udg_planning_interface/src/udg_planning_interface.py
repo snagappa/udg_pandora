@@ -40,12 +40,14 @@ class PlanningInterface(object):
 
         rospy.Subscriber("/action_dispatch",
                          ActionDispatch,
-                         self.dispatch_action)
+                         self.dispatch_action,
+                         queue_size = 1)
 
         # GOTO
         rospy.Subscriber("/absolute_movement/result",
                          WorldWaypointReqActionResult,
-                         self.goto_result)
+                         self.goto_result,
+                         queue_size = 1)
 
         try:
             rospy.wait_for_service('/cola2_control/goto_holonomic', 20)
@@ -59,25 +61,31 @@ class PlanningInterface(object):
         # VALVE STATUS
         rospy.Subscriber("/valve_tracker/valve0",
                          PoseWithCovarianceStamped,
-                         self.update_valve_0)
+                         self.update_valve_0,
+                         queue_size = 1)
         rospy.Subscriber("/valve_tracker/valve1",
                          PoseWithCovarianceStamped,
-                         self.update_valve_1)
+                         self.update_valve_1,
+                         queue_size = 1)
         rospy.Subscriber("/valve_tracker/valve2",
                          PoseWithCovarianceStamped,
-                         self.update_valve_2)
+                         self.update_valve_2,
+                         queue_size = 1)
         rospy.Subscriber("/valve_tracker/valve3",
                          PoseWithCovarianceStamped,
-                         self.update_valve_3)
+                         self.update_valve_3,
+                         queue_size = 1)
 
         rospy.Subscriber("/pose_ekf_slam/update_landmark/panel_centre",
                          PoseWithCovarianceStamped,
-                         self.update_panel_centre)
+                         self.update_panel_centre,
+                         queue_size = 1)
 
         # CHECK PANEL
         rospy.Subscriber("/pose_ekf_slam/map",
                          Map,
-                         self.update_ekf_panel_centre)
+                         self.update_ekf_panel_centre,
+                         queue_size = 1)
 
 
 

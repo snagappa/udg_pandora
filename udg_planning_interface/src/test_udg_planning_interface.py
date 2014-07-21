@@ -27,7 +27,8 @@ class PlanningInterface(object):
         # Create Subscribers
         rospy.Subscriber("/action_feedback",
                          ActionFeedback,
-                         self.action_feedback)
+                         self.action_feedback,
+                         queue_size = 1)
 
 
     def action_feedback(self, req):

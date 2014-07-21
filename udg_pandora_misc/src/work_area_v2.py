@@ -42,14 +42,21 @@ class WorkAreaController:
 #        self.armPose = PoseStamped()
         self.lock = threading.Lock()
 
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updateGoalOri)
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.updateGoalOri,
+                         queue_size = 1)
 
         rospy.Subscriber(
-            "/pose_ekf_slam/odometry", Odometry, self.updateRobotPose)
+            "/pose_ekf_slam/odometry",
+            Odometry,
+            self.updateRobotPose,
+            queue_size = 1)
 
         rospy.Subscriber("/valve_tracker/valve" + str(self.goal_valve),
                          PoseWithCovarianceStamped,
-                         self.updateGoalPose)
+                         self.updateGoalPose,
+                         queue_size = 1)
 
         self.pub_decision = rospy.Publisher('/rfdm_pkg/reactive', rfdm_msg)
 

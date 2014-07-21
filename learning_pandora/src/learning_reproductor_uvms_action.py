@@ -158,21 +158,31 @@ class learningReproductorAct:
             "learning/end_effector_desired_pose", PoseStamped)
 
         rospy.Subscriber('/pose_ekf_slam/map',
-                         Map, self.updateGoalOri)
+                         Map,
+                         self.updateGoalOri,
+                         queue_size = 1)
         self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
                                            str(self.goal_valve)),
                                           PoseWithCovarianceStamped,
-                                          self.updateGoalPose)
+                                          self.updateGoalPose,
+                                          queue_size = 1)
         rospy.Subscriber("/pose_ekf_slam/odometry",
-                         Odometry, self.updateRobotPose)
+                         Odometry,
+                         self.updateRobotPose,
+                         queue_size = 1)
         rospy.Subscriber('/arm/pose_stamped',
                          PoseStamped,
-                         self.updateArmPosition)
+                         self.updateArmPosition,
+                         queue_size = 1)
         rospy.Subscriber('/rfdm_pkg/reactive',
                          rfdm_msg,
-                         self.updateSafety)
+                         self.updateSafety,
+                         queue_size = 1)
         rospy.Subscriber(
-            "/csip_e5_arm/joint_state", JointState, self.updateRollEndEffector)
+            "/csip_e5_arm/joint_state",
+            JointState,
+            self.updateRollEndEffector,
+            queue_size = 1)
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
 
         #self.tflistener = tf.TransformListener()
@@ -191,7 +201,8 @@ class learningReproductorAct:
             rospy.loginfo('Force Torque Enabled ')
             rospy.Subscriber('/forceTorque_controller/forceTorqueData',
                              WrenchStamped,
-                             self.updateForceTorque)
+                             self.updateForceTorque,
+                             queue_size = 1)
 
         # self.valve_turning_srv = rospy.Service(
         #     '/learning/turn_valve_operation',
@@ -633,7 +644,8 @@ class learningReproductorAct:
         self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
                                            str(self.goal_valve)),
                                           PoseWithCovarianceStamped,
-                                          self.updateGoalPose)
+                                          self.updateGoalPose,
+                                          queue_size = 1)
 
         #Set the id of the file which will be learned
         if goal.long_approach == True:

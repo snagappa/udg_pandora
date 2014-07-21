@@ -68,9 +68,14 @@ class valveTracker():
         self.pub_valve_landmark = rospy.Publisher(
             self.publisher_landmark, PoseWithCovarianceStamped)
         #subscrive to the Map where is the position of the center
-        rospy.Subscriber("/pose_ekf_slam/map", Map, self.updatepanelpose)
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.updatepanelpose,
+                         queue_size = 1)
         rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
-                         PoseWithCovarianceStamped, self.updatecovariance)
+                         PoseWithCovarianceStamped,
+                         self.updatecovariance,
+                         queue_size = 1)
 
         self.lock = threading.Lock()
         self.lock_error = threading.Lock()
@@ -100,6 +105,9 @@ class valveTracker():
         #predictions
         self.kf_p_hat = np.ones(self.num_valves)
         self.kf_valves_ori_hat = np.zeros(self.num_valves)
+
+        #broadcaster for the valve pose
+        self.tf_broadcaster = tf.TransformBroadcaster()
 
     def getconfig(self):
         """
@@ -277,6 +285,7 @@ class valveTracker():
                 #rospy.loginfo(' Lanmark ' +str(mark.landmark_id) + ' Config ' + str(self.landmark_id))
                 if self.landmark_id == mark.landmark_id:
                     self.panel_centre = mark.pose.pose
+                    #rospy.loginfo('Panel pose ' + str(mark.pose.pose))
                     #Create the Transformation matrix
                     trans_mat = tf.transformations.quaternion_matrix(
                         [self.panel_centre.orientation.x,
@@ -427,6 +436,15 @@ class valveTracker():
                 self.valve_msg[i].pose.covariance = cov
                 valve_msg.header.stamp = rospy.Time.now()
                 self.valve_publishers[i].publish(valve_msg)
+                self.tf_broadcaster.sendTransform(
+                    (valve_msg.pose.pose.position.x,
+                     valve_msg.pose.pose.position.y,
+                     valve_msg.pose.pose.position.z),
+                    (quat[0],quat[1],quat[2],quat[3]),
+                    rospy.Time.now(),
+                    "valve_"+str(i)+"_tracker",
+                    "world")
+                      
                 # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
@@ -441,10 +459,10 @@ class valveTracker():
             self.predictpose()
             self.updatebumbleebetf()
             self.updatekf()
-            self.updatehandcameraoritf()
-            self.updatekfhand()
+            #self.updatehandcameraoritf()
+            #self.updatekfhand()
             self.publish()
-            self.updatehandcameraposetf()
+            #self.updatehandcameraposetf()
             rospy.sleep(self.period)
 
     def set_default_parameters(self):
