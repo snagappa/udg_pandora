@@ -10,7 +10,7 @@ from auv_msgs.msg import WorldWaypointReq, NavSts
 from visualization_msgs.msg import MarkerArray, Marker
 #from nav_msgs.msg import Odometry
 import tf
-
+from std_srvs.srv import Empty, EmptyResponse
 from sklearn.cluster import MeanShift, estimate_bandwidth
 #from sklearn.datasets.samples_generator import make_blobs
 
@@ -30,14 +30,17 @@ class ChainPlanner:
         
         self.min_num_det_x_cluster = 3
         self.orientation_line = 0.7
-        self.rot_matrix = np.array([[np.cos(self.orientation_line), np.sin(self.orientation_line), 0],
-                                     [-np.sin(self.orientation_line), np.cos(self.orientation_line), 0],
-                                      [0, 0, 1]])
+        self.rot_matrix = np.array([[np.cos(self.orientation_line), 
+                                     np.sin(self.orientation_line), 0],
+                                    [-np.sin(self.orientation_line), 
+                                     np.cos(self.orientation_line), 0],
+                                    [0, 0, 1]])
 
         self.error_threshold = 0.3
         self.iter_wps = 0
         self.cluster_centers_sorted = None    
         self.markerArray = None
+        self.is_enabled = False
         
         # Create Subscriber Updates (z)
         rospy.Subscriber('/link_pose',
@@ -46,105 +49,125 @@ class ChainPlanner:
                          queue_size = 1)
                          
                          
+
         rospy.Subscriber("/cola2_navigation/nav_sts",
                          NavSts,
                          self.updateNavSts,
                          queue_size = 1)
         
         #Create Publisher
-        self.pub_sonar_wps = rospy.Publisher("/udg_pandora/link_waypoints", MarkerArray)  
-        self.pub_sonar_next_wp = rospy.Publisher("/udg_pandora/next_waypoint", Marker)
-        self.pub_wwr = rospy.Publisher("/udg_pandora/world_waypoint_req", WorldWaypointReq)
+        self.pub_sonar_wps = rospy.Publisher("/udg_pandora/link_waypoints", 
+                                             MarkerArray)  
+        self.pub_sonar_next_wp = rospy.Publisher("/udg_pandora/next_waypoint", 
+                                                 Marker)
+        self.pub_wwr = rospy.Publisher("/udg_pandora/world_waypoint_req", 
+                                       WorldWaypointReq)
+        
+        #Create services
+        self.enable_srv = rospy.Service('/udg_pandora/enable_chain_planner', 
+                                        Empty, self.enable_chain_planner)
+        self.disable_srv = rospy.Service('/udg_pandora/disable_chain_planner', 
+                                         Empty, self.disable_chain_planner)
         
         #Timer
         rospy.Timer(rospy.Duration(0.1), self.iterate)
         
-    def iterate(self, event):
+        
+    def enable_chain_planner(self, req):
+        self.is_enabled = True
+        return EmptyResponse()
+        
 
-    
+    def disable_chain_planner(self, req):
+        self.is_enabled = False
+        return EmptyResponse()
+
         
-        if self.markerArray != None:
+    def iterate(self, event):
+        if self.markerArray != None and self.is_enabled:
             self.pub_sonar_wps.publish(self.markerArray)   
-        
+
+
     def updateNavSts(self, nav_sts):
-        x = nav_sts.position.north
-        y = nav_sts.position.east
-        z = nav_sts.position.depth
-        
-        if self.cluster_centers_sorted != None:
+        if self.is_enabled:    
+            x = nav_sts.position.north
+            y = nav_sts.position.east
+            z = nav_sts.position.depth
             
-            #set next point to go
-            x_des = self.cluster_centers_sorted[self.iter_wps,0]
-            y_des = self.cluster_centers_sorted[self.iter_wps,1]
-            z_des = self.cluster_centers_sorted[self.iter_wps,2]
-            
-            ex = x - x_des
-            ey = y - y_des
-            ez = z - z_des
-            
-            #Criteria for reaching WP
-            error = np.sqrt(ex**2+ey**2+0.0*ez**2)
-            print "Error:", error
-    
-            if error < self.error_threshold and self.iter_wps < len(self.cluster_centers_sorted)-1:
-                self.iter_wps = self.iter_wps + 1
+            if self.cluster_centers_sorted != None:
                 
-            marker = Marker()
-            marker.type = Marker.SPHERE
-            marker.pose.position.x =  self.cluster_centers_sorted[self.iter_wps,0]
-            marker.pose.position.y =  self.cluster_centers_sorted[self.iter_wps,1]       
-            marker.pose.position.z =  self.cluster_centers_sorted[self.iter_wps,2]                             
-            marker.pose.orientation.x = 0.0
-            marker.pose.orientation.y = 0.0
-            marker.pose.orientation.z = 0.0
-            marker.pose.orientation.w = 0.0
-            marker.header.frame_id = '/world'
-            marker.header.stamp = rospy.Time.now()
-            marker.scale.x = 0.15
-            marker.scale.y = 0.15
-            marker.scale.z = 0.15
-            marker.color.r = 0.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
-            marker.color.a = 1.0
-            marker.id = self.iter_wps
-            #marker.lifetime = rospy.Duration(5.0)
-    
-            self.pub_sonar_next_wp.publish(marker)    
-            
-            data = WorldWaypointReq()        
-            
-            data.header.stamp = rospy.Time.now()
-            data.header.frame_id = "/world"
-            data.goal.priority = 0
-            data.goal.id = self.iter_wps
-            data.altitude_mode = False   
+                # set next point to go
+                x_des = self.cluster_centers_sorted[self.iter_wps,0]
+                y_des = self.cluster_centers_sorted[self.iter_wps,1]
+                z_des = self.cluster_centers_sorted[self.iter_wps,2]
+                
+                ex = x - x_des
+                ey = y - y_des
+                ez = z - z_des
+                
+                # Criteria for reaching WP
+                error = np.sqrt(ex**2+ey**2+0.0*ez**2)
+                print "Error:", error
         
-            data.position.north = self.cluster_centers_sorted[self.iter_wps,0]
-            data.position.east =  self.cluster_centers_sorted[self.iter_wps,1]
-            data.position.depth = self.cluster_centers_sorted[self.iter_wps,2]
-            data.altitude =  0.0
-    
-            data.orientation.roll = 0.0
-            data.orientation.pitch = 0.0
-            data.orientation.yaw = 0.0
-      
-            data.disable_axis.x = False
-            data.disable_axis.y = False
-            data.disable_axis.z = False
-            data.disable_axis.roll = True
-            data.disable_axis.pitch = True
-            data.disable_axis.yaw = False
-    
-            data.position_tolerance.x = 0.0
-            data.position_tolerance.y = 0.0
-            data.position_tolerance.z = 0.0
-            data.orientation_tolerance.roll = 0.0
-            data.orientation_tolerance.pitch = 0.0
-            data.orientation_tolerance.yaw = 0.0
+                if error < self.error_threshold and self.iter_wps < len(self.cluster_centers_sorted)-1:
+                    self.iter_wps = self.iter_wps + 1
+                    
+                marker = Marker()
+                marker.type = Marker.SPHERE
+                marker.pose.position.x =  self.cluster_centers_sorted[self.iter_wps,0]
+                marker.pose.position.y =  self.cluster_centers_sorted[self.iter_wps,1]       
+                marker.pose.position.z =  self.cluster_centers_sorted[self.iter_wps,2]                             
+                marker.pose.orientation.x = 0.0
+                marker.pose.orientation.y = 0.0
+                marker.pose.orientation.z = 0.0
+                marker.pose.orientation.w = 0.0
+                marker.header.frame_id = '/world'
+                marker.header.stamp = rospy.Time.now()
+                marker.scale.x = 0.15
+                marker.scale.y = 0.15
+                marker.scale.z = 0.15
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                marker.color.a = 1.0
+                marker.id = self.iter_wps
+                # marker.lifetime = rospy.Duration(5.0)
+        
+                self.pub_sonar_next_wp.publish(marker)    
+                
+                data = WorldWaypointReq()        
+                
+                data.header.stamp = rospy.Time.now()
+                data.header.frame_id = "/world"
+                data.goal.priority = 0
+                data.goal.id = self.iter_wps
+                data.altitude_mode = False   
             
-            self.pub_wwr.publish(data)
-              
+                data.position.north = self.cluster_centers_sorted[self.iter_wps,0]
+                data.position.east =  self.cluster_centers_sorted[self.iter_wps,1]
+                data.position.depth = self.cluster_centers_sorted[self.iter_wps,2]
+                data.altitude =  0.0
+        
+                data.orientation.roll = 0.0
+                data.orientation.pitch = 0.0
+                data.orientation.yaw = 0.0
+          
+                data.disable_axis.x = False
+                data.disable_axis.y = False
+                data.disable_axis.z = False
+                data.disable_axis.roll = True
+                data.disable_axis.pitch = True
+                data.disable_axis.yaw = False
+        
+                data.position_tolerance.x = 0.0
+                data.position_tolerance.y = 0.0
+                data.position_tolerance.z = 0.0
+                data.orientation_tolerance.roll = 0.0
+                data.orientation_tolerance.pitch = 0.0
+                data.orientation_tolerance.yaw = 0.0
+                
+                self.pub_wwr.publish(data)
+                  
 
     def sonar_waypoint_update(self, sonarPoints):
              
