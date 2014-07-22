@@ -64,7 +64,7 @@ class LearningRecord:
         rospy.Subscriber(
             "/pose_ekf_slam/odometry",
             Odometry,
-            self.updateRobotPose, 
+            self.updateRobotPose,
             queue_size = 1)
 
         rospy.Subscriber(
@@ -78,6 +78,8 @@ class LearningRecord:
                          self.updateGoalPose,
                          queue_size = 1)
         self.tflistener = tf.TransformListener()
+        #Debug propose
+        self.tf_broadcaster = tf.TransformBroadcaster()
 
     def getConfig(self):
         param_dict = {'filename': 'learning/record/complete/filename',
@@ -109,6 +111,7 @@ class LearningRecord:
                              pose_msg.pose.pose.orientation.w])[2]
             if not self.initGoalPose:
                 self.initGoalPose = True
+                rospy.loginfo('Aqui tambe')
                 if (self.initGoalOri and
                     not self.initGoal):
                     self.initGoal = True
@@ -130,6 +133,12 @@ class LearningRecord:
             for mark in landMarkMap.landmark:
                 if self.landmark_id == mark.landmark_id:
                     self.goalPose.orientation = mark.pose.pose.orientation
+                    # rospy.loginfo('Orientation panel ' + str(
+                    #     euler_from_quaternion([
+                    #         mark.pose.pose.orientation.x,
+                    #         mark.pose.pose.orientation.y,
+                    #         mark.pose.pose.orientation.z,
+                    #         mark.pose.pose.orientation.w])))
                     if not self.initGoalOri:
                         self.initGoalOri = True
                         if (self.initGoalPose and
@@ -147,6 +156,7 @@ class LearningRecord:
         """
         self.lock.acquire()
         try:
+            #rospy.loginfo('Entra')
             self.robotPose = odometry.pose.pose
             if ( not self.initGoalPose ):
                 self.unnormalized_angle = euler_from_quaternion(
@@ -154,6 +164,12 @@ class LearningRecord:
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])[2]
+            # rospy.loginfo('Robot panel ' + str(
+            #     euler_from_quaternion([
+            #         self.robotPose.orientation.x,
+            #         self.robotPose.orientation.y,
+            #         self.robotPose.orientation.z,
+            #         self.robotPose.orientation.w])))
             self.initRobotPose = True
         finally:
             self.lock.release()
@@ -201,6 +217,14 @@ class LearningRecord:
                      self.robotPose.position.z,
                      1])
 
+                #FUTURE WORK
+                robotMatrix = tf.transformations.quaternion_matrix(
+                    [self.robotPose.orientation.x,
+                     self.robotPose.orientation.y,
+                     self.robotPose.orientation.z,
+                     self.robotPose.orientation.w])
+                #######
+
                 trans_matrix = tf.transformations.quaternion_matrix(
                     [self.goalPose.orientation.x,
                      self.goalPose.orientation.y,
@@ -219,6 +243,12 @@ class LearningRecord:
                                          trans_matrix[0:3, 3])
 
                 robotTrans = np.dot(inv_mat, robotPose)
+
+                # FUTURE WORK
+                robotTransCompleted = np.dot(inv_mat, robotMatrix)
+                #######
+                #rospy.loginfo('Dif Completed ' + str(tf.transformations.euler_from_matrix(robotTransCompleted)))
+                #rospy.loginfo('Distance ' + str(robotTransCompleted[0:3, 3]))
 
                 # robotYaw = euler_from_quaternion(
                 #     [self.robotPose.orientation.x,
@@ -240,13 +270,70 @@ class LearningRecord:
                      self.robotPose.orientation.y,
                      self.robotPose.orientation.z,
                      self.robotPose.orientation.w])
+                # rospy.loginfo('Robot ori ' + str(
+                #     euler_from_quaternion([
+                #         self.robotPose.orientation.x,
+                #         self.robotPose.orientation.y,
+                #         self.robotPose.orientation.z,
+                #         self.robotPose.orientation.w])))
 
-                mat_ori = np.dot(robotOri[0:3, 0:3],trans_matrix[0:3,0:3])
-#                mat_ori = np.dot(robotOri[0:3, 0:3], inv_mat[0:3, 0:3])
+                #rospy.loginfo('Euler Robot ' + str(
+                #    tf.transformations.euler_from_matrix(robotOri)))
+                #rospy.loginfo('Euler Panel ' + str(
+                #    tf.transformations.euler_from_matrix(trans_matrix)))
 
-                dif_ori = tf.transformations.euler_from_matrix(mat_ori)[2]
+                #Same orientation like the AUV, Z down X backward Y lateral
+                rot_test = tf.transformations.euler_matrix(0,np.pi/2.0,-np.pi/2.0)
 
-                rospy.loginfo('Dif Ori ' + str(tf.transformations.euler_from_matrix(mat_ori)))
+                #new_panel = np.dot(trans_matrix[0:3, 0:3], rot_test[0:3, 0:3])
+                new_panel = np.dot(trans_matrix, rot_test)
+
+                quat = tf.transformations.quaternion_from_matrix(new_panel)
+
+                self.tf_broadcaster.sendTransform(
+                    (self.goalPose.position.x,
+                     self.goalPose.position.y,
+                     self.goalPose.position.z),
+                    (quat[0],quat[1],quat[2],quat[3]),
+                    rospy.Time.now(),
+                    "new_panel",
+                    "world")
+
+                #rospy.loginfo('Euler values ' + str(tf.transformations.euler_from_matrix(new_panel)) )
+
+                inv_new_panel = np.zeros([4, 4])
+                inv_new_panel[3, 3] = 1.0
+                inv_new_panel[0:3, 0:3] = np.transpose(new_panel[0:3, 0:3])
+                inv_new_panel[0:3, 3] = np.dot((-1*inv_new_panel[0:3, 0:3]),
+                                         new_panel[0:3, 3])
+
+                mat_ori_test = np.dot(robotOri[0:3, 0:3], inv_new_panel[0:3, 0:3] )
+                mat_ori_test_2 = np.dot(robotOri[0:3, 0:3], new_panel[0:3, 0:3] )
+
+                rospy.loginfo('Dif Ori R*P_I ' + str(tf.transformations.euler_from_matrix(mat_ori_test)))
+                #rospy.loginfo('Dif Ori R*P ' + str(tf.transformations.euler_from_matrix(mat_ori_test_2)))
+
+                #WORK AROUND
+                # I Think we find some kind of discontinuity on the euler values
+                # For this reason I will use the intermediate step to had the
+                # same orienation
+
+                dif_ori = tf.transformations.euler_from_matrix(mat_ori_test)[2]
+
+                # mat_ori = np.dot(robotOri[0:3, 0:3],inv_mat[0:3, 0:3])
+                # mat_ori_2 = np.dot(robotOri[0:3, 0:3], trans_matrix[0:3, 0:3])
+
+                # mat_ori_3 = np.dot(trans_matrix[0:3, 0:3], robotOri[0:3, 0:3])
+                # mat_ori_4 = np.dot(trans_matrix[0:3, 0:3], np.transpose(robotOri[0:3, 0:3]))
+
+                # dif_ori = tf.transformations.euler_from_matrix(mat_ori)[2]
+
+                # rospy.loginfo('Dif Ori R*P_I ' + str(tf.transformations.euler_from_matrix(mat_ori)))
+                # rospy.loginfo('Dif Ori R*P ' + str(tf.transformations.euler_from_matrix(mat_ori_2)))
+                # rospy.loginfo('Dif Ori P*R ' + str(tf.transformations.euler_from_matrix(mat_ori_3)))
+                # rospy.loginfo('Dif Ori P*R_I ' + str(tf.transformations.euler_from_matrix(mat_ori_4)))
+
+                rospy.loginfo('*********************************************************')
 
                 #################################################
                 # End-Effector Pose from the Base_arm without TF
