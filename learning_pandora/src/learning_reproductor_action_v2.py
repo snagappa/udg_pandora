@@ -384,8 +384,22 @@ class learningReproductorAct:
                 #     goalYaw - robotYaw)
                 # self.currPos[3] = goalYaw - self.unnormalized_angle
 
-                dif_ori = np.dot(robotOriV2[0:3, 0:3],trans_mat[0:3,0:3])
+                # WORK AROUND CAUTION
+                #Same orientation like the AUV, Z down X backward Y lateral
+                rot_test = tf.transformations.euler_matrix(0,np.pi/2.0,-np.pi/2.0)
 
+                #new_panel = np.dot(trans_matrix[0:3, 0:3], rot_test[0:3, 0:3])
+                new_panel = np.dot(trans_matrix, rot_test)
+
+                inv_new_panel = np.zeros([4, 4])
+                inv_new_panel[3, 3] = 1.0
+                inv_new_panel[0:3, 0:3] = np.transpose(new_panel[0:3, 0:3])
+                inv_new_panel[0:3, 3] = np.dot((-1*inv_new_panel[0:3, 0:3]),
+                                         new_panel[0:3, 3])
+
+
+
+                dif_ori = np.dot(robotOriV2[0:3, 0:3],inv_new_panel[0:3,0:3])
 
                 self.currPos[3] = tf.transformations.euler_from_matrix(dif_ori)[2]
 
