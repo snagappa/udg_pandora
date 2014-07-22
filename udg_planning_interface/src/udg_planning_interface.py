@@ -20,6 +20,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 import tf
 from diagnostic_msgs.msg import KeyValue
 from pose_ekf_slam.msg import Map
+from std_srvs.srv import Empty, EmptyRequest
 
 class PlanningInterface(object):
     def __init__(self, name):
@@ -56,7 +57,7 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
             rospy.logerr('%s, Error creating client.', name)
             rospy.signal_shutdown('Error creating client')
-
+        
 
         # VALVE STATUS
         rospy.Subscriber("/valve_tracker/valve0",
@@ -90,13 +91,33 @@ class PlanningInterface(object):
 
 
         # TURN VALVE
+        # TODO: Remember to start /learning/valve_turning_action and 
+        #       uncomment this section!!!
+        """
         self.turn_valve_action = actionlib.SimpleActionClient(
                                         '/learning/valve_turning_action',
                                         ValveTurningAction)
         rospy.loginfo("%s: wait for turn valve actionlib ...", self.name)
         self.turn_valve_action.wait_for_server()
         rospy.loginfo("%s: turn valve actionlib found!", self.name)
+        """
 
+        # CHAIN FOLLOW SERVICES 
+        try:
+            rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
+            self.enable_chain_planner_srv = rospy.ServiceProxy(
+                                '/udg_pandora/enable_chain_planner', Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client.', name)
+            rospy.signal_shutdown('Error creating client')
+            
+        try:
+            rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
+            self.disable_chain_planner_srv = rospy.ServiceProxy(
+                                '/udg_pandora/disable_chain_planner', Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client.', name)
+            rospy.signal_shutdown('Error creating client')
 
 
     def dispatch_action(self, req):
@@ -126,7 +147,22 @@ class PlanningInterface(object):
         elif req.name in ("check_panel", "observe"):
             rospy.loginfo("%s: Received check_panel action.", self.name)
             self.__execute_check_panel__(req.action_id)
-
+        elif req.name == 'enable_chain_follow':
+            rospy.loginfo("%s: Received enable_chain_follow action.", 
+                          self.name)
+            self.enable_chain_planner_srv(EmptyRequest())
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action enabled"
+            self.pub_feedback.publish(feedback)
+        elif req.name == 'disable_chain_follow':
+            rospy.loginfo("%s: Received disable_chain_follow action.", 
+                          self.name)
+            self.disable_chain_planner_srv(EmptyRequest())
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action enabled"
+            self.pub_feedback.publish(feedback)
         else:
             rospy.logwarn('Invalid action name: ', req.name)
 
