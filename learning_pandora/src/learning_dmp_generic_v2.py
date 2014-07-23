@@ -66,7 +66,7 @@ class learningDmp:
         #                       [self.nbStates, 1, 1])
         self.Sigma_t = np.tile((self.nbData*self.tranning_dt/self.nbStates),
                                [self.nbStates, 1, 1])
-        
+
         rospy.loginfo('Loaded demonstrations')
         # dimensions, trajectory DoF, samples of One Demo
 
@@ -136,7 +136,8 @@ class learningDmp:
             # rospy.loginfo('Dt ' + str(self.dt))
             self.tranning_dt = (last_time.astype(np.float) - first_time.astype(np.float)) / self.nbData
 
-            self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.dt)
+            #self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.dt)
+            self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.tranning_dt)
 
             #Accelerations generated from the interpolation
             #d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)]
@@ -144,7 +145,8 @@ class learningDmp:
             aux[:, 0:-1] = self.d[n, self.nbVar:self.nbVar*2, 1:]
             aux[:, -1] = self.d[n, self.nbVar:self.nbVar*2, -1]
             self.d[n, self.nbVar*2:self.nbVar*3, :] = (
-                (aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.dt)
+                (aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.tranning_dt)
+                #(aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.dt)
             self.Data[:, ((n)*self.nbData):(self.nbData*(n+1))] = self.d[n, :, :]
             # np.set_printoptions(threshold=100000)
             #rospy.loginfo('\n Values in the d data number ' + str(n) + '\n' +
