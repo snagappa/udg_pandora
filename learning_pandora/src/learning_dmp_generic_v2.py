@@ -40,8 +40,9 @@ class learningDmp:
         # kP = KPmin + (kPmax - kPmin)/2
         # kV = 2*sqrt(kP)
 
-        self.kP = self.kPmin + (self.kPmax - self.kPmin)/2.0
-        self.kV = 2.0*np.sqrt(self.kP)
+        if self.Automaticks :
+            self.kP = self.kPmin + (self.kPmax - self.kPmin)/2.0
+            self.kV = 2.0*np.sqrt(self.kP)
 
         self.nbSamples = len(self.demonstrations)
         self.d = np.zeros(shape=(self.nbSamples,
@@ -81,6 +82,9 @@ class learningDmp:
                       'dt': 'learning/dmp/dt',
                       'kPmin': 'learning/dmp/kPmin',
                       'kPmax': 'learning/dmp/kPmax',
+                      'Automaticks': 'learning/dmp/AutomaticKs',
+                      'kP': 'learning/dmp/kP',
+                      'kV': 'learning/dmp/kV',
                       'alpha': 'learning/dmp/alpha',
                       'demonstration_file': 'learning/dmp/demonstration_file',
                       'demonstrations': 'learning/dmp/demonstrations',
