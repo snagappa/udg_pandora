@@ -864,8 +864,10 @@ class learningReproductorAct:
         # normalize the value
         #rospy.loginfo('Vavlues on h ' + str(h))
         #rospy.loginfo('H Real ' + str(h.tolist()))
-        if self.h_value > h[self.numStates-1]:
-            rospy.loginfo('New end condition')
+
+        #rospy.loginfo('T value '  + str(t) + ' >= ' + str(self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2)))
+        if t > self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2):
+            rospy.loginfo('Ultimate end condition at time ' + str (t))
             self.enabled = False
             self.s = self.initial_s
             self.pub_auv_finish.publish(True)
@@ -873,6 +875,27 @@ class learningReproductorAct:
         else:
             self.h_value = h[self.numStates-1]
             h = h / np.sum(h)
+
+        # if self.h_value > h[self.numStates-1]:
+        #     rospy.loginfo('New end condition at time ' + str (t))
+        #     self.enabled = False
+        #     self.s = self.initial_s
+        #     self.pub_auv_finish.publish(True)
+        #     return True
+        # else:
+        #     self.h_value = h[self.numStates-1]
+        #     h = h / np.sum(h)
+
+        # if t > 120 :
+        #     rospy.loginfo('Forced end at time ' + str (t))
+        #     self.enabled = False
+        #     self.s = self.initial_s
+        #     self.pub_auv_finish.publish(True)
+        #     return True
+        # else:
+        #     self.h_value = h[self.numStates-1]
+        #     h = h / np.sum(h)
+
 
         # if np.sum(h) <= 0.0001:
         #     rospy.loginfo('The time used in the demonstration is exhausted')
@@ -1428,7 +1451,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "learning_pandora", "learning_reproductor_action_v2.yaml")
+            "learning_pandora", "learning_reproductor_action.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

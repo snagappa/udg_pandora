@@ -5,19 +5,22 @@ learning/dmp/nbDataRepro : 500
 learning/dmp/nbDataExport : 500
 #3000
 learning/dmp/nbVar : 10
-learning/dmp/nbStates : 20
-learning/dmp/dt : 0.2
+learning/dmp/nbStates : 8
+learning/dmp/dt : 0.1
 #Simulator
-learning/dmp/kPmin : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-learning/dmp/kPmax : [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+# learning/dmp/kPmin : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+# learning/dmp/kPmax : [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
 #Pool
 #Fail 0
 #learning/dmp/kPmin : [0.09, 0.09, 0.1, 1.5, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
 #learning/dmp/kPmax : [0.1, 0.1, 2, 3, 2, 2, 2, 2, 2, 2]
 # Real ?? 
-#learning/dmp/kPmin : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-#learning/dmp/kPmax : [2.0, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-learning/dmp/alpha : 0.9
+learning/dmp/kPmin : [0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+learning/dmp/kPmax : [20.0, 20.0, 20.0, 0.05, 2, 2, 2, 2, 2, 2]
+learning/dmp/AutomaticKs : True
+learning/dmp/kP : [20.0, 20.0, 20.0, 0.05, 2, 2, 2, 2, 2, 2]
+learning/dmp/kV : [0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+learning/dmp/alpha : 1.0
 learning/dmp/demonstration_file : trajectory_demonstration
-learning/dmp/demonstrations : [0] 
+learning/dmp/demonstrations : [7] 
 learning/dmp/export_filename : learned_data_complete_individual_long.txt

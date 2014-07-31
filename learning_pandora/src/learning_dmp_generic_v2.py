@@ -40,8 +40,9 @@ class learningDmp:
         # kP = KPmin + (kPmax - kPmin)/2
         # kV = 2*sqrt(kP)
 
-        self.kP = self.kPmin + (self.kPmax - self.kPmin)/2.0
-        self.kV = 2.0*np.sqrt(self.kP)
+        if self.Automaticks :
+            self.kP = self.kPmin + (self.kPmax - self.kPmin)/2.0
+            self.kV = 2.0*np.sqrt(self.kP)
 
         self.nbSamples = len(self.demonstrations)
         self.d = np.zeros(shape=(self.nbSamples,
@@ -50,7 +51,7 @@ class learningDmp:
 
         self.Data = np.zeros(shape=(self.nbVar*3,
                                     self.nbSamples*self.nbData))
-        self.tranning_dt = 0.0
+        self.avg_dt = 0.0
 
         self.loadDemonstration()
 
@@ -61,11 +62,11 @@ class learningDmp:
                                   self.nbVar,
                                   self.nbVar))
 
-        self.Mu_t = np.linspace(0, self.nbData*self.tranning_dt, self.nbStates)
-        # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
-        #                       [self.nbStates, 1, 1])
-        self.Sigma_t = np.tile((self.nbData*self.tranning_dt/self.nbStates),
-                               [self.nbStates, 1, 1])
+        # self.Mu_t = np.linspace(0, self.nbData*self.tranning_dt, self.nbStates)
+        # # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
+        # #                       [self.nbStates, 1, 1])
+        # self.Sigma_t = np.tile((self.nbData*self.tranning_dt/self.nbStates),
+        #                        [self.nbStates, 1, 1])
 
         rospy.loginfo('Loaded demonstrations')
         # dimensions, trajectory DoF, samples of One Demo
@@ -81,6 +82,9 @@ class learningDmp:
                       'dt': 'learning/dmp/dt',
                       'kPmin': 'learning/dmp/kPmin',
                       'kPmax': 'learning/dmp/kPmax',
+                      'Automaticks': 'learning/dmp/AutomaticKs',
+                      'kP': 'learning/dmp/kP',
+                      'kV': 'learning/dmp/kV',
                       'alpha': 'learning/dmp/alpha',
                       'demonstration_file': 'learning/dmp/demonstration_file',
                       'demonstrations': 'learning/dmp/demonstrations',
@@ -134,10 +138,10 @@ class learningDmp:
 
             #self.dt = (last_time.astype(np.float) - first_time.astype(np.float)) / number_data
             # rospy.loginfo('Dt ' + str(self.dt))
-            self.tranning_dt = (last_time.astype(np.float) - first_time.astype(np.float)) / self.nbData
+            tranning_dt = (last_time.astype(np.float) - first_time.astype(np.float)) / self.nbData
 
             #self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.dt)
-            self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.tranning_dt)
+            self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / tranning_dt)
 
             #Accelerations generated from the interpolation
             #d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)]
@@ -145,7 +149,7 @@ class learningDmp:
             aux[:, 0:-1] = self.d[n, self.nbVar:self.nbVar*2, 1:]
             aux[:, -1] = self.d[n, self.nbVar:self.nbVar*2, -1]
             self.d[n, self.nbVar*2:self.nbVar*3, :] = (
-                (aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.tranning_dt)
+                (aux - self.d[n, self.nbVar:self.nbVar*2, :]) / tranning_dt)
                 #(aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.dt)
             self.Data[:, ((n)*self.nbData):(self.nbData*(n+1))] = self.d[n, :, :]
             # np.set_printoptions(threshold=100000)
@@ -153,6 +157,14 @@ class learningDmp:
             #                str(self.d[n,:,:]) + '\n' )
             #            p = raw_input('wait')
             #rospy.loginfo(self.d)
+            self.avg_dt += tranning_dt
+        self.avg_dt = self.avg_dt/self.nbSamples
+        self.Mu_t = np.linspace(0, self.nbData*self.avg_dt, self.nbStates)
+        # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
+        #                       [self.nbStates, 1, 1])
+        self.Sigma_t = np.tile((self.nbData*self.avg_dt/self.nbStates),
+                               [self.nbStates, 1, 1])
+
 
     def trainningDMP(self):
         rospy.loginfo('Learning DMP ...')
@@ -164,7 +176,7 @@ class learningDmp:
 
         for n in range(self.nbData):
 #Update of decay term
-            s = s + (-self.alpha*s)*self.tranning_dt
+            s = s + (-self.alpha*s)*self.avg_dt
             #s = s + (-self.alpha*s)*self.dt
             t = -math.log(s)/self.alpha
             for i in range(self.nbStates):
@@ -172,6 +184,7 @@ class learningDmp:
                 h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i, 0, 0])
 #Normalization
             H[n, :] = h/np.sum(h)
+        rospy.loginfo('Avg Time ' + str(self.avg_dt*self.nbData))
         #tile equivalent to repmat of matlab
         # Repeat the process for each demonstration
             #rospy.loginfo('Time ' + str(t))
@@ -194,6 +207,7 @@ class learningDmp:
 #        rospy.loginfo(' Pseudo inversa H.t \n ' +
 #                      str( np.linalg.pinv(self.H.T) ) + '\n' )
 #Pseudoinverse solution Mu_x = [inv(H'*H)*H'*Y']'
+# The H is transpossed to match the Y values for each time stamp
         self.Mu_x = np.dot(Y, np.linalg.pinv(self.H.T))
 
 # Mu_x and H are equal to matlab.
@@ -218,7 +232,7 @@ class learningDmp:
             product = np.dot(a, b)
             self.Sigma_x[i, :, :] = np.cov(product)
 #Use variation information to determine stiffness
-            self.Wp[i, :, :] = np.linalg.inv(self.Sigma_x[i, :, :]+RI)
+            self.Wp[i, :, :] = np.linalg.pinv(self.Sigma_x[i, :, :]+RI)
         # Warning sigmas are different from the matlab results I don
 
 #        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n')
