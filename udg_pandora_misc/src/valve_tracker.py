@@ -17,6 +17,8 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 
 from std_msgs.msg import Float64
 
+from std_srvs.srv import Empty, EmptyResponse
+
 import numpy as np
 
 import tf
@@ -77,6 +79,18 @@ class valveTracker():
                          self.updatecovariance,
                          queue_size = 1)
 
+        self.enable_srv = rospy.Service(
+            '/valve_tracker/enable_update_valve_orientation',
+            Empty,
+            self.enable_update_valve_srv)
+
+        self.disable_srv = rospy.Service(
+            '/valve_tracker/disable_update_valve_orientation',
+            Empty,
+            self.disable_update_valve_srv)
+
+        self.enable_valve_ori = True
+
         self.lock = threading.Lock()
         self.lock_error = threading.Lock()
         self.panel_centre = Pose()
@@ -125,6 +139,16 @@ class valveTracker():
                       'publisher_landmark': '/valve_tracker/publisher_landmark'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
+
+    def enable_update_valve_srv(self, req):
+        self.enable_valve_ori = True
+        rospy.loginfo('%s Enabled', self.name)
+        return EmptyResponse()
+
+    def disable_update_valve_srv(self, req):
+        self.enable_valve_ori = False
+        rospy.loginfo('%s Disabled', self.name)
+        return EmptyResponse()
 
     def updatebumbleebetf(self):
         """
@@ -457,7 +481,8 @@ class valveTracker():
         """
         while not rospy.is_shutdown():
             self.predictpose()
-            self.updatebumbleebetf()
+            if self.enable_valve_ori:
+                self.updatebumbleebetf()
             self.updatekf()
             #self.updatehandcameraoritf()
             #self.updatekfhand()
