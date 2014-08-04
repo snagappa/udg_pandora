@@ -110,7 +110,7 @@ class learningReproductorAct:
         self.currPosSim = np.zeros(self.nbVar)
         self.currPosSim[0] = 0.0
         self.currPosSim[1] = 0.0
-        self.currPosSim[2] = 5.0
+        self.currPosSim[2] = 4.5
         self.currPosSim[3] = 0.0
         self.currPosSim[4] = 0.0
         self.currPosSim[5] = 0.0
@@ -936,7 +936,7 @@ class learningReproductorAct:
         #rospy.loginfo('Curr Acc ' + str(self.currAcc[0:3].tolist()))
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
-
+        rospy.loginfo('Des Vel ' + str(self.currVel[0:3].tolist()))
         #rospy.loginfo('Pos ' +str(self.desPos[0]) + ' ' +str(self.desPos[1]) + ' ' +str(self.desPos[2]))
         des_pose_msg = PoseStamped()
         des_pose_msg.header.stamp = rospy.get_rostime()
@@ -987,7 +987,7 @@ class learningReproductorAct:
 
 
         # normalize the value
-        if not self.backward and self.h_value > h[self.numStates-1]:
+        if t > self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2):
             rospy.loginfo('The time used in the demonstration is exhausted')
             self.enabled = False
             self.s = self.initial_s
