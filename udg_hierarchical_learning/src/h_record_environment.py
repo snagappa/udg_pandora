@@ -2,7 +2,7 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('learning_pandora')
+roslib.load_manifest('udg_hierarchical_learning')
 import rospy
 
 import numpy as np
