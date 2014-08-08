@@ -111,6 +111,11 @@ class HRecordEnvironment:
                          self.update_frame_valve_3,
                          queue_size = 1)
 
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.update_frame_panel_centre,
+                         queue_size = 1)
+
         # Not needed ???
         # rospy.Subscriber(
         #     "/csip_e5_arm/joint_state",
@@ -244,7 +249,7 @@ class HRecordEnvironment:
         """
         self.lock_element_auv.acquire()
         try:
-            self.robotPose = odometry.pose.pose
+            self.element_auv = odometry.pose.pose
             if not self.init_element_auv :
                 self.init_element_auv = True
         finally:
@@ -555,8 +560,8 @@ class HRecordEnvironment:
         rate = rospy.Rate(1.0/self.interval_time)
         rospy.loginfo('Recording')
         while not rospy.is_shutdown():
-            if self.init_element_auv :
-                if self.init_element_ee :
+            if self.init_element_ee :
+                if self.init_element_auv :
                     # Convert EE to the AUV frame
                     base_pose = Pose()
                     quaterninon = tf.transformations.quaternion_from_euler(
@@ -617,9 +622,9 @@ class HRecordEnvironment:
                         self.store_pose_same_orgin(
                             arm_world,
                             self.frame_panel_centre,
-                            ori_panel,
+                            ori_work_around,
                             file_ee_panel_centre)
-            if self.init_element_ee :
+            if self.init_element_auv :
                 #world position
                 self.store_pose(self.element_auv, file_auv_world)
                 #strange work around with ori of the panel
