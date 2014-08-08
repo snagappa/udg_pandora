@@ -123,7 +123,7 @@ class HRecordEnvironment:
     def get_config(self):
         param_dict = {'sample': '/hierarchical/record/sample',
                       'landmark_id': '/hierarchical/record/landmark_id',
-                      'interval_time': '/hierarchical/record/interval_time'
+                      'interval_time': '/hierarchical/record/interval_time',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori'
                       }
@@ -207,7 +207,7 @@ class HRecordEnvironment:
                 [pose_msg.pose.pose.orientation.x,
                  pose_msg.pose.pose.orientation.y,
                  pose_msg.pose.pose.orientation.z,
-                 pose_msg.pose.pose.orientation.w])[3]
+                 pose_msg.pose.pose.orientation.w])[2]
             if not self.init_frame_valve_3 :
                 self.init_frame_valve_3 = True
         finally:
@@ -290,13 +290,13 @@ class HRecordEnvironment:
         End-effector respect the base of the arm
         @type arm_pose: WrenchStamped
         """
-        self.lock_element_ee.acquire()
+        self.lock_element_force.acquire()
         try:
-            self.element_ee = arm_pose.pose
-            if not self.init_element_ee :
-                self.init_element_ee = True
+            self.element_force = wrench_wrist.wrench
+            if not self.init_element_force :
+                self.init_element_force = True
         finally:
-            self.lock_element_ee.release()
+            self.lock_element_force.release()
 
     def unNormalizeAngle(self, current_angle, new_angle):
         """
@@ -374,7 +374,7 @@ class HRecordEnvironment:
         frame[1, 3] = new_origin.position.y
         frame[2, 3] = new_origin.position.z
 
-        new_frame = np.dot(robot_base, arm_frame)
+        new_frame = np.dot(frame, pose_frame)
 
         new_pose = Pose()
         quaternion = tf.transformations.quaternion_from_matrix(new_frame)
@@ -418,15 +418,15 @@ class HRecordEnvironment:
         @return ret: Return the new position wroted in the file
         @tyep ret: Pose
         """
-        element_matrix = tf.transformations.quaternion_matrix(
+        element_frame = tf.transformations.quaternion_matrix(
             [element.orientation.x,
              element.orientation.y,
              element.orientation.z,
              element.orientation.w])
 
-        element_matrix[0, 3] = element.position.x
-        element_matrix[1, 3] = element.position.y
-        element_matrix[2, 3] = element.position.z
+        element_frame[0, 3] = element.position.x
+        element_frame[1, 3] = element.position.y
+        element_frame[2, 3] = element.position.z
 
         trans_matrix = tf.transformations.quaternion_matrix(
             [frame.orientation.x,
@@ -447,7 +447,7 @@ class HRecordEnvironment:
 
         new_frame = np.dot(inv_mat, element_frame)
 
-        yaw_element = tf.transformations.euler_matrix(element_matrix)[2]
+        yaw_element = tf.transformations.euler_from_matrix(element_frame)[2]
         difference = cola2_lib.normalizeAngle(yaw_element - ori)
 
         new_pose = Pose()
@@ -522,9 +522,6 @@ class HRecordEnvironment:
         diferent method to write the position of the elements in different frames.
         """
         #open files the files
-                self.file = open(self.filename + "_" +
-                         str(self.numberSample) + ".csv", 'w')
-
         file_ee_valve_0 = open("traj_ee_valve_0"+ "_" +
                                str(self.sample) + ".csv", 'w')
         file_ee_valve_1 = open("traj_ee_valve_1"+ "_" +
@@ -556,6 +553,7 @@ class HRecordEnvironment:
                                str(self.sample) + ".csv", 'w')
 
         rate = rospy.Rate(1.0/self.interval_time)
+        rospy.loginfo('Recording')
         while not rospy.is_shutdown():
             if self.init_element_auv :
                 if self.init_element_ee :
@@ -588,9 +586,9 @@ class HRecordEnvironment:
                          self.frame_panel_centre.orientation.z,
                          self.frame_panel_centre.orientation.w]
                     )
-                new_panel = np.dot(ori_panel, rot_work_around)
-                ori_work_around = tf.transformations.euler_from_matrix(
-                    new_panel)[2]
+                    new_panel = np.dot(ori_panel, rot_work_around)
+                    ori_work_around = tf.transformations.euler_from_matrix(
+                        new_panel)[2]
                     if self.init_frame_valve_0 :
                         self.store_pose_same_orgin(
                             arm_world,
@@ -623,7 +621,7 @@ class HRecordEnvironment:
                             file_ee_panel_centre)
             if self.init_element_ee :
                 #world position
-                self.store_pose(self.element_ement_auv, file_auv_world)
+                self.store_pose(self.element_auv, file_auv_world)
                 #strange work around with ori of the panel
                 rot_work_around = tf.transformations.euler_matrix(
                     0,np.pi/2.0,-np.pi/2.0)
