@@ -389,8 +389,8 @@ class HRecordEnvironment:
         new_pose.orientation.w = quaternion[3]
 
         new_pose.position.x = new_frame[0, 3]
-        new_pose.position.x = new_frame[1, 3]
-        new_pose.position.x = new_frame[2, 3]
+        new_pose.position.y = new_frame[1, 3]
+        new_pose.position.z = new_frame[2, 3]
 
         euler = tf.transformations.euler_from_matrix(new_frame)
 
@@ -463,8 +463,8 @@ class HRecordEnvironment:
         new_pose.orientation.w = quaternion[3]
 
         new_pose.position.x = new_frame[0, 3]
-        new_pose.position.x = new_frame[1, 3]
-        new_pose.position.x = new_frame[2, 3]
+        new_pose.position.y = new_frame[1, 3]
+        new_pose.position.z = new_frame[2, 3]
 
         euler = tf.transformations.euler_from_matrix(new_frame)
 
@@ -582,7 +582,7 @@ class HRecordEnvironment:
                         self.element_ee, base_pose, file_ee_auv)
                     #world position
                     arm_world = self.store_pose_same_target_orgin(
-                        self.element_ee, self.element_auv, file_ee_world)
+                        arm_base, self.element_auv, file_ee_world)
                     rot_work_around = tf.transformations.euler_matrix(
                         0,np.pi/2.0,-np.pi/2.0)
                     ori_panel = tf.transformations.quaternion_matrix(
