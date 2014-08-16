@@ -3,7 +3,7 @@ function printDemoAndReproductions
 clear all;
 close all;
 
-listSamples = [2] ;
+listSamples = [0] ;
 nbSamples = length(listSamples);
 
 % display(real_traj.data(end,11)-real_traj.data(1,11))

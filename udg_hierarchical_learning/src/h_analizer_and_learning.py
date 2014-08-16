@@ -2,14 +2,14 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_hierachical_learning')
+roslib.load_manifest('udg_hierarchical_learning')
 import rospy
 
 import numpy as np
 
 #use to load the configuration function
 from cola2_lib import cola2_ros_lib
-from udg_hierarchical_learning import learning_dmp_generic
+from learning_dmp_generic import LearningDmpGeneric
 
 class HAnalyzerAndLearning:
 
@@ -26,33 +26,33 @@ class HAnalyzerAndLearning:
         Load the configuration from the yaml file using the library
         of cola2_ros_lib
         """
-        param_dict = {'samples': '/hierarchical/analyzer/prexif_files',
-                      'prefix_files': '/hierarchical/analyzer/prexif_files',
+        param_dict = {'samples': '/hierarchical/analyzer/samples',
+                      'prefix_files': '/hierarchical/analyzer/prexif_files'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
-    def load_all_demos(self)
+    def load_all_demos(self):
         """
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
         pass
 
-    def find_break_points(self)
+    def find_break_points(self):
         """
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
         pass
 
-    def joint_sub_task(self)
+    def joint_sub_task(self):
         """
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
         pass
 
-    def learn_all_subtasks(self)
+    def learn_all_subtasks(self):
         """
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
@@ -64,7 +64,7 @@ class HAnalyzerAndLearning:
          #dmp = learning_dmp_generic(lot of parameter)
          # method to check the similariy
          #while not similar change and try again
-         #treball en paral·lel
+         #treball en parallel
         pass
 
     def run(self):
@@ -72,14 +72,33 @@ class HAnalyzerAndLearning:
         Load all the information in the different files. Compare the difference
         between them, select the time for the different sub tasks
         """
-        rospy.loginfo('Loading All Demos')
-        self.load_all_demos()
-        rospy.loginfo('Analizing the data')
-        self.find_break_points()
-        rospy.loginfo('Grup and select parameter for each subtask')
-        self.joint_sub_task()
-        rospy.loginfo('Start the Learning proces for each task')
-        self.learn_all_subtasks()
+        kP = -99
+        kV = -99
+        kP_min = 1.0
+        kP_max = 4.0
+        nb_data = 500
+        alpha = 1.0
+        states = 10
+        dof_list = [1,1,1,1,0,0,0]
+        file_name = 'traj_auv_panel_centre'
+        samples = [0,1,2,3,4,5]
+        init_time = [1408001847, 1408002303, 1408002800, 1408003170, 1408003515, 1408003918]
+        end_time = [1408001907, 1408002363, 1408002860, 1408003230, 1408003575, 1408003978]
+        output_file_name = 'traj_auv_panel_first_aprox.txt'
+
+        dmp_1 = LearningDmpGeneric(kP, kV, kP_min, kP_max, alpha, states,
+                                   dof_list, nb_data, file_name, samples,
+                                   init_time, end_time, output_file_name)
+        dmp_1.trainningDMP()
+        dmp_1.exportPlayData()
+        # rospy.loginfo('Loading All Demos')
+        # self.load_all_demos()
+        # rospy.loginfo('Analizing the data')
+        # self.find_break_points()
+        # rospy.loginfo('Grup and select parameter for each subtask')
+        # self.joint_sub_task()
+        # rospy.loginfo('Start the Learning proces for each task')
+        # self.learn_all_subtasks()
 
 if __name__ == '__main__':
     try:
@@ -93,7 +112,7 @@ if __name__ == '__main__':
         else:
             rospy.logerr("Could not locate h_analyzer_and_learning.yaml")
 
-        rospy.init_node('h_record_environment')
+        rospy.init_node('h_analizer_and_learning')
         h_analyzer_and_learning = HAnalyzerAndLearning(rospy.get_name())
         h_analyzer_and_learning.run()
     except rospy.ROSInterruptException:

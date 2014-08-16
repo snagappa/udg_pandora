@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 import numpy as np
+import math
+
+from scipy import interpolate
 
 class LearningDmpGeneric(object):
     """
@@ -8,7 +11,7 @@ class LearningDmpGeneric(object):
     from one time to the end of another time
     """
 
-    def __init__(self, kP, kV, kP_min, kP_max, alpha, states, dof, nb_data,
+    def __init__(self, kP, kV, kP_min, kP_max, alpha, states, dof_list, nb_data,
                  file_name, samples, init_time, end_time, output_file_name):
         """
         Initialize the class
@@ -17,10 +20,14 @@ class LearningDmpGeneric(object):
         self.kV = kV
         self.kP_min = kP_min
         self.kP_max = kP_max
+        if self.kP == -99.0 and self.kV == -99.0:
+            self.kP = self.kP_min + (self.kP_max - self.kP_min)/2.0
+            self.kV = 2.0*np.sqrt(self.kP)
         self.nb_data = nb_data
         self.alpha = alpha
         self.states = states
-        self.dof = dof
+        self.dof_list = dof_list
+        self.dof = np.count_nonzero(dof_list)
         self.file_name = file_name
         self.samples = samples
         self.init_time = init_time
@@ -50,7 +57,9 @@ class LearningDmpGeneric(object):
         """
         Load Demonstrations from the last point to the begining
         """
+        print 'Loading Demonstrations ' + str(self.samples) + ' :'
         for n in range(self.nb_samples):
+            print 'Loading Demonstration ' + str(n)
             ni = self.samples[n]
             logfile = open(self.file_name + "_" + str(ni) + ".csv",
                            "r").readlines()
@@ -62,16 +71,24 @@ class LearningDmpGeneric(object):
             number_data = 0.0
             for line in logfile:
                 vars_aux = np.array([])
-                for word in line.split():
-                    vars_aux = np.append(vars_aux, word)
-                if first_time == -1.0:
-                    first_time = vars_aux[-1]
-                    vars_aux = np.delete(vars_aux, -1)
-                else:
-                    last_time = vars_aux[-1]
-                    vars_aux = np.delete(vars_aux, -1)
-                number_data += 1.0
-                vars = np.vstack((vars, vars_aux))
+                counter = 0
+                time = float(line.split()[0])
+
+                if time >= self.init_time[n] and time <= self.end_time[n] :
+                    for word in line.split():
+                        if counter == 0 or self.dof_list[counter-1] == 1 :
+                            vars_aux = np.append(vars_aux, word)
+                        counter += 1
+                    if first_time == -1.0:
+                        first_time = vars_aux[0]
+                        vars_aux = np.delete(vars_aux, 0)
+                    else:
+                        last_time = vars_aux[0]
+                        vars_aux = np.delete(vars_aux, 0)
+                    number_data += 1.0
+                    vars = np.vstack((vars, vars_aux))
+                elif time > self.end_time[n]:
+                    break
 
             vars = np.vsplit(vars, [1])[1]
             nbDataTmp = vars.shape[0]-1
@@ -122,7 +139,7 @@ class LearningDmpGeneric(object):
                                [self.states, 1, 1])
 
     def trainningDMP(self):
-        rospy.loginfo('Learning DMP ...')
+        print 'Learning DMP ...'
         #compute weights
         s = 1
         #Initialization of decay term
@@ -139,7 +156,7 @@ class LearningDmpGeneric(object):
                 h[i] = self.gaussPDF(t, self.mu_t[i], self.sigma_t[i, 0, 0])
 #Normalization
             H[n, :] = h/np.sum(h)
-        rospy.loginfo('Avg Time ' + str(self.avg_dt*self.nb_data))
+        print 'Avg Time ' + str(self.avg_dt*self.nb_data)
         #tile equivalent to repmat of matlab
         # Repeat the process for each demonstration
             #rospy.loginfo('Time ' + str(t))
@@ -148,13 +165,12 @@ class LearningDmpGeneric(object):
         #Batch least norm solution to find the centers of the states
 #(or primitives) Mu_X (Y=Mu_x*H')
         #         acc                          pos             vel
-        #rospy.loginfo('Shape' + str(np.shape(self.Data[self.nb_var*2:self.nb_var*3, :])) + '\nValues of nVar ' + str(self.Data[self.nb_var*2:self.nb_var*3, :]))
-        Y = np.zeros(shape=(self.nb_var,
+        Y = np.zeros(shape=(self.dof,
                             self.nb_samples*self.nb_data))
-        for i in range(self.nb_var):
-            Y[i,:] = (self.Data[(i+self.dof*2), :]*(1/self.kP[i]) +
+        for i in range(self.dof):
+            Y[i,:] = (self.Data[(i+self.dof*2), :]*(1/self.kP) +
                       self.Data[i, :] +
-                      self.Data[(i+self.dof), :]*(self.kV[i]/self.kP[i]))
+                      self.Data[(i+self.dof), :]*(self.kV/self.kP))
 
         # Y = (self.Data[self.nb_var*2:self.nb_var*3, :]*(1/self.kP) +
         #      self.Data[0:self.nb_var, :] +
@@ -193,7 +209,7 @@ class LearningDmpGeneric(object):
 #        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n')
 
         #Rescale Wp to stay within the [kPmin,kPmax] range
-        V = np.zeros(shape=(self.states, self.dof, self.nb_var))
+        V = np.zeros(shape=(self.states, self.dof, self.dof))
         lambda_var = np.zeros(shape=(self.dof, self.states))
 #        rospy.loginfo( 'Values of Wp \n' + str(self.Wp) + '\n' )
         for i in range(self.states):
@@ -223,7 +239,50 @@ class LearningDmpGeneric(object):
 
         #rospy.loginfo('\nValues Wp \n ' + str(self.Wp) + '\n' )
 
-        rospy.loginfo('Learning finished successfully')
+        print 'Learning finished successfully'
+
+    def gaussPDF(self, Data, Mu, Sigma):
+###     This function computes the Probability Density Function (PDF) of a
+###     multivariate Gaussian represented by means and covariance matrix.
+###
+###     Author:	Sylvain Calinon, 2009
+###             http://programming-by-demonstration.org
+###
+###     Inputs ---------------------------------------------------------------
+###      o Data:  D x N array representing N datapoints of D dimensions.
+###      o Mu:    D x K array representing the centers of the K GMM components.
+###      o Sigma: D x D x K array representing the covariance matrices of the
+###                  K GMM components.
+###     Outputs --------------------------------------------------------------
+###         o prob:  1 x N array representing the probabilities for the
+###                  N datapoints.
+        if np.shape(Data) == ():
+            nbVar = 1
+            nbData = 1
+            #Data = Data' - repmat(Mu',nbData,1);
+            Data = Data - np.tile(Mu, (nbData, 1))
+            prob = (Data*(1/Sigma)) * Data
+            prob = (math.exp(-0.5*prob) /
+                    math.sqrt(np.power((2*math.pi), nbVar) *
+                              (abs(Sigma)+np.finfo(np.double).tiny)))
+            return prob
+
+        else:
+            [nbVar, nbData] = np.shape(Data)
+            #Data = Data' - repmat(Mu',nbData,1);
+            Data = Data.T - np.tile(Mu.T, (nbData, 1))
+            prob = np.sum(np.dot(Data, np.linalg.inv(Sigma)) * Data, axis=1)
+            prob = (math.exp(-0.5*prob) /
+                    math.sqrt(np.power((2*math.pi), nbVar) *
+                              (abs(np.linalg.det(Sigma)) +
+                               np.finfo(np.double).tiny)))
+            return prob
+#        Data = Data.T - np.tile(Mu.T,(nbData,1))
+        #prob = sum((Data*inv(Sigma)).*Data, 2);
+#        prob = np.sum( np.dot(Data,np.linalg.inv(Sigma)) * Data, axis=1)
+        #realmin = np.finfo(np.double).tiny
+#prob = math.exp(-0.5*prob) / math.sqrt((2*math.pi)^nbVar *
+#(abs(np.linalg.det(Sigma))+np.finfo(np.double).tiny))
 
     def exportPlayData(self):
         """
@@ -232,13 +291,11 @@ class LearningDmpGeneric(object):
         file = open(self.output_file_name, 'w')
 
         file.write('kV\n')
-        for j in self.kV:
-            file.write(str(j)+' ')
+        file.write(str(self.kV)+' ')
         file.write('\n\n')
 
         file.write('kP\n')
-        for j in self.kP:
-            file.write(str(j)+' ')
+        file.write(str(self.kP)+' ')
         file.write('\n\n')
 
         file.write('Mu_t\n')
@@ -272,8 +329,8 @@ class LearningDmpGeneric(object):
             file.write('\n')
 
         file.close()
-        rospy.loginfo('The parameters learned has been exported to '
-                      + self.output_file_name)
+        print ('The parameters learned has been exported to '
+               + self.output_file_name)
 
     def __del__(self):
-        print 'Destroy everything'
+        print 'Mission Accomplish, Good bye'
