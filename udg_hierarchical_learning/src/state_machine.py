@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-class State(objet):
+class State(object):
 
     def __init__(self, name, transition, condition, type_dmp, machine_files):
         self.name = name

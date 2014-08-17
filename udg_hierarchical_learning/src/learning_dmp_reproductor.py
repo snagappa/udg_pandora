@@ -4,15 +4,16 @@ import numpy as np
 import math
 
 #use to normalize the angle
+# ULLL
 from cola2_lib import cola2_lib
 
 class LearningDmpReproductor(object):
 
-    def __init__(self, name, file_name, alpha, interval_time ):
+    def __init__(self, name, file_name, dof, alpha, interval_time ):
         self.name = name
         self.file_name = file_name
         self.interval_time = interval_time
-        self.dof = 0
+        self.dof = dof
         self.states = 0
         self.kV = 0
         self.kP = 0
@@ -38,22 +39,11 @@ class LearningDmpReproductor(object):
             if logfile[i] == 'kV':
                 i += 1
                 # Individual KV
-                aux = logfile[i].split(' ')
-                self.kV = np.zeros(self.dof)
-                for j in xrange(self.dof):
-                    self.kV[j] = float(aux[j])
-                # Colective KV
-                # self.kV = float(logfile[i])
+                self.kV = float(logfile[i])
             elif logfile[i] == 'kP':
                 i += 1
                 # Individual KV
-                aux = logfile[i].split(' ')
-                self.dof = len(aux)
-                self.kP = np.zeros(self.dof)
-                for j in xrange(self.dof):
-                    self.kP[j] = float(aux[j])
-                # Colective KP
-                # self.kP = float(logfile[i])
+                self.kP = float(logfile[i])
             elif logfile[i] == 'Mu_t':
                 i += 1
                 aux = logfile[i].split(' ')
@@ -67,7 +57,7 @@ class LearningDmpReproductor(object):
                 for j in xrange(self.states):
                     self.Sigma_t[j] = float(logfile[i])
                     i += 2
-            elif logfile[i] == 'Mu_x':
+            elif logfile[i] == 'mu_x':
                 i += 1
                 self.Mu_x = np.zeros(shape=(self.dof, self.states))
                 for k in xrange(self.dof):
@@ -110,7 +100,7 @@ class LearningDmpReproductor(object):
             print 'The time used in the demonstration is exhausted'
             #self.enabled = False
             self.s = 1.0
-            return []
+            return [[],[]]
         else:
             h = h / np.sum(h)
 
@@ -136,9 +126,8 @@ class LearningDmpReproductor(object):
 
         #rospy.loginfo('Kv ' + str(self.kV.tolist()))
         desAcc = np.dot(
-            currWp, diff) - (self.kV*current_vel)
+            currWp, diff) - np.dot(self.kV, current_vel)
         # action is a scalar value to evaluate the safety
-        desAcc = self.desAcc #* math.fabs(self.action)
         #rospy.loginfo('Des Acc' + str(self.desAcc))
 
         desVel = current_vel + desAcc * self.interval_time
@@ -147,7 +136,7 @@ class LearningDmpReproductor(object):
 
         self.s = self.s - self.alpha*self.s*self.interval_time*self.action#*1.5
 
-        return [desVel, desPos]
+        return [desPos, desVel]
 
     def gaussPDF(self, Data, Mu, Sigma):
 ###     This function computes the Probability Density Function (PDF) of a

@@ -2,7 +2,7 @@
 
 # ROS imports
 import roslib
-roslib.load_manifest('udg_hierachical_learning')
+roslib.load_manifest('udg_hierarchical_learning')
 import rospy
 
 import numpy as np
@@ -10,8 +10,8 @@ import numpy as np
 #use to load the configuration function
 from cola2_lib import cola2_ros_lib
 
-from udg_hierarchical_learning import state_machine
-from udg_hierarchical_learning import learning_dmp_reproductor
+from state_machine import StateMachine
+from learning_dmp_reproductor import LearningDmpReproductor
 
 class HReproductor:
 
@@ -21,7 +21,7 @@ class HReproductor:
         """
         self.name = name
         self.get_config()
-        self.state_machine = self.load_state_machine(sm_file)
+        #self.state_machine = self.load_state_machine(sm_file)
         rospy.loginfo('Configuration Loaded')
 
     def get_config(self):
@@ -30,7 +30,7 @@ class HReproductor:
         of cola2_ros_lib
         """
         param_dict = {'sm_file': '/hierarchical/reproductor/sm_file',
-                      'interval_time': 'hierarchical/reproductor/interval_time'
+                      'interval_time': '/hierarchical/reproductor/interval_time'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -38,17 +38,49 @@ class HReproductor:
         """
         Load the state machine parameter
         """
-        return StateMachine()
+        pass
+        # return StateMachine()
+
 
     def run(self):
         """
         Use the state machine to reproduce the action
         """
         rate = rospy.Rate(1.0/self.interval_time)
+        dmp_1 = LearningDmpReproductor(
+            'Approach',
+            'traj_auv_panel_first_aprox.txt',
+            4,
+            1.0,
+            self.interval_time)
+        current_pose = [0.0 , 1.0, 4.5, 0.0]
+        current_vel = [0.0 , 0.0, 0.0, 0.0]
+        file_sim = open("traj_simulated.csv", 'w')
+        line = (repr(rospy.get_time()) + " " +
+                repr(current_pose[0]) + " " +
+                repr(current_pose[1]) + " " +
+                repr(current_pose[2]) + " " +
+                repr(current_pose[3]) + "\n")
+        file_sim.write(line)
+        print 'Running!!!'
         while not rospy.is_shutdown():
-            self.lock.release()
-
-
+            [desPos, desVel] = dmp_1.generateNewPose(
+                current_pose, current_vel)
+            #if empty
+            #print 'desPos ' + str(desPos)
+            #print 'desVel ' + str(desVel)
+            if len(desPos) == 0:
+                break
+            current_pose = desPos
+            current_vel = desVel
+            line = (repr(rospy.get_time()) + " " +
+                    repr(current_pose[0]) + " " +
+                    repr(current_pose[1]) + " " +
+                    repr(current_pose[2]) + " " +
+                    repr(current_pose[3]) + "\n")
+            file_sim.write(line)
+            rate.sleep()
+        file_sim.close()
 
 if __name__ == '__main__':
     try:
@@ -63,7 +95,7 @@ if __name__ == '__main__':
             rospy.logerr("Could not locate h_reproductor.yaml")
 
         rospy.init_node('h_reproductor')
-        h_reproducto = HReproductior(rospy.get_name())
-        h_analyzer_and_learning.run()
+        h_reproductor = HReproductor(rospy.get_name())
+        h_reproductor.run()
     except rospy.ROSInterruptException:
         pass
