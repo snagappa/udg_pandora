@@ -33,6 +33,9 @@ for n=1:nbSamples
     plot(sample.data(:,4), sample.data(:,2),'color',[0,0,1]) ;
 end
 
+sim_traj = importdata(['traj_simulated.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,4), sim_traj.data(:,2),'color',[1,0,0]) ;
+
 hold off;
 
 subplot(3,1,2)
@@ -59,6 +62,11 @@ for n=1:nbSamples
     plot(sample.data(:,4), sample.data(:,3),'color',[0,0,1]) ;
 end
 
+sim_traj = importdata(['traj_simulated.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,4), sim_traj.data(:,3),'color',[1,0,0]) ;
+
+hold off
+
 
 subplot(3,1,3)
 hold on ;
@@ -71,8 +79,12 @@ grid on;
 for n=1:nbSamples
     ni = listSamples(n) ;
     sample = importdata(['traj_auv_panel_centre_' num2str(ni,'%2d') '.csv' ], ' ', 1) ;
-    plot(sample.data(:,1), sample.data(:,5),'color',[0,0,1]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,5),'color',[0,0,1]) ;
 end
+
+sim_traj = importdata(['traj_simulated.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,1)-sim_traj.data(1,1), sim_traj.data(:,5),'color',[1,0,0]) ;
+
 hold off
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -701,18 +713,88 @@ hold off
 
 figure()
 hold on ;
+title('AUV vs world')
+xlabel( 'Time (s)', 'FontSize',20)
+ylabel( 'Distance (m)', 'FontSize',20)
+grid on;
+
+
+for n=1:nbSamples
+    ni = listSamples(n) ;
+    sample = importdata(['traj_auv_world_' num2str(ni,'%2d') '.csv' ], ' ', 1) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,2),'color',[1,0,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'color',[0,1,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'color',[0,0,1]) ;
+end
+hold off
+
+figure()
+hold on ;
+title('EE vs world')
+xlabel( 'Time (s)', 'FontSize',20)
+ylabel( 'Distance (m)', 'FontSize',20)
+grid on;
+
+
+for n=1:nbSamples
+    ni = listSamples(n) ;
+    sample = importdata(['traj_ee_world_' num2str(ni,'%2d') '.csv' ], ' ', 1) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,2),'color',[1,0,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'color',[0,1,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'color',[0,0,1]) ;
+end
+hold off
+
+figure()
+hold on ;
+title('EE vs AUV')
+xlabel( 'Time (s)', 'FontSize',20)
+ylabel( 'Distance (m)', 'FontSize',20)
+grid on;
+
+
+for n=1:nbSamples
+    ni = listSamples(n) ;
+    sample = importdata(['traj_ee_auv_' num2str(ni,'%2d') '.csv' ], ' ', 1) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,2),'color',[1,0,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'color',[0,1,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'color',[0,0,1]) ;
+end
+hold off
+
+
+figure()
+hold on ;
 title('Force')
 xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Force X (Newton)', 'FontSize',20)
+ylabel( 'Force (Newton)', 'FontSize',20)
 grid on;
 
 
 for n=1:nbSamples
     ni = listSamples(n) ;
     sample = importdata(['force_world_' num2str(ni,'%2d') '.csv' ], ' ', 1) ;
-    plot(sample.data(:,1), sample.data(:,2),'color',[1,0,0]) ;
-    plot(sample.data(:,1), sample.data(:,3),'color',[0,1,0]) ;
-    plot(sample.data(:,1), sample.data(:,4),'color',[0,0,1]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,2),'color',[1,0,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'color',[0,1,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'color',[0,0,1]) ;
+end
+hold off
+
+
+figure()
+hold on ;
+title('Torque')
+xlabel( 'Time (s)', 'FontSize',20)
+ylabel( 'Torque (Newton)', 'FontSize',20)
+grid on;
+
+
+for n=1:nbSamples
+    ni = listSamples(n) ;
+    sample = importdata(['force_world_' num2str(ni,'%2d') '.csv' ], ' ', 1) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,5),'color',[1,0,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,6),'color',[0,1,0]) ;
+    plot(sample.data(:,1)-sample.data(1,1), sample.data(:,7),'color',[0,0,1]) ;
 end
 hold off
 
