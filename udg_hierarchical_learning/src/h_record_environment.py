@@ -11,13 +11,11 @@ from cola2_lib import cola2_ros_lib
 #use to normalize the angle
 from cola2_lib import cola2_lib
 #import cola2_lib
+
 #include "geometry_msgs/PoseStamped.h"
 from geometry_msgs.msg import PoseStamped
-#include message of the ekf giving the valve position
-#from geometry_msgs.msg import PoseWithCovarianceStamped
 #include message of the ekf giving the position of the robot
 from nav_msgs.msg import Odometry
-
 #include message of the pose_ekf_slam.
 from pose_ekf_slam.msg import Map
 #include message for the pose of the landmark
@@ -563,28 +561,106 @@ class HRecordEnvironment:
             if self.init_element_ee :
                 if self.init_element_auv :
                     # Convert EE to the AUV frame
-                    base_pose = Pose()
-                    quaterninon = tf.transformations.quaternion_from_euler(
-                        self.base_ori[0],
-                        self.base_ori[1],
-                        self.base_ori[2])
+                    self.lock_element_ee.aquire()
+                    self.lock_element_auv.aquire()
+                    try:
+                        base_pose = Pose()
+                        quaterninon = tf.transformations.quaternion_from_euler(
+                            self.base_ori[0],
+                            self.base_ori[1],
+                            self.base_ori[2])
 
-                    base_pose.orientation.x = quaterninon[0]
-                    base_pose.orientation.y = quaterninon[1]
-                    base_pose.orientation.z = quaterninon[2]
-                    base_pose.orientation.w = quaterninon[3]
+                        base_pose.orientation.x = quaterninon[0]
+                        base_pose.orientation.y = quaterninon[1]
+                        base_pose.orientation.z = quaterninon[2]
+                        base_pose.orientation.w = quaterninon[3]
 
-                    base_pose.position.x = self.base_pose[0]
-                    base_pose.position.y = self.base_pose[1]
-                    base_pose.position.z = self.base_pose[2]
+                        base_pose.position.x = self.base_pose[0]
+                        base_pose.position.y = self.base_pose[1]
+                        base_pose.position.z = self.base_pose[2]
 
-                    arm_base = self.store_pose_same_target_orgin(
-                        self.element_ee, base_pose, file_ee_auv)
-                    #world position
-                    arm_world = self.store_pose_same_target_orgin(
-                        arm_base, self.element_auv, file_ee_world)
-                    rot_work_around = tf.transformations.euler_matrix(
-                        0,np.pi/2.0,-np.pi/2.0)
+                        arm_base = self.store_pose_same_target_orgin(
+                            self.element_ee, base_pose, file_ee_auv)
+                        #world position
+                        arm_world = self.store_pose_same_target_orgin(
+                            arm_base, self.element_auv, file_ee_world)
+                        rot_work_around = tf.transformations.euler_matrix(
+                            0,np.pi/2.0,-np.pi/2.0)
+                        ori_panel = tf.transformations.quaternion_matrix(
+                            [self.frame_panel_centre.orientation.x,
+                             self.frame_panel_centre.orientation.y,
+                             self.frame_panel_centre.orientation.z,
+                             self.frame_panel_centre.orientation.w]
+                        )
+                        new_panel = np.dot(ori_panel, rot_work_around)
+                        ori_work_around = tf.transformations.euler_from_matrix(
+                            new_panel)[2]
+                    finally:
+                        self.lock_element_auv.release()
+                        self.lock_element_ee.release()
+                    if self.init_frame_valve_0 :
+                        self.lock_frame_valve_0.acquire()
+                        try:
+                            self.store_pose_same_orgin(
+                                arm_world,
+                                self.frame_valve_0,
+                                self.frame_valve_0_handle,
+                                file_ee_valve_0)
+                        finally:
+                            self.lock_frame_valve_0.release()
+                    if self.init_frame_valve_1 :
+                        self.lock_frame_valve_1.acquire()
+                        try:
+                            self.store_pose_same_orgin(
+                                arm_world,
+                                self.frame_valve_1,
+                                self.frame_valve_1_handle,
+                                file_ee_valve_1)
+                        finally:
+                            self.lock_frame_valve_1.release()
+                    if self.init_frame_valve_2 :
+                        self.lock_frame_valve_2.acquire()
+                        try:
+                            self.store_pose_same_orgin(
+                                arm_world,
+                                self.frame_valve_2,
+                                self.frame_valve_2_handle,
+                                file_ee_valve_2)
+                        finally:
+                            self.lock_frame_valve_2.release()
+                    if self.init_frame_valve_3 :
+                        self.lock_frame_valve_3.acquire()
+                        try:
+                            self.store_pose_same_orgin(
+                                arm_world,
+                                self.frame_valve_3,
+                                self.frame_valve_2_handle,
+                                file_ee_valve_3)
+                        finally:
+                            self.lock_frame_valve_3.release()
+                    if self.init_frame_panel_centre :
+                        self.lock_frame_panel_centre.acquire()
+                        try:
+                            self.store_pose_same_orgin(
+                                arm_world,
+                                self.frame_panel_centre,
+                                ori_work_around,
+                                file_ee_panel_centre)
+                        finally:
+                            self.lock_frame_panel_centre.release()
+            if self.init_element_auv :
+                #world position
+                self.lock_element_auv.acquire()
+                try:
+                    self.store_pose(self.element_auv, file_auv_world)
+                    element_auv = self.element_auv
+                finally:
+                    self.lock_element_auv.release()
+                #strange work around with ori of the panel
+                rot_work_around = tf.transformations.euler_matrix(
+                    0,np.pi/2.0,-np.pi/2.0)
+                self.lock_frame_panel_centre.acquire()
+                try:
                     ori_panel = tf.transformations.quaternion_matrix(
                         [self.frame_panel_centre.orientation.x,
                          self.frame_panel_centre.orientation.y,
@@ -594,83 +670,65 @@ class HRecordEnvironment:
                     new_panel = np.dot(ori_panel, rot_work_around)
                     ori_work_around = tf.transformations.euler_from_matrix(
                         new_panel)[2]
-                    if self.init_frame_valve_0 :
+                finally:
+                    self.lock_frame_panel_centre.release()
+
+                if self.init_frame_valve_0 :
+                    self.lock_frame_valve_0.acquire()
+                    try:
                         self.store_pose_same_orgin(
-                            arm_world,
+                            element_auv,
                             self.frame_valve_0,
-                            self.frame_valve_0_handle,
-                            file_ee_valve_0)
-                    if self.init_frame_valve_1 :
+                            ori_work_around,
+                            file_auv_valve_0)
+                    finally:
+                        self.lock_frame_valve_0.release()
+                if self.init_frame_valve_1 :
+                    self.lock_frame_valve_1.acquire()
+                    try:
                         self.store_pose_same_orgin(
-                            arm_world,
+                            element_auv,
                             self.frame_valve_1,
-                            self.frame_valve_1_handle,
-                            file_ee_valve_1)
-                    if self.init_frame_valve_2 :
+                            ori_work_around,
+                            file_auv_valve_1)
+                    finally:
+                        self.lock_frame_valve_1.release()
+                if self.init_frame_valve_2 :
+                    self.lock_frame_valve_2.acquire()
+                    try:
                         self.store_pose_same_orgin(
-                            arm_world,
+                            element_auv,
                             self.frame_valve_2,
-                            self.frame_valve_2_handle,
-                            file_ee_valve_2)
-                    if self.init_frame_valve_3 :
+                            ori_work_around,
+                            file_auv_valve_2)
+                    finally:
+                        self.lock_frame_valve_2.release()
+                if self.init_frame_valve_3 :
+                    self.lock_frame_valve_3.acquire()
+                    try:
                         self.store_pose_same_orgin(
-                            arm_world,
+                            element_auv,
                             self.frame_valve_3,
-                            self.frame_valve_2_handle,
-                            file_ee_valve_3)
-                    if self.init_frame_panel_centre :
+                            ori_work_around,
+                            file_auv_valve_3)
+                    finally:
+                        self.lock_frame_valve_3.release()
+                if self.init_frame_panel_centre :
+                    self.lock_frame_panel_centre.acquire()
+                    try:
                         self.store_pose_same_orgin(
-                            arm_world,
+                            element_auv,
                             self.frame_panel_centre,
                             ori_work_around,
-                            file_ee_panel_centre)
-            if self.init_element_auv :
-                #world position
-                self.store_pose(self.element_auv, file_auv_world)
-                #strange work around with ori of the panel
-                rot_work_around = tf.transformations.euler_matrix(
-                    0,np.pi/2.0,-np.pi/2.0)
-                ori_panel = tf.transformations.quaternion_matrix(
-                    [self.frame_panel_centre.orientation.x,
-                     self.frame_panel_centre.orientation.y,
-                     self.frame_panel_centre.orientation.z,
-                     self.frame_panel_centre.orientation.w]
-                )
-                new_panel = np.dot(ori_panel, rot_work_around)
-                ori_work_around = tf.transformations.euler_from_matrix(
-                    new_panel)[2]
-                if self.init_frame_valve_0 :
-                    self.store_pose_same_orgin(
-                        self.element_auv,
-                        self.frame_valve_0,
-                        ori_work_around,
-                        file_auv_valve_0)
-                if self.init_frame_valve_1 :
-                    self.store_pose_same_orgin(
-                        self.element_auv,
-                        self.frame_valve_1,
-                        ori_work_around,
-                        file_auv_valve_1)
-                if self.init_frame_valve_2 :
-                    self.store_pose_same_orgin(
-                        self.element_auv,
-                        self.frame_valve_2,
-                        ori_work_around,
-                        file_auv_valve_2)
-                if self.init_frame_valve_3 :
-                    self.store_pose_same_orgin(
-                        self.element_auv,
-                        self.frame_valve_3,
-                        ori_work_around,
-                        file_auv_valve_3)
-                if self.init_frame_panel_centre :
-                    self.store_pose_same_orgin(
-                        self.element_auv,
-                        self.frame_panel_centre,
-                        ori_work_around,
-                        file_auv_panel_centre)
+                            file_auv_panel_centre)
+                    finally:
+                        self.lock_frame_panel_centre.release()
             if self.init_element_force :
-                self.store_force(self.element_force, file_force_world)
+                self.lock_element_force.acquire()
+                try:
+                    self.store_force(self.element_force, file_force_world)
+                finally:
+                    self.lock_element_force.release()
             rate.sleep()
         #close files
         file_ee_valve_0.close()
