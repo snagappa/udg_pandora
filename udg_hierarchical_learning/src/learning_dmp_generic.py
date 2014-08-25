@@ -65,7 +65,8 @@ class LearningDmpGeneric(object):
                 logfile = open(self.file_name + "_" + str(ni) + ".csv",
                                "r").readlines()
             else:
-                logfile = open(self.file_name[ni] + "_" + str(ni) + ".csv",
+                #print 'Name ' + str()
+                logfile = open(self.file_name[n] + "_" + str(ni) + ".csv",
                                "r").readlines()
             # vars = np.zeros((1, self.nbVar))
             # Added the time to the var
