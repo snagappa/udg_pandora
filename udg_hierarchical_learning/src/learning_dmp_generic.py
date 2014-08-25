@@ -61,8 +61,12 @@ class LearningDmpGeneric(object):
         for n in range(self.nb_samples):
             print 'Loading Demonstration ' + str(n)
             ni = self.samples[n]
-            logfile = open(self.file_name + "_" + str(ni) + ".csv",
-                           "r").readlines()
+            if type(self.file_name) is str:
+                logfile = open(self.file_name + "_" + str(ni) + ".csv",
+                               "r").readlines()
+            else:
+                logfile = open(self.file_name[ni] + "_" + str(ni) + ".csv",
+                               "r").readlines()
             # vars = np.zeros((1, self.nbVar))
             # Added the time to the var
             vars = np.zeros((1, self.dof))
