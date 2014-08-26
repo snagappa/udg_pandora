@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<scxml version="1.0" datamodel="ecmascript" initial="auv_to_panel">
+
+<state id="auv_to_panel">
+    <invoke src="traj_auv_panel_aprox.txt" type="dmp_auv">
+        <frame>panel_centre</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <invoke src="des_pos_arm.txt" type="ee_pose" frame="auv">
+        <frame>auv</frame>
+    </invoke>
+    <transition event="finish_dmp" target="unfolding_arm"/>
+</state>
+
+<state id="unfolding_arm">
+    <invoke src="traj_ee_auv_unfolding.txt" type="dmp_ee">
+        <frame>auv</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <invoke src="des_pos_auv.txt" type="auv_pose">
+        <frame>panel</frame>
+    </invoke>
+    <transition event="finish_dmp" target="grasping_valve"/>
+</state>
+
+<state id="grasping_valve">
+    <invoke src="traj_auv_valve_grasping.txt" type="dmp_auv">
+        <frame>valve</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <invoke src="traj_ee_valve_grasping.txt" type="dmp_ee">
+        <frame>valve</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <!-- <transition event="finish_all_dmp" target="valve_turning"/> -->
+    <transition event="finish_all_dmp" target="auv_out"/>
+</state>
+
+<!--<state id="valve_turning">
+    <invoke src="turning_valve.txt" type="dmp_force">
+        <frame>world</frame>
+        <dof>6</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <transition event="finish_dmp" target="auv_out"/>
+</state>-->
+
+<state id="auv_out">
+    <invoke src="traj_auv_valve_moving_out.txt" type="dmp_auv">
+        <frame>valve</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <invoke src="des_pos_arm.txt" type="ee_pose">
+        <frame>auv</frame>
+    </invoke>
+    <transition event="finish_dmp" target="folding_arm"/>
+</state>
+
+<state id="folding_arm">
+    <invoke src="traj_ee_folding.txt" type="dmp_ee">
+        <frame>auv</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <invoke src="des_pos_auv.txt" type="auv_pose">
+        <frame>panel_centre</frame>
+    </invoke>
+    <transition event="finish_dmp" target="moving_out"/>
+</state>
+
+<state id="moving_out">
+    <invoke src="traj_auv_valve_moving_out.txt" type="dmp_auv" >
+        <frame>world</frame>
+        <dof>4</dof>
+        <alpha>1.0</alpha>
+    </invoke>
+    <invoke src="des_pos_arm.txt" type="ee_pose">
+        <frame>auv</frame>
+    </invoke>
+</state>
+
+</scxml>
