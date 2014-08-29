@@ -1,2 +1,5 @@
-/hierarchical/reproductor/sm_file : /pose_ekf_slam/landmark_update/panel_centre
+/hierarchical/reproductor/sm_file : valve_turning.scxml
 /hierarchical/reproductor/interval_time : 0.1
+/hierarchical/reproductor/simulation : True
+/hierarchical/reproductor/enabled : True
+/hierarchical/reproductor/goal_valve : 2

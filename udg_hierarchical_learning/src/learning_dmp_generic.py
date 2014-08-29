@@ -333,6 +333,11 @@ class LearningDmpGeneric(object):
                 file.write('\n')
             file.write('\n')
 
+        file.write('Dofs\n')
+        for j in self.dof:
+            file.write(str(j) + ' ')
+        file.write('\n\n')
+
         file.close()
         print ('The parameters learned has been exported to '
                + self.output_file_name)

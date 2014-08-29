@@ -73,7 +73,6 @@ class HRecordEnvironment:
         self.init_frame_valve_3 = False
         self.init_frame_panel_centre = False
 
-
         rospy.Subscriber("/arm/pose_stamped",
                          PoseStamped,
                          self.update_element_ee,
@@ -634,7 +633,7 @@ class HRecordEnvironment:
                             self.store_pose_same_orgin(
                                 arm_world,
                                 self.frame_valve_3,
-                                self.frame_valve_2_handle,
+                                self.frame_valve_3_handle,
                                 file_ee_valve_3)
                         finally:
                             self.lock_frame_valve_3.release()

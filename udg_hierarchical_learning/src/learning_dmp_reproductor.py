@@ -76,6 +76,13 @@ class LearningDmpReproductor(object):
                             self.Wp[z, k, j] = float(aux[j])
                         i += 1
                     i += 1
+            elif logfile[i] == 'Dofs':
+                i += 1
+                aux = logfile[i].split(' ')
+                length = len(aux)
+                self.dofs = np.zeros(length)
+                for j in xrange(length):
+                    self.dofs[j] = int(aux[j])
             else:
                 pass
 
@@ -121,18 +128,21 @@ class LearningDmpReproductor(object):
         #Compute acceleration
         #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
 
-        diff = currTar-current_pose
+        #Current pose has to bee a np array
+        selected_pose = current_pose[self.dofs]
+        selected_vel = current_vel[self.dofs]
+        diff = currTar-selected_pose
         diff[3] = cola2_lib.normalizeAngle(diff[3])
 
         #rospy.loginfo('Kv ' + str(self.kV.tolist()))
         desAcc = np.dot(
-            currWp, diff) - np.dot(self.kV, current_vel)
+            currWp, diff) - np.dot(self.kV, selected_vel)
         # action is a scalar value to evaluate the safety
         #rospy.loginfo('Des Acc' + str(self.desAcc))
 
-        desVel = current_vel + desAcc * self.interval_time
+        desVel = selected_vel + desAcc * self.interval_time
         #NOT needed
-        desPos = current_pose + desVel * self.interval_time
+        desPos = selected_pose + desVel * self.interval_time
 
         self.s = self.s - self.alpha*self.s*self.interval_time*self.action#*1.5
 

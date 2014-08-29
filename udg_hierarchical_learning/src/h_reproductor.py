@@ -46,7 +46,6 @@ class HReproductor:
         #TODO: Think to do it in exernal structure
         # Or external class can be reused for the record
         # Now is a copy paste
-        self.goalPose = Pose()
         self.element_auv = Pose()
         self.element_ee = Pose()
         self.element_force = Wrench()
@@ -65,66 +64,167 @@ class HReproductor:
         self.lock_element_ee = threading.Lock()
         self.lock_element_force = threading.Lock()
 
+        #TODO: fer-ho amb un vector ???
         self.lock_frame_valve_0 = threading.Lock()
         self.lock_frame_valve_1 = threading.Lock()
         self.lock_frame_valve_2 = threading.Lock()
         self.lock_frame_valve_3 = threading.Lock()
         self.lock_frame_panel_centre = threading.Lock()
 
-        self.init_element_auv = False
-        self.init_element_ee = False
-        self.init_element_force = False
-        self.init_frame_valve_0 = False
-        self.init_frame_valve_1 = False
-        self.init_frame_valve_2 = False
-        self.init_frame_valve_3 = False
-        self.init_frame_panel_centre = False
-        # ************** End of vars *****************
-        # ************** Subscriber ******************
-        rospy.Subscriber("/arm/pose_stamped",
-                         PoseStamped,
-                         self.update_element_ee,
-                         queue_size = 1)
+        if not self.simulation:
+            self.init_element_auv = False
+            self.init_element_ee = False
+            self.init_element_force = False
+            self.init_frame_valve_0 = False
+            self.init_frame_valve_1 = False
+            self.init_frame_valve_2 = False
+            self.init_frame_valve_3 = False
+            self.init_frame_panel_centre = False
+            # ************** End of vars *****************
+            # ************** Subscriber ******************
+            rospy.Subscriber("/arm/pose_stamped",
+                             PoseStamped,
+                             self.update_element_ee,
+                             queue_size = 1)
 
-        rospy.Subscriber("/pose_ekf_slam/odometry",
-                         Odometry,
-                         self.update_element_auv,
-                         queue_size = 1)
+            rospy.Subscriber("/pose_ekf_slam/odometry",
+                             Odometry,
+                             self.update_element_auv,
+                             queue_size = 1)
 
-        rospy.Subscriber("/force_torque_controller/wrench_stamped",
-                         WrenchStamped,
-                         self.update_element_force,
-                         queue_size = 1)
+            rospy.Subscriber("/force_torque_controller/wrench_stamped",
+                             WrenchStamped,
+                             self.update_element_force,
+                             queue_size = 1)
 
-        rospy.Subscriber("/valve_tracker/valve0",
-                         PoseWithCovarianceStamped,
-                         self.update_frame_valve_0,
-                         queue_size = 1)
+            #TODO: fer-ho amb un for fer la funcio generica pas de parametre
+            rospy.Subscriber("/valve_tracker/valve0",
+                             PoseWithCovarianceStamped,
+                             self.update_frame_valve_0,
+                             queue_size = 1)
 
-        rospy.Subscriber("/valve_tracker/valve1",
-                         PoseWithCovarianceStamped,
-                         self.update_frame_valve_1,
-                         queue_size = 1)
+            rospy.Subscriber("/valve_tracker/valve1",
+                             PoseWithCovarianceStamped,
+                             self.update_frame_valve_1,
+                             queue_size = 1)
 
-        rospy.Subscriber("/valve_tracker/valve2",
-                         PoseWithCovarianceStamped,
-                         self.update_frame_valve_2,
-                         queue_size = 1)
+            rospy.Subscriber("/valve_tracker/valve2",
+                             PoseWithCovarianceStamped,
+                             self.update_frame_valve_2,
+                             queue_size = 1)
 
-        rospy.Subscriber("/valve_tracker/valve3",
-                         PoseWithCovarianceStamped,
-                         self.update_frame_valve_3,
-                         queue_size = 1)
+            rospy.Subscriber("/valve_tracker/valve3",
+                             PoseWithCovarianceStamped,
+                             self.update_frame_valve_3,
+                             queue_size = 1)
 
-        rospy.Subscriber("/pose_ekf_slam/map",
-                         Map,
-                         self.update_frame_panel_centre,
-                         queue_size = 1)
-        # ************** End of Subscribers *************
-        # ************** Publisher **********************
+            rospy.Subscriber("/pose_ekf_slam/map",
+                             Map,
+                             self.update_frame_panel_centre,
+                             queue_size = 1)
+            # ************** End of Subscribers *************
+            # ************** Publisher **********************
 
-        #rospy.Publisher()
-        # ************** End of Publishers *************
+            #rospy.Publisher()
+            # ************** End of Publishers *************
+        else:
+            # ************** AUV **********************
+            self.element_auv.position.x = 0.0
+            self.element_auv.position.y = 0.0
+            self.element_auv.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.element_auv.orientation.x = quaternion[0]
+            self.element_auv.orientation.y = quaternion[1]
+            self.element_auv.orientation.z = quaternion[2]
+            self.element_auv.orientation.w = quaternion[3]
+
+            # ************** EE **********************
+            self.element_ee.position.x = 0.0
+            self.element_ee.position.y = 0.0
+            self.element_ee.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.element_ee.orientation.x = quaternion[0]
+            self.element_ee.orientation.y = quaternion[1]
+            self.element_ee.orientation.z = quaternion[2]
+            self.element_ee.orientation.w = quaternion[3]
+
+            # ************** Force **********************
+            self.element_force.force.x = 0.0
+            self.element_force.force.y = 0.0
+            self.element_force.force.z = 0.0
+            self.element_force.torque.x = 0.0
+            self.element_force.torque.y = 0.0
+            self.element_force.torque.z = 0.0
+
+            # ************** Valve_0 **********************
+            self.frame_valve_0.position.x = 0.0
+            self.frame_valve_0.position.y = 0.0
+            self.frame_valve_0.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.frame_valve_0.orientation.x = quaternion[0]
+            self.frame_valve_0.orientation.y = quaternion[1]
+            self.frame_valve_0.orientation.z = quaternion[2]
+            self.frame_valve_0.orientation.w = quaternion[3]
+            self.frame_valve_0_handle = 0.0
+
+            # ************** Valve_1 **********************
+            self.frame_valve_1.position.x = 0.0
+            self.frame_valve_1.position.y = 0.0
+            self.frame_valve_1.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.frame_valve_1.orientation.x = quaternion[0]
+            self.frame_valve_1.orientation.y = quaternion[1]
+            self.frame_valve_1.orientation.z = quaternion[2]
+            self.frame_valve_1.orientation.w = quaternion[3]
+            self.frame_valve_1_handle = 0.0
+
+            # ************** Valve_2 **********************
+            self.frame_valve_2.position.x = 0.0
+            self.frame_valve_2.position.y = 0.0
+            self.frame_valve_2.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.frame_valve_2.orientation.x = quaternion[0]
+            self.frame_valve_2.orientation.y = quaternion[1]
+            self.frame_valve_2.orientation.z = quaternion[2]
+            self.frame_valve_2.orientation.w = quaternion[3]
+            self.frame_valve_2_handle = 0.0
+
+            # ************** Valve_3 **********************
+            self.frame_valve_3.position.x = 0.0
+            self.frame_valve_3.position.y = 0.0
+            self.frame_valve_3.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.frame_valve_3.orientation.x = quaternion[0]
+            self.frame_valve_3.orientation.y = quaternion[1]
+            self.frame_valve_3.orientation.z = quaternion[2]
+            self.frame_valve_3.orientation.w = quaternion[3]
+            self.frame_valve_3_handle = 0.0
+
+            # ************** panel_centre **********************
+            self.frame_panel_centre.position.x = 0.0
+            self.frame_panel_centre.position.y = 0.0
+            self.frame_panel_centre.position.z = 0.0
+            quaternion = tf.transformations.quaternion_from_euler(
+                0.0, 0.0, 0.0)
+            self.frame_panel_centre.orientation.x = quaternion[0]
+            self.frame_panel_centre.orientation.y = quaternion[1]
+            self.frame_panel_centre.orientation.z = quaternion[2]
+            self.frame_panel_centre.orientation.w = quaternion[3]
+
+            self.init_element_auv = True
+            self.init_element_ee = True
+            self.init_element_force = True
+            self.init_frame_valve_0 = True
+            self.init_frame_valve_1 = True
+            self.init_frame_valve_2 = True
+            self.init_frame_valve_3 = True
+            self.init_frame_panel_centre = True
 
     def get_config(self):
         """
@@ -132,7 +232,12 @@ class HReproductor:
         of cola2_ros_lib
         """
         param_dict = {'sm_file': '/hierarchical/reproductor/sm_file',
-                      'interval_time': '/hierarchical/reproductor/interval_time'
+                      'interval_time': '/hierarchical/reproductor/interval_time',
+                      'simulation': '/hierarchical/reproductor/simulation',
+                      'enabled': '/hierarchical/reproductor/enabled',
+                      'goal_valve': '/hierarchical/reproductor/goal_valve',
+                      'base_pose': '/arm_controller/base_pose',
+                      'base_ori': '/arm_controller/base_ori'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -151,7 +256,7 @@ class HReproductor:
             #how to shutdown
         #create an load all the states of the state machine
         list_states = self.state_machine.findall('state')
-        list_of_states = []
+        self.list_of_states = []
         for state in list_states:
             #search for the invoke inside the state
             name = state.values()[0]
@@ -176,8 +281,8 @@ class HReproductor:
                     rospy.logerr('Not a correct format!!!!')
             conexions = []
             for iterator in state.iterchildren('transition'):
-                conexions.append((iterator.keys()[0], iterator.values()[0]))
-            list_of_states.append([name, element, conexions])
+                conexions.append([iterator.values()[0], iterator.values()[1]])
+            self.list_of_states.append([name, element, conexions])
 
     # ***************** Start Subscribers ****************
     def update_frame_valve_0(self, pose_msg):
@@ -390,45 +495,623 @@ class HReproductor:
                 return new_angle
     # ***************** End Subscribers ****************
 
+    def obtain_current_pose(self, frame, dmp_type, prev_pose):
+        """
+        Computes the position of the element related with the desired frame
+        @param frame: name of the frame
+        @type frame: string
+        @param dmp_type: name of the dmp type
+        @type dmp_type: string
+        @param prev_pose: previous position
+        @type prev_pose: numpy array
+        """
+        current_pose = np.array([])
+        current_vel = np.array([])
+        if dmp_type == 'dmp_ee':
+            current_pose = compute_pose_ee(frame)
+        elif dmp_type == 'dmp_auv':
+            current_pose = compute_pose_auv(frame)
+        elif dmp_type == 'dmp_force':
+            current_pose = compute_forec(frame)
+        else:
+            rospy.logerr('Not a valid DMP type ' + str(dmp_type))
+        return [current_pose, current_vel]
+
+    def compute_pose_ee(self, frame):
+        """
+        Compute the position of the end-effector in the frame
+        @param frame: name of the frame
+        @type frame: string
+        """
+        if self.init_element_ee and self.init_element_auv:
+            self.lock_element_ee.aquire()
+            self.lock_element_auv.aquire()
+            try:
+                base_pose = Pose()
+                quaterninon = tf.transformations.quaternion_from_euler(
+                    self.base_ori[0],
+                    self.base_ori[1],
+                    self.base_ori[2])
+
+                base_pose.orientation.x = quaterninon[0]
+                base_pose.orientation.y = quaterninon[1]
+                base_pose.orientation.z = quaterninon[2]
+                base_pose.orientation.w = quaterninon[3]
+
+                base_pose.position.x = self.base_pose[0]
+                base_pose.position.y = self.base_pose[1]
+                base_pose.position.z = self.base_pose[2]
+
+                arm_base = self.convert_pose_same_target_origin(
+                    self.element_ee, base_pose, file_ee_auv)
+                if frame == 'auv':
+                    euler = tf.transformations.euler_from_quaternion([
+                        arm_base.orientation.x,
+                        arm_base.orientation.y,
+                        arm_base.orientation.z,
+                        arm_base.orientation.w])
+                    return np.array([
+                        arm_base.position.x,
+                        arm_base.position.y,
+                        arm_base.position.z,
+                        euler[0],
+                        euler[1],
+                        euler[2]])
+                arm_world = self.convert_pose_same_target_orgin(
+                    arm_base, self.element_auv, file_ee_world)
+                if frame == 'world':
+                    euler = tf.transformations.euler_from_quaternion([
+                        arm_world.orientation.x,
+                        arm_world.orientation.y,
+                        arm_world.orientation.z,
+                        arm_world.orientation.w])
+                    return np.array([
+                        arm_world.position.x,
+                        arm_world.position.y,
+                        arm_world.position.z,
+                        euler[0],
+                        euler[1],
+                        euler[2]])
+                rot_work_around = tf.transformations.euler_matrix(
+                    0,np.pi/2.0,-np.pi/2.0)
+                ori_panel = tf.transformations.quaternion_matrix(
+                    [self.frame_panel_centre.orientation.x,
+                     self.frame_panel_centre.orientation.y,
+                     self.frame_panel_centre.orientation.z,
+                     self.frame_panel_centre.orientation.w]
+                )
+                new_panel = np.dot(ori_panel, rot_work_around)
+                ori_work_around = tf.transformations.euler_from_matrix(
+                    new_panel)[2]
+            finally:
+                self.lock_element_auv.release()
+                self.lock_element_ee.release()
+            if frame == 'panel_centre':
+                if self.init_frame_panel_centre:
+                    self.lock_frame_panel_centre.aquire()
+                    try:
+                        [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            arm_world,
+                            self.frame_panel_centre,
+                            ori_work_around)
+                        euler = tf.transformations.euler_from_quaternion([
+                            arm_world.orientation.x,
+                            arm_world.orientation.y,
+                            arm_world.orientation.z,
+                            arm_world.orientation.w])
+                        return np.array([
+                            arm_world.position.x,
+                            arm_world.position.y,
+                            arm_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_panel_centre.release()
+                else:
+                    rospy.logerr('Panel centre is not initialized')
+                    return []
+            if frame == 'valve' and self.goal_valve == 0:
+                if self.init_frame_valve_0:
+                    self.lock_frame_valve_0.aquire()
+                    try:
+                        [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            arm_world,
+                            self.frame_valve_0,
+                            self.frame_valve_0_handle)
+                        euler = tf.transformations.euler_from_quaternion([
+                            arm_world.orientation.x,
+                            arm_world.orientation.y,
+                            arm_world.orientation.z,
+                            arm_world.orientation.w])
+                        return np.array([
+                            arm_world.position.x,
+                            arm_world.position.y,
+                            arm_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_1.release()
+                else:
+                    rospy.logerr('Valve 0 is not initialized')
+                    return []
+            if frame == 'valve' and self.goal_valve == 1:
+                if self.init_frame_valve_1:
+                    self.lock_frame_valve_1.aquire()
+                    try:
+                        [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            arm_world,
+                            self.frame_valve_1,
+                            self.frame_valve_1_handle)
+                        euler = tf.transformations.euler_from_quaternion([
+                            arm_world.orientation.x,
+                            arm_world.orientation.y,
+                            arm_world.orientation.z,
+                            arm_world.orientation.w])
+                        return np.array([
+                            arm_world.position.x,
+                            arm_world.position.y,
+                            arm_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_1.release()
+                else:
+                    rospy.logerr('Valve 1 is not initialized')
+                    return []
+            elif frame == 'valve' and self.goal_valve == 2:
+                if self.init_frame_valve_2:
+                    self.lock_frame_valve_2.aquire()
+                    try:
+                        [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            arm_world,
+                            self.frame__valve_2,
+                            self.frame_valve_2_handle)
+                        euler = tf.transformations.euler_from_quaternion([
+                            arm_world.orientation.x,
+                            arm_world.orientation.y,
+                            arm_world.orientation.z,
+                            arm_world.orientation.w])
+                        return np.array([
+                            arm_world.position.x,
+                            arm_world.position.y,
+                            arm_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_2.release()
+                else:
+                    rospy.logerr('Valve 3 is not initialized')
+                    return []
+            elif frame == 'valve' and self.goal_valve == 3:
+                if self.init_frame_valve_3:
+                    self.lock_frame_valve_3.aquire()
+                    try:
+                        [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            arm_world,
+                            self.frame_valve_3,
+                            self.frame_valve_3_handle)
+                        euler = tf.transformations.euler_from_quaternion([
+                            arm_world.orientation.x,
+                            arm_world.orientation.y,
+                            arm_world.orientation.z,
+                            arm_world.orientation.w])
+                        return np.array([
+                            arm_world.position.x,
+                            arm_world.position.y,
+                            arm_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_3.release()
+                else:
+                    rospy.logerr('Valve 3 is not initialized')
+                    return []
+            else:
+                rospy.logerr('Not a valid Frame defined')
+                return []
+        else:
+            rospy.logerr('AUV or EE are not initialized')
+            return []
+
+    def compute_pose_auv(self, frame):
+        """
+        Compute the position of the end-effector in the frame
+        @param frame: name of the frame
+        @type frame: string
+        """
+        if self.init_element_auv:
+            self.lock_element_auv.aquire()
+            try:
+                if frame == 'world':
+                    euler = tf.transformations.euler_from_quaternion([
+                        self.element_auv.orientation.x,
+                        self.element_auv.orientation.y,
+                        self.element_auv.orientation.z,
+                        self.element_auv.orientation.w])
+                    return np.array([
+                        self.element_auv.position.x,
+                        self.element_auv.position.y,
+                        self.element_auv.position.z,
+                        euler[0],
+                        euler[1],
+                        euler[2]])
+                rot_work_around = tf.transformations.euler_matrix(
+                    0,np.pi/2.0,-np.pi/2.0)
+                self.lock_frame_panel_centre.acquire()
+                try:
+                    ori_panel = tf.transformations.quaternion_matrix(
+                        [self.frame_panel_centre.orientation.x,
+                         self.frame_panel_centre.orientation.y,
+                         self.frame_panel_centre.orientation.z,
+                         self.frame_panel_centre.orientation.w]
+                    )
+                finally:
+                    self.lock_frame_panel_centre.release()
+                new_panel = np.dot(ori_panel, rot_work_around)
+                ori_work_around = tf.transformations.euler_from_matrix(
+                    new_panel)[2]
+                auv_world = self.element_auv
+            finally:
+                self.lock_element_auv.release()
+            if frame == 'panel_centre':
+                if self.init_frame_panel_centre:
+                    self.lock_frame_panel_centre.aquire()
+                    try:
+                        [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            auv_world,
+                            self.frame_panel_centre,
+                            ori_work_around)
+                        euler = tf.transformations.euler_from_quaternion([
+                            auv_world.orientation.x,
+                            auv_world.orientation.y,
+                            auv_world.orientation.z,
+                            auv_world.orientation.w])
+                        return np.array([
+                            auv_world.position.x,
+                            auv_world.position.y,
+                            auv_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_panel_centre.release()
+                else:
+                    rospy.logerr('Panel centre is not initialized')
+                    return []
+            if frame == 'valve' and self.goal_valve == 0:
+                if self.init_frame_valve_0:
+                    self.lock_frame_valve_0.aquire()
+                    try:
+                        [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            auv_world,
+                            self.frame_valve_0,
+                            ori_work_around)
+                        euler = tf.transformations.euler_from_quaternion([
+                            auv_world.orientation.x,
+                            auv_world.orientation.y,
+                            auv_world.orientation.z,
+                            auv_world.orientation.w])
+                        return np.array([
+                            auv_world.position.x,
+                            auv_world.position.y,
+                            auv_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_0.release()
+                else:
+                    rospy.logerr('Valve 0 is not initialized')
+                    return []
+            elif frame == 'valve' and self.goal_valve == 1:
+                if self.init_frame_valve_1:
+                    self.lock_frame_valve_1.aquire()
+                    try:
+                        [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            auv_world,
+                            self.frame_valve_1,
+                            ori_work_around)
+                        euler = tf.transformations.euler_from_quaternion([
+                            auv_world.orientation.x,
+                            auv_world.orientation.y,
+                            auv_world.orientation.z,
+                            auv_world.orientation.w])
+                        return np.array([
+                            auv_world.position.x,
+                            auv_world.position.y,
+                            auv_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_1.release()
+                else:
+                    rospy.logerr('Valve 1 is not initialized')
+                    return []
+            elif frame == 'valve' and self.goal_valve == 2:
+                if self.init_frame_valve_2:
+                    self.lock_frame_valve_2.aquire()
+                    try:
+                        [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            auv_world,
+                            self.frame__valve_2,
+                            ori_work_around)
+                        euler = tf.transformations.euler_from_quaternion([
+                            auv_world.orientation.x,
+                            auv_world.orientation.y,
+                            auv_world.orientation.z,
+                            auv_world.orientation.w])
+                        return np.array([
+                            auv_world.position.x,
+                            auv_world.position.y,
+                            auv_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_2.release()
+                else:
+                    rospy.logerr('Valve 3 is not initialized')
+                    return []
+            elif frame == 'valve' and self.goal_valve == 3:
+                if self.init_frame_valve_3:
+                    self.lock_frame_valve_3.aquire()
+                    try:
+                        [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
+                            auv_world,
+                            self.frame_valve_3,
+                            ori_work_around)
+                        euler = tf.transformations.euler_from_quaternion([
+                            auv_world.orientation.x,
+                            auv_world.orientation.y,
+                            auv_world.orientation.z,
+                            auv_world.orientation.w])
+                        return np.array([
+                            auv_world.position.x,
+                            auv_world.position.y,
+                            auv_world.position.z,
+                            ori_ee_panel,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
+                    finally:
+                        self.lock_frame_valve_3.release()
+                else:
+                    rospy.logerr('Valve 3 is not initialized')
+                    return []
+            else:
+                rospy.logerr('Not a valid Frame defined')
+                return []
+        else:
+            rospy.logerr('AUV or EE are not initialized')
+            return []
+
+    def compute_force(self, frame):
+        """
+        Compute the position of the end-effector in the frame
+        @param frame: name of the frame
+        @type frame: string
+        """
+        if self.init_element_force:
+            self.lock_element_force.aquire()
+            try:
+                if frame == 'end_effector':
+                    return np.array([
+                        self.element_force.force.x,
+                        self.element_force.force.y,
+                        self.element_force.force.z,
+                        self.element_force.torque.x,
+                        self.element_force.torque.y,
+                        self.element_force.torque.z
+                    ])
+                else:
+                    rospy.logerr('Frame not correct for the force')
+            finally:
+                self.lock_element_force.release()
+        else:
+            rospy.logerr('Force not initialized')
+
+    def convert_pose_same_target_orgin(self, pose, new_origin):
+        """
+        This function convert the first pose and orientation in the world frame,
+        to the frame passed as second argument. Finally it store it at the file
+        passed as third parameter.
+        @param pose: Position and Orientation of the element in world
+        @type pose: Pose
+        @param frame: Position and Orientation of the frame
+        @type frame: Pose
+        @return ret: Return the new position written in the file
+        @tyep ret: Pose
+        """
+        pose_frame = tf.transformations.quaternion_matrix(
+            [pose.orientation.x,
+             pose.orientation.y,
+             pose.orientation.z,
+             pose.orientation.w]
+        )
+
+        pose_frame[0, 3] = pose.position.x
+        pose_frame[1, 3] = pose.position.y
+        pose_frame[2, 3] = pose.position.z
+
+        frame = tf.transformations.quaternion_matrix(
+            [new_origin.orientation.x,
+             new_origin.orientation.y,
+             new_origin.orientation.z,
+             new_origin.orientation.w]
+        )
+
+        frame[0, 3] = new_origin.position.x
+        frame[1, 3] = new_origin.position.y
+        frame[2, 3] = new_origin.position.z
+
+        new_frame = np.dot(frame, pose_frame)
+
+        new_pose = Pose()
+        quaternion = tf.transformations.quaternion_from_matrix(new_frame)
+        new_pose.orientation.x = quaternion[0]
+        new_pose.orientation.y = quaternion[1]
+        new_pose.orientation.z = quaternion[2]
+        new_pose.orientation.w = quaternion[3]
+
+        new_pose.position.x = new_frame[0, 3]
+        new_pose.position.y = new_frame[1, 3]
+        new_pose.position.z = new_frame[2, 3]
+
+        return new_pose
+
+    def convert_pose_same_orgin(self, element, frame, ori):
+        """
+        This function convert the first pose and orientation in the world frame,
+        to the frame passed as second argument. Includes new extra orientation
+        to simplify the learning process Finally it store it at the file
+        passed as third parameter.
+        @param pose: Position and Orientation of the element in world
+        @type pose: Pose
+        @param frame: Position and Orientation of the frame
+        @type frame: Pose
+        @param file: Position and Orientation of the element
+        @type ori: Orientation in yaw of the valve or the panel
+        @param ori: Double
+        @return ret: Return the new position wroted in the file
+        @tyep ret: Pose
+        """
+        element_frame = tf.transformations.quaternion_matrix(
+            [element.orientation.x,
+             element.orientation.y,
+             element.orientation.z,
+             element.orientation.w])
+
+        element_frame[0, 3] = element.position.x
+        element_frame[1, 3] = element.position.y
+        element_frame[2, 3] = element.position.z
+
+        trans_matrix = tf.transformations.quaternion_matrix(
+            [frame.orientation.x,
+             frame.orientation.y,
+             frame.orientation.z,
+             frame.orientation.w])
+
+        trans_matrix[0, 3] = frame.position.x
+        trans_matrix[1, 3] = frame.position.y
+        trans_matrix[2, 3] = frame.position.z
+
+        #invert Matrix
+        inv_mat = np.zeros([4, 4])
+        inv_mat[3, 3] = 1.0
+        inv_mat[0:3, 0:3] = np.transpose(trans_matrix[0:3, 0:3])
+        inv_mat[0:3, 3] = np.dot((-1*inv_mat[0:3, 0:3]),
+                                 trans_matrix[0:3, 3])
+
+        new_frame = np.dot(inv_mat, element_frame)
+
+        yaw_element = tf.transformations.euler_from_matrix(element_frame)[2]
+        difference = cola2_lib.normalizeAngle(yaw_element - ori)
+
+        new_pose = Pose()
+        quaternion = tf.transformations.quaternion_from_matrix(new_frame)
+        new_pose.orientation.x = quaternion[0]
+        new_pose.orientation.y = quaternion[1]
+        new_pose.orientation.z = quaternion[2]
+        new_pose.orientation.w = quaternion[3]
+
+        new_pose.position.x = new_frame[0, 3]
+        new_pose.position.y = new_frame[1, 3]
+        new_pose.position.z = new_frame[2, 3]
+
+        euler = tf.transformations.euler_from_matrix(new_frame)
+
+        return [new_pose, difference]
+
+
     def run(self):
         """
         Use the state machine to reproduce the action
         """
         rate = rospy.Rate(1.0/self.interval_time)
-        dmp_1 = LearningDmpReproductor(
-            'Approach',
-            'traj_auv_panel_first_aprox.txt',
-            4,
-            1.0,
-            self.interval_time)
-        current_pose = [0.0 , 1.0, 4.5, 0.0]
-        current_vel = [0.0 , 0.0, 0.0, 0.0]
-        file_sim = open("traj_simulated.csv", 'w')
-        line = (repr(rospy.get_time()) + " " +
-                repr(current_pose[0]) + " " +
-                repr(current_pose[1]) + " " +
-                repr(current_pose[2]) + " " +
-                repr(current_pose[3]) + "\n")
-        file_sim.write(line)
+        # dmp_1 = LearningDmpReproductor(
+        #     'Approach',
+        #     'traj_auv_panel_first_aprox.txt',
+        #     4,
+        #     1.0,
+        #     self.interval_time)
+        # current_pose = [0.0 , 1.0, 4.5, 0.0]
+        # current_vel = [0.0 , 0.0, 0.0, 0.0]
+        # file_sim = open("traj_simulated.csv", 'w')
+        # line = (repr(rospy.get_time()) + " " +
+        #         repr(current_pose[0]) + " " +
+        #         repr(current_pose[1]) + " " +
+        #         repr(current_pose[2]) + " " +
+        #         repr(current_pose[3]) + "\n")
+        # file_sim.write(line)
         print 'Running!!!'
+        #we search_for the initial state
+        current_state = [
+            st for st in self.list_of_states if st[0] == self.initial_state][0]
+        rospy.loginfo('Starting Initial State ' + current_state[0])
+        rospy.loginfo('Check frame ' + current_state[1][0])
+        rospy.loginfo('Check type ' + current_state[1][1])
+        rospy.loginfo('Check Condition ' + current_state[2][0][0])
+        rospy.loginfo('Check State ' + current_state[2][0][1])
+        prev_pose = np.array([])
+        prev_vel = np.array([])
+        init_pose = False
+        des_pose = np.array([])
+        des_vel = np.array([])
         while not rospy.is_shutdown():
-            [desPos, desVel] = dmp_1.generateNewPose(
-                current_pose, current_vel)
-            #if empty
-            #print 'desPos ' + str(desPos)
-            #print 'desVel ' + str(desVel)
-            if len(desPos) == 0:
-                break
-            current_pose = desPos
-            current_vel = desVel
-            line = (repr(rospy.get_time()) + " " +
-                    repr(current_pose[0]) + " " +
-                    repr(current_pose[1]) + " " +
-                    repr(current_pose[2]) + " " +
-                    repr(current_pose[3]) + "\n")
-            file_sim.write(line)
+            if self.enabled:
+                if  not init_pose or not self.simulated:
+                    current_pose  = self.obtain_current_pose(
+                        current_state[1][0], current_state[1][1], prev_pose)
+                else:
+                    current_pose = des_pose
+                    current_vel = des_vel
+                #current_state
+                if len(prev_vel) != 0:
+                    current_vel = ((current_pose - prev_pose)
+                                        / self.interval_time)
+                    [des_pose, des_vel] = current_state[1][2].generateNewPose(
+                        current_pose, current_vel)
+                    if self.simulation:
+                        current_pose = desPos
+                        init_pose = True
+                    else:
+                        pass
+                    prev_pose = current_pose
+                    prev_vel = current_vel
+                elif len(prev_pose) == 0:
+                    prev_pose = current_pose
+                elif len(prev_vel) == 0:
+                    prev_vel = (current_pose - prev_pose) / self.interval_time
+                    prev_pose = current_pose
+
+                # [desPos, desVel] = dmp_1.generateNewPose(
+                #     current_pose, current_vel)
+                # if len(desPos) == 0:
+                #     break
+                # current_pose = desPos
+                # current_vel = desVel
+                # line = (repr(rospy.get_time()) + " " +
+                #         repr(current_pose[0]) + " " +
+                #         repr(current_pose[1]) + " " +
+                #         repr(current_pose[2]) + " " +
+                #         repr(current_pose[3]) + "\n")
+                # file_sim.write(line)
             rate.sleep()
-        file_sim.close()
 
 if __name__ == '__main__':
     try:
@@ -444,6 +1127,6 @@ if __name__ == '__main__':
 
         rospy.init_node('h_reproductor')
         h_reproductor = HReproductor(rospy.get_name())
-        #h_reproductor.run()
+        h_reproductor.run()
     except rospy.ROSInterruptException:
         pass

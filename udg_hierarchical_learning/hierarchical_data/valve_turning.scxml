@@ -42,7 +42,7 @@
 
 <!--<state id="valve_turning">
     <invoke src="turning_valve.txt" type="dmp_force">
-        <frame>world</frame>
+        <frame>end_effector</frame>
         <dof>6</dof>
         <alpha>1.0</alpha>
     </invoke>

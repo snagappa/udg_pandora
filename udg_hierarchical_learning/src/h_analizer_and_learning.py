@@ -11,6 +11,9 @@ import numpy as np
 from cola2_lib import cola2_ros_lib
 from learning_dmp_generic import LearningDmpGeneric
 
+#parse xml file
+from lxml import etree
+
 class HAnalyzerAndLearning:
 
     def __init__(self,name):
@@ -174,7 +177,7 @@ class HAnalyzerAndLearning:
         samples = [0,2,3,4,5]
         init_time = [1408001960, 1408002883, 1408003254, 1408003615, 1408004014]
         end_time = [1408001989, 1408002938, 1408003324, 1408003653, 1408004104]
-        output_file_name = 'traj_auv_panel_first_aprox.txt'
+        output_file_name = 'turning_valve.txt'
 
         dmp_1 = LearningDmpGeneric(kP, kV, kP_min, kP_max, alpha, states,
                                    dof_list, nb_data, file_name, samples,
