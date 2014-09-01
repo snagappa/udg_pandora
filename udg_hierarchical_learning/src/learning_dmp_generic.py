@@ -334,7 +334,7 @@ class LearningDmpGeneric(object):
             file.write('\n')
 
         file.write('Dofs\n')
-        for j in self.dof:
+        for j in self.dof_list:
             file.write(str(j) + ' ')
         file.write('\n\n')
 
