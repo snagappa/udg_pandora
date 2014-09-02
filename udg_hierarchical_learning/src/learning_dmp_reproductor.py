@@ -80,7 +80,7 @@ class LearningDmpReproductor(object):
                 i += 1
                 aux = logfile[i].split(' ')
                 length = len(aux)
-                self.dofs = np.zeros(length)
+                self.dofs = np.zeros(length, dtype=np.int32)
                 for j in xrange(length):
                     self.dofs[j] = int(aux[j])
             else:
@@ -129,8 +129,14 @@ class LearningDmpReproductor(object):
         #currAcc = currWp * (currTar-currPos) - ( m.kV * currVel);
 
         #Current pose has to bee a np array
-        selected_pose = current_pose[self.dofs]
-        selected_vel = current_vel[self.dofs]
+        #Work Around to aboid the diference size of the algorithm
+        #print 'Size pose ' + str(len(current_pose)) + ' Size dof ' + str(self.dof)
+        if len(current_pose) != self.dof:
+            selected_pose = current_pose[self.dofs == 1]
+            selected_vel = current_vel[self.dofs == 1]
+        else:
+            selected_pose = current_pose
+            selected_vel = current_vel
         diff = currTar-selected_pose
         diff[3] = cola2_lib.normalizeAngle(diff[3])
 

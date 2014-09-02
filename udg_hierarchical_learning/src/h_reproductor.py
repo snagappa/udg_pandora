@@ -9,7 +9,7 @@ import numpy as np
 
 #use to load the configuration function
 from cola2_lib import cola2_ros_lib
-
+from cola2_lib import cola2_lib
 #from state_machine import StateMachine
 from learning_dmp_reproductor import LearningDmpReproductor
 
@@ -225,6 +225,26 @@ class HReproductor:
             self.init_frame_valve_2 = True
             self.init_frame_valve_3 = True
             self.init_frame_panel_centre = True
+
+            #Files to store the trajectory
+            self.file_ee_valve_0 = open("sim_traj_ee_valve_0.csv", 'w')
+            self.file_ee_valve_1 = open("sim_traj_ee_valve_1.csv", 'w')
+            self.file_ee_valve_2 = open("sim_traj_ee_valve_2.csv", 'w')
+            self.file_ee_valve_3 = open("sim_traj_ee_valve_3.csv", 'w')
+            self.file_ee_panel_centre = open("sim_traj_ee_panel_centre.csv",
+                                             'w')
+            self.file_ee_auv = open("sim_traj_ee_auv.csv", 'w')
+            self.file_ee_world = open("sim_traj_ee_world.csv", 'w')
+
+            self.file_auv_valve_0 = open("sim_traj_auv_valve_0.csv", 'w')
+            self.file_auv_valve_1 = open("sim_traj_auv_valve_1.csv", 'w')
+            self.file_auv_valve_2 = open("sim_traj_auv_valve_2.csv", 'w')
+            self.file_auv_valve_3 = open("sim_traj_auv_valve_3.csv", 'w')
+            self.file_auv_panel_centre = open("sim_traj_auv_panel_centre.csv",
+                                             'w')
+            self.file_auv_world = open("sim_traj_auv_world.csv", 'w')
+
+            self.file_force_ee = open("sim_force_ee.csv", 'w')
 
     def get_config(self):
         """
@@ -506,16 +526,15 @@ class HReproductor:
         @type prev_pose: numpy array
         """
         current_pose = np.array([])
-        current_vel = np.array([])
         if dmp_type == 'dmp_ee':
-            current_pose = compute_pose_ee(frame)
+            current_pose = self.compute_pose_ee(frame)
         elif dmp_type == 'dmp_auv':
-            current_pose = compute_pose_auv(frame)
+            current_pose = self.compute_pose_auv(frame)
         elif dmp_type == 'dmp_force':
-            current_pose = compute_forec(frame)
+            current_pose = self.compute_forec(frame)
         else:
             rospy.logerr('Not a valid DMP type ' + str(dmp_type))
-        return [current_pose, current_vel]
+        return current_pose
 
     def compute_pose_ee(self, frame):
         """
@@ -524,8 +543,8 @@ class HReproductor:
         @type frame: string
         """
         if self.init_element_ee and self.init_element_auv:
-            self.lock_element_ee.aquire()
-            self.lock_element_auv.aquire()
+            self.lock_element_ee.acquire()
+            self.lock_element_auv.acquire()
             try:
                 base_pose = Pose()
                 quaterninon = tf.transformations.quaternion_from_euler(
@@ -543,7 +562,7 @@ class HReproductor:
                 base_pose.position.z = self.base_pose[2]
 
                 arm_base = self.convert_pose_same_target_origin(
-                    self.element_ee, base_pose, file_ee_auv)
+                    self.element_ee, base_pose)
                 if frame == 'auv':
                     euler = tf.transformations.euler_from_quaternion([
                         arm_base.orientation.x,
@@ -558,7 +577,7 @@ class HReproductor:
                         euler[1],
                         euler[2]])
                 arm_world = self.convert_pose_same_target_orgin(
-                    arm_base, self.element_auv, file_ee_world)
+                    arm_base, self.element_auv)
                 if frame == 'world':
                     euler = tf.transformations.euler_from_quaternion([
                         arm_world.orientation.x,
@@ -588,7 +607,7 @@ class HReproductor:
                 self.lock_element_ee.release()
             if frame == 'panel_centre':
                 if self.init_frame_panel_centre:
-                    self.lock_frame_panel_centre.aquire()
+                    self.lock_frame_panel_centre.acquire()
                     try:
                         [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             arm_world,
@@ -614,7 +633,7 @@ class HReproductor:
                     return []
             if frame == 'valve' and self.goal_valve == 0:
                 if self.init_frame_valve_0:
-                    self.lock_frame_valve_0.aquire()
+                    self.lock_frame_valve_0.acquire()
                     try:
                         [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             arm_world,
@@ -640,7 +659,7 @@ class HReproductor:
                     return []
             if frame == 'valve' and self.goal_valve == 1:
                 if self.init_frame_valve_1:
-                    self.lock_frame_valve_1.aquire()
+                    self.lock_frame_valve_1.acquire()
                     try:
                         [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             arm_world,
@@ -666,11 +685,11 @@ class HReproductor:
                     return []
             elif frame == 'valve' and self.goal_valve == 2:
                 if self.init_frame_valve_2:
-                    self.lock_frame_valve_2.aquire()
+                    self.lock_frame_valve_2.acquire()
                     try:
                         [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             arm_world,
-                            self.frame__valve_2,
+                            self.frame_valve_2,
                             self.frame_valve_2_handle)
                         euler = tf.transformations.euler_from_quaternion([
                             arm_world.orientation.x,
@@ -692,7 +711,7 @@ class HReproductor:
                     return []
             elif frame == 'valve' and self.goal_valve == 3:
                 if self.init_frame_valve_3:
-                    self.lock_frame_valve_3.aquire()
+                    self.lock_frame_valve_3.acquire()
                     try:
                         [arm_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             arm_world,
@@ -730,7 +749,7 @@ class HReproductor:
         @type frame: string
         """
         if self.init_element_auv:
-            self.lock_element_auv.aquire()
+            self.lock_element_auv.acquire()
             try:
                 if frame == 'world':
                     euler = tf.transformations.euler_from_quaternion([
@@ -765,7 +784,7 @@ class HReproductor:
                 self.lock_element_auv.release()
             if frame == 'panel_centre':
                 if self.init_frame_panel_centre:
-                    self.lock_frame_panel_centre.aquire()
+                    self.lock_frame_panel_centre.acquire()
                     try:
                         [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             auv_world,
@@ -791,7 +810,7 @@ class HReproductor:
                     return []
             if frame == 'valve' and self.goal_valve == 0:
                 if self.init_frame_valve_0:
-                    self.lock_frame_valve_0.aquire()
+                    self.lock_frame_valve_0.acquire()
                     try:
                         [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             auv_world,
@@ -817,7 +836,7 @@ class HReproductor:
                     return []
             elif frame == 'valve' and self.goal_valve == 1:
                 if self.init_frame_valve_1:
-                    self.lock_frame_valve_1.aquire()
+                    self.lock_frame_valve_1.acquire()
                     try:
                         [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             auv_world,
@@ -843,11 +862,11 @@ class HReproductor:
                     return []
             elif frame == 'valve' and self.goal_valve == 2:
                 if self.init_frame_valve_2:
-                    self.lock_frame_valve_2.aquire()
+                    self.lock_frame_valve_2.acquire()
                     try:
                         [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             auv_world,
-                            self.frame__valve_2,
+                            self.frame_valve_2,
                             ori_work_around)
                         euler = tf.transformations.euler_from_quaternion([
                             auv_world.orientation.x,
@@ -869,7 +888,7 @@ class HReproductor:
                     return []
             elif frame == 'valve' and self.goal_valve == 3:
                 if self.init_frame_valve_3:
-                    self.lock_frame_valve_3.aquire()
+                    self.lock_frame_valve_3.acquire()
                     try:
                         [auv_panel, ori_ee_panel] = self.convert_pose_same_orgin(
                             auv_world,
@@ -907,7 +926,7 @@ class HReproductor:
         @type frame: string
         """
         if self.init_element_force:
-            self.lock_element_force.aquire()
+            self.lock_element_force.acquire()
             try:
                 if frame == 'end_effector':
                     return np.array([
@@ -925,7 +944,7 @@ class HReproductor:
         else:
             rospy.logerr('Force not initialized')
 
-    def convert_pose_same_target_orgin(self, pose, new_origin):
+    def convert_pose_same_target_origin(self, pose, new_origin):
         """
         This function convert the first pose and orientation in the world frame,
         to the frame passed as second argument. Finally it store it at the file
@@ -1037,6 +1056,77 @@ class HReproductor:
 
         return [new_pose, difference]
 
+    def store_pose(self, current_pose, frame, element):
+        """
+        Record the trajectory of the different elements.
+        @param current_pose: Actual position in the desired frame
+        @type current_pose: array different sizes
+        @param frame: Name of the frame
+        @type frame: String
+        @param element: Element recorded (ee, auv or force)
+        @type element: String
+        """
+        line = repr(rospy.get_time()) + ' '
+        for pose in current_pose:
+            line += repr(pose) + ' '
+        line += '\n'
+        if frame == 'valve':
+            if self.goal_valve == 0:
+                if element.find('ee') != -1:
+                    self.file_ee_valve_0.write(line)
+                elif element.find('auv') != -1:
+                    self.file_auv_valve_0.write(line)
+                else:
+                    rospy.logerr('Error the element is not valid')
+            elif self.goal_valve == 1:
+                if element.find('ee') != -1:
+                    self.file_ee_valve_1.write(line)
+                elif element.find('auv') != -1:
+                    self.file_auv_valve_1.write(line)
+                else:
+                    rospy.logerr('Error the element is not valid')
+            elif self.goal_valve == 2:
+                if element.find('ee') != -1:
+                    self.file_ee_valve_2.write(line)
+                elif element.find('auv') != -1:
+                    self.file_auv_valve_2.write(line)
+                else:
+                    rospy.logerr('Error the element is not valid')
+            elif self.goal_valve == 3:
+                if element.find('ee') != -1:
+                    self.file_ee_valve_3.write(line)
+                elif element.find('auv') != -1:
+                    self.file_auv_valve_3.write(line)
+                else:
+                    rospy.logerr('Error the element is not valid')
+            else:
+                rospy.logerr('Error the goal is not valid')
+        elif frame == 'panel_centre':
+            if element.find('ee') != -1:
+                self.file_ee_panel_centre.write(line)
+            elif element.find('auv') != -1:
+                self.file_auv_panel_centre.write(line)
+            else:
+                rospy.logerr('Error the element is not valid')
+        elif frame == 'auv':
+            if element.find('ee') != -1:
+                self.file_ee_auv.write(line)
+            else:
+                rospy.logerr('Error the element is not valid')
+        elif frame == 'ee':
+            if element.find('force') != -1:
+                self.file_force_ee.write(line)
+            else:
+                rospy.logerr('Error the element is not valid')
+        elif frame == 'world':
+            if element.find('ee') != -1:
+                self.file_ee_world.write(line)
+            elif element.find('auv') != -1:
+                self.file_auv_world.write(line)
+            else:
+                rospy.logerr('Error the element is not valid')
+        else:
+            rospy.logerr('Error the frame is not defined')
 
     def run(self):
         """
@@ -1072,9 +1162,14 @@ class HReproductor:
         init_pose = False
         des_pose = np.array([])
         des_vel = np.array([])
+        rospy.loginfo('*******************************************************')
+        rospy.loginfo('**************** Starting Hierarchical ****************')
+        rospy.loginfo('**************** '
+                      + str(current_state[0]) +
+                      '*****************')
         while not rospy.is_shutdown():
             if self.enabled:
-                if  not init_pose or not self.simulated:
+                if  not init_pose or not self.simulation:
                     current_pose  = self.obtain_current_pose(
                         current_state[1][0], current_state[1][1], prev_pose)
                 else:
@@ -1082,15 +1177,73 @@ class HReproductor:
                     current_vel = des_vel
                 #current_state
                 if len(prev_vel) != 0:
+                    #rospy.loginfo('Current pose ' + str(current_pose))
+                    #rospy.loginfo('Prev pose ' + str(prev_pose))
                     current_vel = ((current_pose - prev_pose)
                                         / self.interval_time)
                     [des_pose, des_vel] = current_state[1][2].generateNewPose(
                         current_pose, current_vel)
-                    if self.simulation:
-                        current_pose = desPos
-                        init_pose = True
+                    #check end condition
+                    if current_state[2][0][0] == 'finish_dmp':
+                        if len(des_pose) != 0:
+                            if self.simulation:
+                                self.store_pose(current_pose,
+                                                current_state[1][0],
+                                                current_state[1][1])
+                                current_pose = des_pose
+                                init_pose = True
+                            else:
+                                pass
+                        else:
+                            #state has change next state
+                            if current_state[2][0][1] == "end":
+                                rospy.loginfo('****************
+                                End Hierarchical ****************')
+                                break
+                            current_state = [
+                                st for st in self.list_of_states
+                                if st[0] == current_state[2][0][1]][0]
+                            rospy.loginfo('**************** ' +
+                                          ' Next State ' +
+                                          ' *****************')
+                            rospy.loginfo('**************** '
+                                          + str(current_state[0]) +
+                                          '*****************')
+                            prev_pose = np.array([])
+                            prev_vel = np.array([])
+                            init_pose = False
+                            current_pose = np.array([])
+                            current_vel = np.array([])
+                    elif current_state[2][0][0] == 'finish_all_dmp' :
+                        if len(des_pose) != 0:
+                            if self.simulation:
+                                self.store_pose(current_pose,
+                                                current_state[1][0],
+                                                current_state[1][1])
+                                current_pose = des_pose
+                                init_pose = True
+                            else:
+                                pass
+                        else:
+                            #state has change next state
+                            if current_state[2][0][1][0] == "end":
+                                break
+                            current_state = [
+                                st for st in self.list_of_states
+                                if st[0] == current_state[2][0][1]][0]
+                            rospy.loginfo('**************** ' +
+                                          ' Next State ' +
+                                          ' *****************')
+                            rospy.loginfo('**************** '
+                                          + str(current_state[0]) +
+                                          '*****************')
+                            prev_pose = np.array([])
+                            prev_vel = np.array([])
+                            init_pose = False
+                            current_pose = np.array([])
+                            current_vel = np.array([])
                     else:
-                        pass
+                        rospy.logerr('Not correct finish condition')
                     prev_pose = current_pose
                     prev_vel = current_vel
                 elif len(prev_pose) == 0:
@@ -1112,6 +1265,26 @@ class HReproductor:
                 #         repr(current_pose[3]) + "\n")
                 # file_sim.write(line)
             rate.sleep()
+
+        if self.simulation:
+            #Files to store the trajectory
+            self.file_ee_valve_0.close()
+            self.file_ee_valve_1.close()
+            self.file_ee_valve_2.close()
+            self.file_ee_valve_3.close()
+            self.file_ee_panel_centre.close()
+            self.file_ee_auv.close()
+            self.file_ee_world.close()
+
+            self.file_auv_valve_0.close()
+            self.file_auv_valve_1.close()
+            self.file_auv_valve_2.close()
+            self.file_auv_valve_3.close()
+            self.file_auv_panel_centre.close()
+
+            self.file_auv_world.close()
+
+            self.file_force_ee.close()
 
 if __name__ == '__main__':
     try:
