@@ -9,6 +9,7 @@ import numpy as np
 
 #use to load the configuration function
 from cola2_lib import cola2_ros_lib
+from cola2_lib import cola2_lib
 from learning_dmp_generic import LearningDmpGeneric
 
 #parse xml file
@@ -30,7 +31,7 @@ class HAnalyzerAndLearning:
         of cola2_ros_lib
         """
         param_dict = {'samples': '/hierarchical/analyzer/samples',
-                      'prefix_files': '/hierarchical/analyzer/prexif_files'
+                      'prefix_files': '/hierarchical/analyzer/prexif_files',
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -39,14 +40,90 @@ class HAnalyzerAndLearning:
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
-        pass
+        self.demonstrations_auv_world = self.loadDemonstration(
+            self.prefix_files[0])
+        self.demonstrations_ee_auv = self.loadDemonstration(
+            self.prefix_files[1])
+        self.demonstrations_auv_panel_centre = self.loadDemonstration(
+            self.prefix_files[2])
+        self.demonstrations_force = self.loadDemonstration(
+            self.prefix_files[3])
+
+    def loadDemonstration(self,file_name):
+        """
+        Load Demonstrations from the last point to the begining
+        """
+        print 'Loading Demonstrations ' + str(self.samples) + ' :'
+        demonstrations = []
+        for n in xrange(len(self.samples)):
+            print 'Loading Demonstration ' + str(n)
+            ni = self.samples[n]
+            if type(file_name) is str:
+                logfile = open(file_name + "_" + str(ni) + ".csv",
+                               "r").readlines()
+            else:
+                #The file name is a list of elements
+                logfile = open(file_name[n] + "_" + str(ni) + ".csv",
+                               "r").readlines()
+            # vars = np.zeros((1, self.nbVar))
+            # Added the time to the var
+            data_demo = np.array([[]])
+            for line in logfile:
+                if len(data_demo[0]) == 0:
+                    data_demo = np.array([line.split()], dtype=np.float64)
+                else:
+                    data_demo = np.append(
+                        data_demo,
+                        np.array([line.split()], dtype=np.float64),
+                        axis=0)
+            demonstrations.append(data_demo)
+        return demonstrations
 
     def find_break_points(self):
         """
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
-        pass
+        for n in xrange(len(self.samples)):
+            print 'Analyzing Demonstration ' + str(n)
+            #format time x y z roll pitch yaw
+            #format2 time x y z yaw_or_ori roll pitch yaw
+            #format3 time f_x f_y f_z t_x t_y t_z
+            #format 1 and 2 are equal
+            #TODO: generalize
+            auv_world = self.demonstrations_auv_world[n]
+            ee_auv = self.demonstrations_ee_auv[n]
+            force = self.demonstrations_force[n]
+            # Find the euclidian distance to simplify the analisis
+            dist_auv_world = np.sum(np.power(auv_world[:, 1:4],2), axis=1)
+            dist_ee_auv = np.sum(np.power(ee_auv[:, 1:4],2), axis=1)
+            dist_force = np.sum(np.power(force[:, 1:4],2), axis=1)
+            # smooth the distance
+            smooth_auv_world = cola2_lib.smooth_sg(dist_auv_world, 201, 3)
+            smooth_ee_auv = cola2_lib.smooth_sg(dist_ee_auv, 201, 3)
+            #smooth_force = cola2_lib.smooth_sg(dist_force, 201, 3)
+            # find the break points
+            [auv_max, auv_min] = cola2_lib.peakdetect(smooth_auv_world,
+                                                      auv_world[:,0],
+                                                      200)
+            auv_max = np.array(auv_max)
+            auv_min = np.array(auv_min)
+
+            [ee_max, ee_min] = cola2_lib.peakdetect(smooth_ee_auv,
+                                                    ee_auv[:,0],
+                                                    200)
+            ee_max = np.array(ee_max)
+            ee_min = np.array(ee_min)
+
+            import matplotlib.pyplot as plt
+            plt.figure
+            #plt.plot(z_axis, 'r--')
+            plt.plot(auv_world[:,0], dist_auv_world, 'b--')
+            plt.plot(auv_world[:,0], smooth_auv_world, 'r-')
+            plt.plot(auv_max[:,0], auv_max[:,1], 'g*')
+            plt.plot(auv_min[:,0], auv_min[:,1], 'g*')
+            plt.show()
+
 
     def joint_sub_task(self):
         """
@@ -304,6 +381,8 @@ if __name__ == '__main__':
 
         rospy.init_node('h_analizer_and_learning')
         h_analyzer_and_learning = HAnalyzerAndLearning(rospy.get_name())
-        h_analyzer_and_learning.run()
+        #h_analyzer_and_learning.run()
+        h_analyzer_and_learning.load_all_demos()
+        h_analyzer_and_learning.find_break_points()
     except rospy.ROSInterruptException:
         pass
