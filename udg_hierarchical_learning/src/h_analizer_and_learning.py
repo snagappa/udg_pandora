@@ -31,6 +31,7 @@ class HAnalyzerAndLearning:
         of cola2_ros_lib
         """
         param_dict = {'samples': '/hierarchical/analyzer/samples',
+                      'valves': '/hierarchical/analyzer/valves',
                       'prefix_files': '/hierarchical/analyzer/prexif_files',
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
@@ -40,6 +41,7 @@ class HAnalyzerAndLearning:
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
+        #TODO: buscar dins a l'array les posicions bones
         self.demonstrations_auv_world = self.loadDemonstration(
             self.prefix_files[0])
         self.demonstrations_ee_auv = self.loadDemonstration(
@@ -48,15 +50,24 @@ class HAnalyzerAndLearning:
             self.prefix_files[2])
         self.demonstrations_force = self.loadDemonstration(
             self.prefix_files[3])
+        self.demonstrations_auv_valve = []
+        self.demonstrations_ee_valve = []
+        for n in xrange(len(self.valves)):
+            self.demonstrations_auv_valve.append(
+                self.loadDemonstration(
+                    self.prefix_files[5] + '_' + str(self.valves[n])))
+            self.demonstrations_ee_valve.append(
+                self.loadDemonstration(
+                    self.prefix_files[6] + '_' + str(self.valves[n])))
 
     def loadDemonstration(self,file_name):
         """
         Load Demonstrations from the last point to the begining
         """
-        print 'Loading Demonstrations ' + str(self.samples) + ' :'
+        print 'Loading Demonstrations ' + file_name + ' :'
         demonstrations = []
         for n in xrange(len(self.samples)):
-            print 'Loading Demonstration ' + str(n)
+            #print 'Loading Demonstration ' + file_name + "_" + str(ni)
             ni = self.samples[n]
             if type(file_name) is str:
                 logfile = open(file_name + "_" + str(ni) + ".csv",
@@ -85,6 +96,7 @@ class HAnalyzerAndLearning:
         sample
         """
         for n in xrange(len(self.samples)):
+        #for n in xrange(1):
             print 'Analyzing Demonstration ' + str(n)
             #format time x y z roll pitch yaw
             #format2 time x y z yaw_or_ori roll pitch yaw
@@ -100,8 +112,8 @@ class HAnalyzerAndLearning:
             dist_force = np.sum(np.power(force[:, 1:4],2), axis=1)
             # smooth the distance
             smooth_auv_world = cola2_lib.smooth_sg(dist_auv_world, 201, 3)
-            smooth_ee_auv = cola2_lib.smooth_sg(dist_ee_auv, 201, 3)
-            #smooth_force = cola2_lib.smooth_sg(dist_force, 201, 3)
+            #smooth_ee_auv = cola2_lib.smooth_sg(dist_ee_auv, 51, 1)
+            smooth_force = cola2_lib.smooth_sg(force[:,3], 31, 3)
             # find the break points
             [auv_max, auv_min] = cola2_lib.peakdetect(smooth_auv_world,
                                                       auv_world[:,0],
@@ -109,21 +121,119 @@ class HAnalyzerAndLearning:
             auv_max = np.array(auv_max)
             auv_min = np.array(auv_min)
 
-            [ee_max, ee_min] = cola2_lib.peakdetect(smooth_ee_auv,
+            [ee_max, ee_min] = cola2_lib.peakdetect(dist_ee_auv,
                                                     ee_auv[:,0],
-                                                    200)
+                                                    50)
             ee_max = np.array(ee_max)
             ee_min = np.array(ee_min)
 
+            [force_max, force_min] = cola2_lib.peakdetect(smooth_force,
+                                                          force[:,0],
+                                                          150)
+            force_max = np.array(force_max)
+            force_min = np.array(force_min)
+
+            ee_init, ee_end = self.find_flat_init_and_end(dist_ee_auv)
+
+            #print 'Values ee_min ' + str(ee_min)
+
+            if ee_max[0,1] >= dist_ee_auv[ee_init]:
+                ee_min = np.append(np.array(
+                    [[ee_auv[ee_init,0],dist_ee_auv[ee_init]]]),
+                                   ee_min,
+                                   axis = 0)
+                #print 'Values ee_min ' + str(ee_min)
+            else:
+                ee_max = np.append(np.array(
+                                        [[ee_auv[ee_init,0],
+                                          dist_ee_auv[ee_init]]]),
+                                   ee_max,
+                                   axis = 0)
+
+            if ee_min[-1,1] >= dist_ee_auv[ee_end]:
+                ee_min = np.append(ee_min,
+                                   np.array(
+                                       [[ee_auv[ee_end,0],dist_ee_auv[ee_end]]]),
+                                   axis = 0)
+            else:
+                ee_max = np.append(ee_max,
+                                   np.array(
+                                        [[ee_auv[ee_end,0],
+                                          dist_ee_auv[ee_end]]]),
+                                   axis = 0)
+
             import matplotlib.pyplot as plt
-            plt.figure
+            f, axis = plt.subplots(3, sharex=True)
+            axis[0].plot(auv_world[:,0], dist_auv_world, 'b--')
+            axis[0].plot(auv_world[:,0], smooth_auv_world, 'r--')
+            axis[0].plot(auv_max[:,0], auv_max[:,1], 'g*')
+            axis[0].plot(auv_min[:,0], auv_min[:,1], 'g*')
+            axis[1].plot(ee_auv[:,0], dist_ee_auv, 'r-')
+            axis[1].plot(ee_max[:,0], ee_max[:,1], 'g*')
+            axis[1].plot(ee_min[:,0], ee_min[:,1], 'g*')
+            axis[2].plot(force[:,0], smooth_force,'b-')
+            axis[2].plot(force_max[:,0], force_max[:,1], 'g*')
+            axis[2].plot(force_min[:,0], force_min[:,1], 'g*')
+            #axis[1].plot(ee_auv[ee_init,0], dist_ee_auv[ee_init], 'g+')
+            #axis[1].plot(ee_auv[ee_end,0], dist_ee_auv[ee_end], 'g+')
+
             #plt.plot(z_axis, 'r--')
-            plt.plot(auv_world[:,0], dist_auv_world, 'b--')
-            plt.plot(auv_world[:,0], smooth_auv_world, 'r-')
-            plt.plot(auv_max[:,0], auv_max[:,1], 'g*')
-            plt.plot(auv_min[:,0], auv_min[:,1], 'g*')
+            #plt.plot(auv_world[:,0], dist_auv_world, 'b--')
+            #plt.plot(auv_world[:,0], smooth_auv_world, 'r-')
+            #plt.plot(auv_max[:,0], auv_max[:,1], 'g*')
+            #plt.plot(auv_min[:,0], auv_min[:,1], 'g*')
             plt.show()
 
+    def find_flat_init_and_end(self, elements):
+        """
+        With np.where we take the first element value and we find it over all
+        the list. If there is a flat region at the beginning, or the end it
+        returns the last value
+        """
+        #find beginning region
+        first_value = elements[0]
+#        same_value = np.where( np.abs(elements - first_value) < 0.1)
+        same_value = np.where(np.abs(elements - first_value) < 0.001)
+        #print 'Same value ' + str(same_value)
+        break_point = 0
+        while ( break_point < len(same_value[0])-2 and
+                np.abs(same_value[0][break_point+1] -
+                       same_value[0][break_point]) < 3):
+            break_point += 1
+        if (np.abs(same_value[0][break_point+1] -
+                   same_value[0][break_point])) < 3:
+            break_point_init = same_value[0][break_point+1]
+        else:
+            break_point_init = same_value[0][break_point]
+        #find the end region
+        last_value = elements[-1]
+        same_value = np.where( np.abs(elements - last_value) < 0.001)
+        break_point = len(same_value[0])-1
+        while ( break_point > 0 and
+                np.abs(same_value[0][break_point-1] -
+                       same_value[0][break_point]) < 3):
+            break_point -= 1
+        if (np.abs(same_value[0][break_point-1] -
+                   same_value[0][break_point])) < 3:
+            break_point_end = same_value[0][break_point-1]
+        else:
+            break_point_end = same_value[0][break_point]
+
+        return break_point_init, break_point_end
+
+
+    def check_break_point(self, time, element):
+        """
+        Check the break point in the different data and evaluate if it is a
+        change point or not. If it is store in special list and if not is
+        stored in a list of degree of difficulty.
+        """
+        if element =='auv':
+            pass
+        elif element == 'ee':
+            pass
+        elif elemetn == 'force':
+            pass
 
     def joint_sub_task(self):
         """

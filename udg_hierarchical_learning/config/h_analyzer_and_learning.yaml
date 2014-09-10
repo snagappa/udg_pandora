@@ -1,2 +1,3 @@
 /hierarchical/analyzer/samples: [0,2,3,4,5]
-/hierarchical/analyzer/prexif_files: 'trajectory_'
+/hierarchical/analyzer/valves: [0,1,2,3]
+/hierarchical/analyzer/prexif_files: ['traj_auv_world', 'traj_ee_auv', 'traj_auv_panel_centre', 'force_world', 'traj_ee_world', 'traj_auv_valve', 'traj_ee_valve']
