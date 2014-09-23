@@ -25,6 +25,7 @@ class HAnalyzerAndLearning:
         self.get_config()
         rospy.loginfo('Configuration Loaded')
 
+
     def get_config(self):
         """
         Load the configuration from the yaml file using the library
@@ -32,7 +33,9 @@ class HAnalyzerAndLearning:
         """
         param_dict = {'samples': '/hierarchical/analyzer/samples',
                       'valves': '/hierarchical/analyzer/valves',
-                      'prefix_files': '/hierarchical/analyzer/prexif_files',
+                      'prefix_files': '/hierarchical/analyzer/prexi_files',
+                      'time_min_subtask': '/hierarchical/analyzer/time_min_subtask',
+                      'time_min_breakpoints': '/hierarchical/analyzer/time_min_breakpoints'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
 
@@ -62,7 +65,7 @@ class HAnalyzerAndLearning:
 
     def loadDemonstration(self,file_name):
         """
-        Load Demonstrations from the last point to the begining
+        Load Demonstrations from the last point to the beginning
         """
         print 'Loading Demonstrations ' + file_name + ' :'
         demonstrations = []
@@ -95,6 +98,7 @@ class HAnalyzerAndLearning:
         Load all the trajecotries, grouping them in frames and elements for each,
         sample
         """
+        break_points_list = []
         for n in xrange(len(self.samples)):
         #for n in xrange(1):
             print 'Analyzing Demonstration ' + str(n)
@@ -103,10 +107,13 @@ class HAnalyzerAndLearning:
             #format3 time f_x f_y f_z t_x t_y t_z
             #format 1 and 2 are equal
             #TODO: generalize
-            auv_world = self.demonstrations_auv_world[n]
+            #auv_world = self.demonstrations_auv_world[n]
+            auv_world = self.demonstrations_auv_panel_centre[n]
             ee_auv = self.demonstrations_ee_auv[n]
             force = self.demonstrations_force[n]
             # Find the euclidian distance to simplify the analisis
+            init_auv_world = auv_world[0,0]
+            end_auv_world = auv_world[-1,0]
             dist_auv_world = np.sum(np.power(auv_world[:, 1:4],2), axis=1)
             dist_ee_auv = np.sum(np.power(ee_auv[:, 1:4],2), axis=1)
             dist_force = np.sum(np.power(force[:, 1:4],2), axis=1)
@@ -164,16 +171,17 @@ class HAnalyzerAndLearning:
 
             import matplotlib.pyplot as plt
             f, axis = plt.subplots(3, sharex=True)
-            axis[0].plot(auv_world[:,0], dist_auv_world, 'b--')
-            axis[0].plot(auv_world[:,0], smooth_auv_world, 'r--')
-            axis[0].plot(auv_max[:,0], auv_max[:,1], 'g*')
-            axis[0].plot(auv_min[:,0], auv_min[:,1], 'g*')
-            axis[1].plot(ee_auv[:,0], dist_ee_auv, 'r-')
-            axis[1].plot(ee_max[:,0], ee_max[:,1], 'g*')
-            axis[1].plot(ee_min[:,0], ee_min[:,1], 'g*')
-            axis[2].plot(force[:,0], smooth_force,'b-')
-            axis[2].plot(force_max[:,0], force_max[:,1], 'g*')
-            axis[2].plot(force_min[:,0], force_min[:,1], 'g*')
+            #f, axis = plt.subplots(2, sharex=True)
+            #axis[0].plot(auv_world[:,0], dist_auv_world, 'r--', linewidth=3.0)
+            axis[0].plot(auv_world[:,0], smooth_auv_world, 'b-', linewidth=5.0)
+            axis[0].plot(auv_max[:,0], auv_max[:,1], 'g*', markersize=20.0)
+            axis[0].plot(auv_min[:,0], auv_min[:,1], 'g*', markersize=20.0)
+            axis[1].plot(ee_auv[:,0], dist_ee_auv, 'r-', linewidth=5.0)
+            axis[1].plot(ee_max[:,0], ee_max[:,1], 'g*',markersize=20.0)
+            axis[1].plot(ee_min[:,0], ee_min[:,1], 'g*',markersize=20.0)
+            axis[2].plot(force[:,0], smooth_force,'b-', linewidth=5.0)
+            axis[2].plot(force_max[:,0], force_max[:,1], 'g*', markersize=20.0)
+            axis[2].plot(force_min[:,0], force_min[:,1], 'g*', markersize=20.0)
             #axis[1].plot(ee_auv[ee_init,0], dist_ee_auv[ee_init], 'g+')
             #axis[1].plot(ee_auv[ee_end,0], dist_ee_auv[ee_end], 'g+')
 
@@ -182,7 +190,30 @@ class HAnalyzerAndLearning:
             #plt.plot(auv_world[:,0], smooth_auv_world, 'r-')
             #plt.plot(auv_max[:,0], auv_max[:,1], 'g*')
             #plt.plot(auv_min[:,0], auv_min[:,1], 'g*')
+
+
+            peaks_auv = self.mix_peaks_valleys(
+                auv_max[:,0],
+                auv_min[:,0],
+                'auv')
+            peaks_ee  = self.mix_peaks_valleys(
+                ee_max[:,0],
+                ee_min[:,0],
+                'ee')
+            peaks_force = self.mix_peaks_valleys(
+                force_max[:,0],
+                force_min[:,0],
+                'force')
+
+            peaks_points = self.sort_break_points(
+                [peaks_auv, peaks_ee, peaks_force])
+
+            print peaks_points
+
             plt.show()
+
+            breaks_points = self.check_break_point(
+                peaks_points, init_auv_world, end_auv_world)
 
     def find_flat_init_and_end(self, elements):
         """
@@ -221,19 +252,49 @@ class HAnalyzerAndLearning:
 
         return break_point_init, break_point_end
 
+    def mix_peaks_valleys(self, peaks, valleys, element):
+        peaks = np.concatenate((peaks,valleys))
+        peaks.sort()
+        peak_traj = []
+        for i in peaks:
+            peak_traj.append((i, element))
+        return peak_traj
 
-    def check_break_point(self, time, element):
+    def sort_break_points(self, list_of_peaks):
+        complet_list = []
+        for i in list_of_peaks:
+            complet_list.extend(i)
+        sorted_list = sorted(complet_list, key=lambda x: x[0])
+        return sorted_list
+
+    def check_break_point(self, list_points, init, end):
         """
         Check the break point in the different data and evaluate if it is a
         change point or not. If it is store in special list and if not is
         stored in a list of degree of difficulty.
         """
-        if element =='auv':
-            pass
-        elif element == 'ee':
-            pass
-        elif elemetn == 'force':
-            pass
+        break_points = [init]
+        for i in xrange(len(list_points)-1):
+            if list_points[i][1] =='auv':
+                #if 'ee'
+                if list_points[i+1][1] == 'ee':
+                    print 'Break Point '  + str(list_points[i][0])
+                    break_points.append(list_points[i][0])
+            elif list_points[i][1] == 'ee':
+                if list_points[i+1][1] == 'auv':
+                    print 'Break Point '  + str(list_points[i][0])
+                    break_points.append(list_points[i][0])
+            elif list_points[i][1] == 'force':
+                if list_points[i+1][1] == 'ee':
+                    print 'Break Point '  + str(list_points[i][0])
+                    break_points.append(list_points[i][0])
+                elif list_points[i+1][1] == 'ee':
+                    print 'Break Point '  + str(list_points[i][0])
+                    break_points.append(list_points[i][0])
+            else:
+                print 'Unknown Type'
+        break_points.append(end)
+        return break_points
 
     def joint_sub_task(self):
         """
