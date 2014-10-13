@@ -124,19 +124,24 @@ class HAnalyzerAndLearning:
             # find the break points
             [auv_max, auv_min] = cola2_lib.peakdetect(smooth_auv_world,
                                                       auv_world[:,0],
-                                                      200)
+                                                      lookahead = 125,
+                                                      delta = 0.25)
             auv_max = np.array(auv_max)
             auv_min = np.array(auv_min)
+            rospy.loginfo('Auv Max' + str(auv_max))
+            rospy.loginfo('Auv Min' + str(auv_min))
 
             [ee_max, ee_min] = cola2_lib.peakdetect(dist_ee_auv,
                                                     ee_auv[:,0],
-                                                    50)
+                                                    lookahead = 20,
+                                                    delta = 0)
             ee_max = np.array(ee_max)
             ee_min = np.array(ee_min)
 
             [force_max, force_min] = cola2_lib.peakdetect(smooth_force,
                                                           force[:,0],
-                                                          150)
+                                                          lookahead = 20,
+                                                          delta = 5)
             force_max = np.array(force_max)
             force_min = np.array(force_min)
 
@@ -174,46 +179,85 @@ class HAnalyzerAndLearning:
             #f, axis = plt.subplots(2, sharex=True)
             #axis[0].plot(auv_world[:,0], dist_auv_world, 'r--', linewidth=3.0)
             axis[0].plot(auv_world[:,0], smooth_auv_world, 'b-', linewidth=5.0)
-            axis[0].plot(auv_max[:,0], auv_max[:,1], 'g*', markersize=20.0)
-            axis[0].plot(auv_min[:,0], auv_min[:,1], 'g*', markersize=20.0)
+            if auv_max != [] :
+                axis[0].plot(auv_max[:,0], auv_max[:,1], 'g*', markersize=20.0)
+            if auv_min != [] :
+                axis[0].plot(auv_min[:,0], auv_min[:,1], 'g*', markersize=20.0)
             axis[1].plot(ee_auv[:,0], dist_ee_auv, 'r-', linewidth=5.0)
-            axis[1].plot(ee_max[:,0], ee_max[:,1], 'g*',markersize=20.0)
-            axis[1].plot(ee_min[:,0], ee_min[:,1], 'g*',markersize=20.0)
+            if ee_max != [] :
+                axis[1].plot(ee_max[:,0], ee_max[:,1], 'g*',markersize=20.0)
+            if ee_min != [] :
+                axis[1].plot(ee_min[:,0], ee_min[:,1], 'g*',markersize=20.0)
             axis[2].plot(force[:,0], smooth_force,'b-', linewidth=5.0)
-            axis[2].plot(force_max[:,0], force_max[:,1], 'g*', markersize=20.0)
-            axis[2].plot(force_min[:,0], force_min[:,1], 'g*', markersize=20.0)
+            if force_max != [] :
+                axis[2].plot(force_max[:,0], force_max[:,1], 'g*', markersize=20.0)
+            if force_min != [] :
+                axis[2].plot(force_min[:,0], force_min[:,1], 'g*', markersize=20.0)
             #axis[1].plot(ee_auv[ee_init,0], dist_ee_auv[ee_init], 'g+')
             #axis[1].plot(ee_auv[ee_end,0], dist_ee_auv[ee_end], 'g+')
 
-            #plt.plot(z_axis, 'r--')
-            #plt.plot(auv_world[:,0], dist_auv_world, 'b--')
-            #plt.plot(auv_world[:,0], smooth_auv_world, 'r-')
-            #plt.plot(auv_max[:,0], auv_max[:,1], 'g*')
-            #plt.plot(auv_min[:,0], auv_min[:,1], 'g*')
+            # peaks_auv = self.mix_peaks_valleys(
+            #     auv_max[:,0],
+            #     auv_min[:,0],
+            #     'auv')
+            # peaks_ee  = self.mix_peaks_valleys(
+            #     ee_max[:,0],
+            #     ee_min[:,0],
+            #     'ee')
+            # peaks_force = self.mix_peaks_valleys(
+            #     force_max[:,0],
+            #     force_min[:,0],
+            #     'force')
 
+            # peaks_points = self.sort_break_points(
+            #     [peaks_auv, peaks_ee, peaks_force])
 
-            peaks_auv = self.mix_peaks_valleys(
-                auv_max[:,0],
-                auv_min[:,0],
-                'auv')
-            peaks_ee  = self.mix_peaks_valleys(
-                ee_max[:,0],
-                ee_min[:,0],
-                'ee')
-            peaks_force = self.mix_peaks_valleys(
-                force_max[:,0],
-                force_min[:,0],
-                'force')
+            # break_points = self.check_break_point(
+            #     peaks_points, init_auv_world, end_auv_world)
 
-            peaks_points = self.sort_break_points(
-                [peaks_auv, peaks_ee, peaks_force])
+            # print 'Break Points find ' + str(break_points)
 
-            print peaks_points
+            # for i in break_points:
+            #     element_min = np.where(auv_min == i)[0].tolist()
+            #     element_max = np.where(auv_max == i)[0].tolist()
+            #     if element_min != []:
+            #         #values_break_points.append(auv_min[element_min[0],0])
+            #         axis[0].plot(auv_min[element_min[0],0],
+            #                      auv_min[element_min[0],1],
+            #                      'r*',markersize=20.0)
+            #     elif element_max != []:
+            #         #values_break_points.append(auv_max[element_max[0],0])
+            #         axis[0].plot(auv_max[element_max[0],0],
+            #                      auv_max[element_max[0],1],
+            #                      'r*',markersize=20.0)
+            #     else:
+            #         element_min = np.where(ee_min == i)[0].tolist()
+            #         element_max = np.where(ee_max == i)[0].tolist()
+            #         if element_min != []:
+            #             axis[1].plot(ee_min[element_min[0],0],
+            #                          ee_min[element_min[0],1],
+            #                          'r*',markersize=20.0)
+            #         elif element_max != []:
+            #             axis[1].plot(ee_max[element_max[0],0],
+            #                          ee_max[element_max[0],1],
+            #                          'r*',markersize=20.0)
+            #         else:
+            #             element_min = np.where(force_min == i)[0].tolist()
+            #             element_max = np.where(force_max == i)[0].tolist()
+            #             if element_min != []:
+            #                 axis[2].plot(force_min[element_min[0],0],
+            #                              force_min[element_min[0],1],
+            #                              'r*',markersize=20.0)
+            #             elif element_max != []:
+            #                 axis[2].plot(force_max[element_max[0],0],
+            #                              force_max[element_max[0],1],
+            #                              'r*',markersize=20.0)
+            #             else:
+            #                 rospy.logerr('Break point not found')
+
+            # print 'Values ' + str(values_break_points)
 
             plt.show()
-
-            breaks_points = self.check_break_point(
-                peaks_points, init_auv_world, end_auv_world)
 
     def find_flat_init_and_end(self, elements):
         """
@@ -275,24 +319,37 @@ class HAnalyzerAndLearning:
         """
         break_points = [init]
         for i in xrange(len(list_points)-1):
-            if list_points[i][1] =='auv':
-                #if 'ee'
-                if list_points[i+1][1] == 'ee':
-                    print 'Break Point '  + str(list_points[i][0])
-                    break_points.append(list_points[i][0])
-            elif list_points[i][1] == 'ee':
-                if list_points[i+1][1] == 'auv':
-                    print 'Break Point '  + str(list_points[i][0])
-                    break_points.append(list_points[i][0])
-            elif list_points[i][1] == 'force':
-                if list_points[i+1][1] == 'ee':
-                    print 'Break Point '  + str(list_points[i][0])
-                    break_points.append(list_points[i][0])
-                elif list_points[i+1][1] == 'ee':
-                    print 'Break Point '  + str(list_points[i][0])
-                    break_points.append(list_points[i][0])
-            else:
-                print 'Unknown Type'
+            if (np.abs(list_points[i][0] - break_points[-1])
+                > self.time_min_subtask) :
+                if list_points[i][1] == 'auv':
+                    if (list_points[i+1][1] == 'ee'
+                        and
+                        (np.abs(list_points[i][0] - list_points[i+1][0])
+                          < self.time_min_breakpoints )):
+                        print 'Break Point '  + str(list_points[i][0])
+                        break_points.append(list_points[i][0])
+                elif list_points[i][1] == 'ee':
+                    if (list_points[i+1][1] == 'auv'
+                        and
+                        (np.abs(list_points[i][0] - list_points[i+1][0])
+                          < self.time_min_breakpoints )):
+                        print 'Break Point '  + str(list_points[i][0])
+                        break_points.append(list_points[i][0])
+                elif list_points[i][1] == 'force':
+                    if (list_points[i+1][1] == 'ee'
+                        and
+                        (np.abs(list_points[i][0] - list_points[i+1][0])
+                          < self.time_min_breakpoints )):
+                        print 'Break Point '  + str(list_points[i][0])
+                        break_points.append(list_points[i][0])
+                    elif (list_points[i+1][1] == 'ee'
+                        and
+                        (np.abs(list_points[i][0] - break_points[-1])
+                          < self.time_min_breakpoints )):
+                        print 'Break Point '  + str(list_points[i][0])
+                        break_points.append(list_points[i][0])
+                else:
+                    print 'Unknown Type'
         break_points.append(end)
         return break_points
 
