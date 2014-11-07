@@ -57,6 +57,8 @@ if __name__ == '__main__':
                             [0, 1, 2])
     simulation = load_trajectory('../learning_data/trajectoryPlayed_individual',
                                  [])
+    real = load_trajectory('../learning_data/real_traj',
+                                 [])
 
     #Plot values
     plt.ion()
@@ -72,7 +74,7 @@ if __name__ == '__main__':
         axis[2].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,2], color='b')
         #plot time, yaw
         axis[3].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,3], color='b')
-    #plot reproduction
+    #plot reproduction simulated
     for i in xrange(len(simulation)):
         #plot time, x
         axis[0].plot(simulation[i][:,10] - simulation[i][1,10],
@@ -86,7 +88,23 @@ if __name__ == '__main__':
         #plot time, yaw
         axis[3].plot(simulation[i][:,10] - simulation[i][1,10],
                      simulation[i][:,3], color='r')
+    #plot reproductions
+    for i in xrange(len(real)):
+        #plot time, x
+        axis[0].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,0], color='g')
+        #plot time, y
+        axis[1].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,1], color='g')
+        #plot time, z
+        axis[2].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,2], color='g')
+        #plot time, yaw
+        axis[3].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,3], color='g')
     plt.show()
+
+
 
     f, axis = plt.subplots(4, sharex=True)
     f.suptitle("End-Effector")
@@ -112,6 +130,19 @@ if __name__ == '__main__':
         #plot time, yaw
         axis[3].plot(simulation[i][:,10] - simulation[i][1,10],
                      simulation[i][:,9], color='r')
+    for i in xrange(len(real)):
+        #plot time, x
+        axis[0].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,4], color='g')
+        #plot time, y
+        axis[1].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,5], color='g')
+        #plot time, z
+        axis[2].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,6], color='g')
+        #plot time, yaw
+        axis[3].plot(real[i][:,10] - real[i][1,10],
+                     real[i][:,9], color='g')
     plt.ioff()
     plt.show()
 #    print 'Shape of the sensor ' + str(demos[0][0,0])
