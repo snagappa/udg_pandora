@@ -67,8 +67,9 @@ class valveTracker():
             #     pub_name_cov, Float64))
             self.valve_msg.append(PoseWithCovarianceStamped())
             self.last_update_tf.append(time)
-        self.pub_valve_landmark = rospy.Publisher(
-            self.publisher_landmark, PoseWithCovarianceStamped)
+        #Comented because is not used
+        # self.pub_valve_landmark = rospy.Publisher(
+        #     self.publisher_landmark, PoseWithCovarianceStamped)
         #subscrive to the Map where is the position of the center
         rospy.Subscriber("/pose_ekf_slam/map",
                          Map,
@@ -209,53 +210,53 @@ class valveTracker():
                 #     'Error reading the Transformation from world to EE')
         #rospy.loginfo('***********************************************')
 
-    def updatehandcameraposetf(self):
-        """
-        NOT USED
-        This method check if there is a tf with the position of the valve pose
-        provided using the camera in the end-effector
-        """
-        try:
-            trans, rot = self.tflistener.lookupTransform(
-                'base_arm', self.name_valve_pose_ee,
-                self.tflistener.getLatestCommonTime(
-                    'base_arm', self.name_valve_pose_ee))
-            time = self.tflistener.getLatestCommonTime(
-                'base_arm', self.name_valve_pose_ee)
-            if self.last_update_ee_p_tf < time:
-                self.last_update_ee_p_tf = time
-                pose_valve = PoseWithCovarianceStamped()
-                pose_valve.pose.pose.position.x = trans[0]
-                pose_valve.pose.pose.position.y = trans[1]
-                pose_valve.pose.pose.position.z = trans[2]
-                pose_valve.pose.pose.orientation.x = rot[0]
-                pose_valve.pose.pose.orientation.y = rot[1]
-                pose_valve.pose.pose.orientation.z = rot[2]
-                pose_valve.pose.pose.orientation.w = rot[3]
-                cov = 0.035*np.eye(6)
-                cov_p = (
-                    (((1.2*np.linalg.norm(np.asarray(trans)))**2)*0.03)**2)
-                cov[0, 0] = cov_p
-                cov[1, 1] = cov_p
-                cov[2, 2] = cov_p
-                rospy.loginfo('Trans ' + str(trans))
-                rospy.loginfo('Norm de la trans ' + str(np.linalg.norm(np.asarray(trans))))
-                rospy.loginfo('Covariance ' + str(cov_p))
-                rospy.loginfo('Matrix ' + str(cov) )
-                pose_valve.pose.covariance = cov.flatten().tolist()
-                # pose_valve.pose.covariance[0] = 0.0
-                # pose_valve.pose.covariance[7] = 0.003
-                # pose_valve.pose.covariance[14] = 0.003
-                # pose_valve.pose.covariance[21] = 0.035
-                # pose_valve.pose.covariance[28] = 0.035
-                # pose_valve.pose.covariance[35] = 0.035
-                pose_valve.header.stamp = rospy.Time.now()
-                pose_valve.header.frame_id = 'base_arm'
-                self.pub_valve_landmark.publish(pose_valve)
-        except tf.Exception:
-            pass
-            # rospy.logerr(
-            #     'Error reading the Tranformation from world to EE')
+    # def updatehandcameraposetf(self):
+    #     """
+    #     NOT USED
+    #     This method check if there is a tf with the position of the valve pose
+    #     provided using the camera in the end-effector
+    #     """
+    #     try:
+    #         trans, rot = self.tflistener.lookupTransform(
+    #             'base_arm', self.name_valve_pose_ee,
+    #             self.tflistener.getLatestCommonTime(
+    #                 'base_arm', self.name_valve_pose_ee))
+    #         time = self.tflistener.getLatestCommonTime(
+    #             'base_arm', self.name_valve_pose_ee)
+    #         if self.last_update_ee_p_tf < time:
+    #             self.last_update_ee_p_tf = time
+    #             pose_valve = PoseWithCovarianceStamped()
+    #             pose_valve.pose.pose.position.x = trans[0]
+    #             pose_valve.pose.pose.position.y = trans[1]
+    #             pose_valve.pose.pose.position.z = trans[2]
+    #             pose_valve.pose.pose.orientation.x = rot[0]
+    #             pose_valve.pose.pose.orientation.y = rot[1]
+    #             pose_valve.pose.pose.orientation.z = rot[2]
+    #             pose_valve.pose.pose.orientation.w = rot[3]
+    #             cov = 0.035*np.eye(6)
+    #             cov_p = (
+    #                 (((1.2*np.linalg.norm(np.asarray(trans)))**2)*0.03)**2)
+    #             cov[0, 0] = cov_p
+    #             cov[1, 1] = cov_p
+    #             cov[2, 2] = cov_p
+    #             rospy.loginfo('Trans ' + str(trans))
+    #             rospy.loginfo('Norm de la trans ' + str(np.linalg.norm(np.asarray(trans))))
+    #             rospy.loginfo('Covariance ' + str(cov_p))
+    #             rospy.loginfo('Matrix ' + str(cov) )
+    #             pose_valve.pose.covariance = cov.flatten().tolist()
+    #             # pose_valve.pose.covariance[0] = 0.0
+    #             # pose_valve.pose.covariance[7] = 0.003
+    #             # pose_valve.pose.covariance[14] = 0.003
+    #             # pose_valve.pose.covariance[21] = 0.035
+    #             # pose_valve.pose.covariance[28] = 0.035
+    #             # pose_valve.pose.covariance[35] = 0.035
+    #             pose_valve.header.stamp = rospy.Time.now()
+    #             pose_valve.header.frame_id = 'base_arm'
+    #             self.pub_valve_landmark.publish(pose_valve)
+    #     except tf.Exception:
+    #         pass
+    #         # rospy.logerr(
+    #         #     'Error reading the Tranformation from world to EE')
 
     def updatehandcameraoritf(self):
         """
