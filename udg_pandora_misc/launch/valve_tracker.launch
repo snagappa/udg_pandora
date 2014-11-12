@@ -1,4 +1,5 @@
 <launch>
+    <node name="republish" pkg="image_transport" type="republish" args="in:=/stereo_camera/left/image_rect_color raw out:=/republish/left/image_rect_color"/>
     <node name="visual_detector" pkg="cola2_detection" type="visual_detector.py" output="screen" />
     <!-- <node name="visual_detector_ee" pkg="udg_pandora" type="visual_detector_ee.py" output="screen"/> -->
     <node name="valve_tracker" pkg="udg_pandora_misc" type="valve_tracker.py" />
