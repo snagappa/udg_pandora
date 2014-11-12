@@ -239,7 +239,8 @@ class learningReproductorAct:
                       'learning_param_id': 'learning/reproductor/complete/learning_param_id',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori',
-                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable'
+                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable',
+                      'gaussian_factor': '/learning/reproductor/complete/gaussian_factor',
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Value parameters ' + str(self.reproductor_parameters))
@@ -415,7 +416,7 @@ class learningReproductorAct:
 
                 elif self.dataReceived == 1:
                     #ERROR
-                    self.prevPos[0:4] = self.currPos[0:4]
+                    #self.prevPos[0:4] = self.currPos[0:4]
                     #####
                     self.prevTimeAUV = self.currTimeAUV
                     self.currTimeAUV = (odometry.header.stamp.secs +
@@ -425,7 +426,7 @@ class learningReproductorAct:
                     self.dataReceived += 1
                 else:
                     #ERROR
-                    self.prevPos[0:4] = self.currPos[0:4]
+                    #self.prevPos[0:4] = self.currPos[0:4]
                     #####
                     self.prevTimeAUV = self.currTimeAUV
                     self.currTimeAUV = (odometry.header.stamp.secs +
@@ -866,7 +867,7 @@ class learningReproductorAct:
         #rospy.loginfo('H Real ' + str(h.tolist()))
 
         #rospy.loginfo('T value '  + str(t) + ' >= ' + str(self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2)))
-        if t > self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2):
+        if t > self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*self.gaussian_factor):
             rospy.loginfo('Ultimate end condition at time ' + str (t))
             self.enabled = False
             self.s = self.initial_s
@@ -914,7 +915,7 @@ class learningReproductorAct:
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
 
-        rospy.loginfo('H Norm ' + str(h.tolist()))
+        #rospy.loginfo('H Norm ' + str(h.tolist()))
 
         for i in xrange(self.numStates):
             currTar = currTar + self.Mu_x[:, i]*h[i]
@@ -926,6 +927,7 @@ class learningReproductorAct:
         # rospy.loginfo('Curr Vel' + str(self.currVel.tolist()))
         # rospy.loginfo('Res ' + str((self.kV*self.currVel).tolist()))
         #rospy.loginfo('Curr Tar ' + str(currTar[0:3].tolist()))
+        #rospy.loginfo('Des Vel ' + str(self.currVel[0:3].tolist()))
         self.currAcc = ((np.dot(
             currWp, (currTar - self.currPosSim))) - (self.kV*self.currVel))
 
@@ -936,7 +938,7 @@ class learningReproductorAct:
         #rospy.loginfo('Curr Acc ' + str(self.currAcc[0:3].tolist()))
         self.currVel = self.currVel + (self.currAcc * self.interval_time)
         self.desPos = self.currPosSim + (self.currVel * self.interval_time)
-        rospy.loginfo('Des Vel ' + str(self.currVel[0:3].tolist()))
+        #rospy.loginfo('Des Vel ' + str(self.currVel[0:3].tolist()))
         #rospy.loginfo('Pos ' +str(self.desPos[0]) + ' ' +str(self.desPos[1]) + ' ' +str(self.desPos[2]))
         des_pose_msg = PoseStamped()
         des_pose_msg.header.stamp = rospy.get_rostime()
