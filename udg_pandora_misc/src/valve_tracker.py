@@ -261,7 +261,7 @@ class valveTracker():
     def updatehandcameraoritf(self):
         """
         This method check if there is a tf with the position and orientation of
-        the valve pose provided using the bumblebee
+        the valve pose provided using the camera in hand
         """
         try:
             trans, rot = self.tflistener.lookupTransform(
