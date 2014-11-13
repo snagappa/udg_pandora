@@ -119,7 +119,7 @@ class LearningDmpReproductor(object):
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
 
-        for i in xrange(self.dof):
+        for i in xrange(self.states):
             currTar = currTar + self.Mu_x[:, i]*h[i]
             currWp = currWp + self.Wp[i, :, :]*h[i]
 
