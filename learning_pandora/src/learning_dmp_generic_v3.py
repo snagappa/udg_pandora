@@ -79,7 +79,7 @@ class learningDmp:
         self.kPmax = np.asarray(self.kPmax)
 
     def run(self):
-        dof_list = [1,1,1,0,0,0,0,0,0,0]
+        dof_list = [1,1,1,1,0,0,0,0,0,0]
         init_time = [1415707681, 1415707973, 1415708048]
         end_time = [1415707711, 1415707999, 1415708080]
         dmp_1 = LearningDmpGeneric(self.kP, self.kV, self.kPmin, self.kPmax,

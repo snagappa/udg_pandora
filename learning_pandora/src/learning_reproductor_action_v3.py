@@ -87,7 +87,7 @@ class learningReproductorAct:
         """
         self.name = name
         self.get_config()
-        self.getLearnedParameters()
+        #self.getLearnedParameters()
         self.goalPose = Pose()
         self.robotPose = Pose()
         self.armPose = np.zeros(3)
@@ -117,6 +117,10 @@ class learningReproductorAct:
         self.currPosSim[4] = 0.0
         self.currPosSim[5] = 0.0
         self.currPosSim[6] = 0.0
+
+        #Work Around to be removed
+        self.desPos = np.zeros(self.nbVar)
+        self.desVel = np.zeros(self.nbVar)
 
         self.unnormalized_angle = 0.0
         self.unnormalized_roll = 0.0
@@ -617,11 +621,11 @@ class learningReproductorAct:
         file_path = path + '/' + self.reproductor_parameters[param_id]
         dmp = LearningDmpReproductor(
             self.name,
-            path,
-            self.nbVar,
+            file_path,
+            #self.nbVar,
+            4,
             self.alpha,
             self.interval_time)
-
 
         while not rospy.is_shutdown():
             self.lock.acquire()
@@ -638,8 +642,10 @@ class learningReproductorAct:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
 #                            self.generateNewPose()
                             [des_pose, des_vel] = dmp.generateNewPose(
-                                current_pose, current_vel)
+                                self.currPos[0:4], self.currVel[0:4])
                             if len(des_pose) != 0 :
+                                self.desPos[0:4] = des_pose[0:4]
+                                self.desVel[0:4] = des_vel[0:4]
                                 desPose_msg = PoseStamped()
                                 desPose_msg.header.stamp = rospy.get_rostime()
                                 desPose_msg.header.frame_id = "valve2"
@@ -653,16 +659,34 @@ class learningReproductorAct:
                                 self.pub_arm_des_pose.publish(desPose_msg)
                                 self.publishCommands()
                             else:
+                                rospy.loginfo('Learning has finished ')
+                                #self.lock.release()
+                                self.fileTraj.close()
                                 break
                     else:
-                        [des_pose, des_vel] = generateNewPose(
-                            current_pose, current_vel)
 #                        self.simulatedNewPose()
-                        # if self.currNbDataRepro >= self.nbDataRepro:
-                        #     rospy.loginfo('Finish !!!!')
-                        #     self.enabled = False
-                        #     self.s = self.initial_s
-                        #     rospy.signal_shutdown('The reproduction has finish')
+                        [des_pose, des_vel] = dmp.generateNewPose(
+                            self.currPos[0:4], self.currVel[0:4])
+                        if len(des_pose) != 0 :
+                            self.currPos[0:4] = des_pose[0:4]
+                            self.currVel[0:4] = des_vel[0:4]
+                            s = (repr(self.currPos[0]) + " " +
+                                 repr(self.currPos[1]) + " " +
+                                 repr(self.currPos[2]) + " " +
+                                 repr(self.currPos[3]) + " " +
+                                 # repr(self.desPos[4]) + " " +
+                                 # repr(self.desPos[5]) + " " +
+                                 # repr(self.desPos[6]) + " " +
+                                 # repr(self.desPos[7]) + " " +
+                                 # repr(self.desPos[8]) + " " +
+                                 # repr(self.desPos[9]) + " " +
+                                 repr(rospy.get_time()) + "\n" )
+                            self.file.write(s)
+                        else:
+                            rospy.loginfo('Learning has finished ')
+                            #self.lock.release()
+                            self.file.close()
+                            break
             finally:
                 self.lock.release()
             rate.sleep()
@@ -1252,63 +1276,63 @@ class learningReproductorAct:
         # Compute the Arm velocity
         ##############################################
 # Test COMMENT
-        joyCommand = Joy()
-        # joyCommand.axes.append(vel_arm[0]*60.0)
-        # joyCommand.axes.append(vel_arm[1]*60.0)
-        # joyCommand.axes.append(vel_arm[2]*60.0)
-        # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
-        # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
-        # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
-        # rospy.loginfo('******************************************************')
-        x_arm = (vel_arm[0]-vel_auv[0])*120.0
-        y_arm = (vel_arm[1]-vel_auv[1])*100.0
-        z_arm = (vel_arm[2]-vel_auv[2])*100.0
-        # if np.abs(x_arm) > np.abs(y_arm) :
-        #     if np.abs(x_arm) > np.abs(z_arm) :
-        #         y_arm = y_arm/2.0
-        #         z_arm = z_arm/2.0
-        #     else :
-        #         x_arm = z_arm/2.0
-        #         y_arm = y_arm/2.0
+        # joyCommand = Joy()
+        # # joyCommand.axes.append(vel_arm[0]*60.0)
+        # # joyCommand.axes.append(vel_arm[1]*60.0)
+        # # joyCommand.axes.append(vel_arm[2]*60.0)
+        # # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
+        # # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
+        # # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
+        # # rospy.loginfo('******************************************************')
+        # x_arm = (vel_arm[0]-vel_auv[0])*120.0
+        # y_arm = (vel_arm[1]-vel_auv[1])*100.0
+        # z_arm = (vel_arm[2]-vel_auv[2])*100.0
+        # # if np.abs(x_arm) > np.abs(y_arm) :
+        # #     if np.abs(x_arm) > np.abs(z_arm) :
+        # #         y_arm = y_arm/2.0
+        # #         z_arm = z_arm/2.0
+        # #     else :
+        # #         x_arm = z_arm/2.0
+        # #         y_arm = y_arm/2.0
+        # # else:
+        # #     if np.abs(y_arm) > np.abs(z_arm) :
+        # #         y_arm = y_arm/2.0
+        # #         z_arm = z_arm/2.0
+        # #     else :
+        # #         x_arm = x_arm/2.0
+        # #         y_arm = y_arm/2.0
+
+        # # x_arm = vel_arm[0] * 60
+        # # y_arm = vel_arm[1] * 60
+        # # z_arm = vel_arm[2] * 60
+
+        # if not np.isnan(x_arm):
+        #     joyCommand.axes.append(x_arm)
         # else:
-        #     if np.abs(y_arm) > np.abs(z_arm) :
-        #         y_arm = y_arm/2.0
-        #         z_arm = z_arm/2.0
-        #     else :
-        #         x_arm = x_arm/2.0
-        #         y_arm = y_arm/2.0
+        #     rospy.loginfo('NAN NAN NAN NAN NAN')
+        #     joyCommand.axes.append(0.0)
+        # if not np.isnan(y_arm):
+        #     joyCommand.axes.append(y_arm)
+        # else:
+        #     joyCommand.axes.append(0.0)
+        # if not np.isnan(z_arm):
+        #     joyCommand.axes.append(z_arm)
+        # else:
+        #     joyCommand.axes.append(0.0)
+        # if not np.isnan(self.desVel[7]):
+        #     joyCommand.axes.append(self.desVel[7])
+        # else:
+        #     joyCommand.axes.append(0.0)
+        # if not np.isnan(self.desVel[8]):
+        #     joyCommand.axes.append(self.desVel[8])
+        # else:
+        #     joyCommand.axes.append(0.0)
+        # if not np.isnan(self.desVel[9]):
+        #     joyCommand.axes.append(-1.0*self.desVel[9])
+        # else:
+        #     joyCommand.axes.append(0.0)
 
-        # x_arm = vel_arm[0] * 60
-        # y_arm = vel_arm[1] * 60
-        # z_arm = vel_arm[2] * 60
-
-        if not np.isnan(x_arm):
-            joyCommand.axes.append(x_arm)
-        else:
-            rospy.loginfo('NAN NAN NAN NAN NAN')
-            joyCommand.axes.append(0.0)
-        if not np.isnan(y_arm):
-            joyCommand.axes.append(y_arm)
-        else:
-            joyCommand.axes.append(0.0)
-        if not np.isnan(z_arm):
-            joyCommand.axes.append(z_arm)
-        else:
-            joyCommand.axes.append(0.0)
-        if not np.isnan(self.desVel[7]):
-            joyCommand.axes.append(self.desVel[7])
-        else:
-            joyCommand.axes.append(0.0)
-        if not np.isnan(self.desVel[8]):
-            joyCommand.axes.append(self.desVel[8])
-        else:
-            joyCommand.axes.append(0.0)
-        if not np.isnan(self.desVel[9]):
-            joyCommand.axes.append(-1.0*self.desVel[9])
-        else:
-            joyCommand.axes.append(0.0)
-
-        #self.pub_arm_command.publish(joyCommand)
+        # #self.pub_arm_command.publish(joyCommand)
 
         s = (repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
@@ -1364,7 +1388,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "learning_pandora", "learning_reproductor_action.yaml")
+            "learning_pandora", "learning_reproductor_action_v3.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
