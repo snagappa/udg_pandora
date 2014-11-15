@@ -53,11 +53,11 @@ if __name__ == '__main__':
     real = True
     #load demonstration
     if demos:
-        demos = load_trajectory('../learning_data/trajectory_demonstration',
+        demos = load_trajectory('../learning_data/trajectory_demonstration_v3',
                                 [0, 1, 2])
     if sim:
         simulation = load_trajectory('../learning_data/trajectoryPlayed_individual',
-                                     [2])
+                                     [])
     if real:
         real = load_trajectory('../learning_data/real_traj',
                                [])
@@ -70,87 +70,85 @@ if __name__ == '__main__':
     if demos:
         for i in xrange(len(demos)):
         #plot time, x
-            axis[0].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,0], color='b')
+            axis[0].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,1], color='b')
         #plot time, y
-            axis[1].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,1], color='b')
+            axis[1].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,2], color='b')
         #plot time, z
-            axis[2].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,2], color='b')
+            axis[2].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,3], color='b')
         #plot time, yaw
-            axis[3].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,3], color='b')
+            axis[3].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,4], color='b')
     #plot reproduction simulated
     if sim:
         for i in xrange(len(simulation)):
         #plot time, x
-            axis[0].plot(simulation[i][:,10] - simulation[i][1,10],
-                         simulation[i][:,0], color='r')
-        #plot time, y
-            axis[1].plot(simulation[i][:,10] - simulation[i][1,10],
+            axis[0].plot(simulation[i][:,0] - simulation[i][1,0],
                          simulation[i][:,1], color='r')
-        #plot time, z
-            axis[2].plot(simulation[i][:,10] - simulation[i][1,10],
+        #plot time, y
+            axis[1].plot(simulation[i][:,0] - simulation[i][1,0],
                          simulation[i][:,2], color='r')
-        #plot time, yaw
-            axis[3].plot(simulation[i][:,10] - simulation[i][1,10],
+        #plot time, z
+            axis[2].plot(simulation[i][:,0] - simulation[i][1,0],
                          simulation[i][:,3], color='r')
+        #plot time, yaw
+            axis[3].plot(simulation[i][:,0] - simulation[i][1,0],
+                         simulation[i][:,4], color='r')
     #plot reproductions
     if real:
         for i in xrange(len(real)):
         #plot time, x
-            axis[0].plot(real[i][:,10] - real[i][1,10],
-                         real[i][:,0], color='g')
-        #plot time, y
-            axis[1].plot(real[i][:,10] - real[i][1,10],
+            axis[0].plot(real[i][:,0] - real[i][1,0],
                          real[i][:,1], color='g')
-        #plot time, z
-            axis[2].plot(real[i][:,10] - real[i][1,10],
+        #plot time, y
+            axis[1].plot(real[i][:,0] - real[i][1,0],
                          real[i][:,2], color='g')
-        #plot time, yaw
-            axis[3].plot(real[i][:,10] - real[i][1,10],
+        #plot time, z
+            axis[2].plot(real[i][:,0] - real[i][1,0],
                          real[i][:,3], color='g')
+        #plot time, yaw
+            axis[3].plot(real[i][:,0] - real[i][1,0],
+                         real[i][:,4], color='g')
     plt.show()
-
-
 
     f, axis = plt.subplots(4, sharex=True)
     f.suptitle("End-Effector")
     if demos:
         for i in xrange(len(demos)):
         #plot time, x
-            axis[0].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,4], color='b')
+            axis[0].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,5], color='b')
         #plot time, x
-            axis[1].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,5], color='b')
+            axis[1].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,6], color='b')
         #plot time, x
-            axis[2].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,6], color='b')
+            axis[2].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,7], color='b')
         #plot time, x
-            axis[3].plot(demos[i][:,10] - demos[i][1,10], demos[i][:,9], color='b')
+            axis[3].plot(demos[i][:,0] - demos[i][1,0], demos[i][:,8], color='b')
     if sim:
         for i in xrange(len(simulation)):
         #plot time, x
-            axis[0].plot(simulation[i][:,10] - simulation[i][1,10],
-                         simulation[i][:,4], color='r')
-        #plot time, y
-            axis[1].plot(simulation[i][:,10] - simulation[i][1,10],
+            axis[0].plot(simulation[i][:,0] - simulation[i][1,0],
                          simulation[i][:,5], color='r')
-        #plot time, z
-            axis[2].plot(simulation[i][:,10] - simulation[i][1,10],
+        #plot time, y
+            axis[1].plot(simulation[i][:,0] - simulation[i][1,0],
                          simulation[i][:,6], color='r')
+        #plot time, z
+            axis[2].plot(simulation[i][:,0] - simulation[i][1,0],
+                         simulation[i][:,7], color='r')
         #plot time, yaw
-            axis[3].plot(simulation[i][:,10] - simulation[i][1,10],
-                         simulation[i][:,9], color='r')
+            axis[3].plot(simulation[i][:,0] - simulation[i][1,0],
+                         simulation[i][:,8], color='r')
     if real:
         for i in xrange(len(real)):
         #plot time, x
-            axis[0].plot(real[i][:,10] - real[i][1,10],
-                         real[i][:,4], color='g')
-        #plot time, y
-            axis[1].plot(real[i][:,10] - real[i][1,10],
+            axis[0].plot(real[i][:,0] - real[i][1,0],
                          real[i][:,5], color='g')
-        #plot time, z
-            axis[2].plot(real[i][:,10] - real[i][1,10],
+        #plot time, y
+            axis[1].plot(real[i][:,0] - real[i][1,0],
                          real[i][:,6], color='g')
+        #plot time, z
+            axis[2].plot(real[i][:,0] - real[i][1,0],
+                         real[i][:,7], color='g')
         #plot time, yaw
-            axis[3].plot(real[i][:,10] - real[i][1,10],
-                         real[i][:,9], color='g')
+            axis[3].plot(real[i][:,0] - real[i][1,0],
+                         real[i][:,8], color='g')
     plt.ioff()
     plt.show()
 #    print 'Shape of the sensor ' + str(demos[0][0,0])
