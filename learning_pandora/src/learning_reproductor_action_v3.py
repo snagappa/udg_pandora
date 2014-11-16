@@ -1344,9 +1344,9 @@ class learningReproductorAct:
         # joyCommand.axes.append(vel_arm[0]*60.0)
         # joyCommand.axes.append(vel_arm[1]*60.0)
         # joyCommand.axes.append(vel_arm[2]*60.0)
-        rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
-        rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
-        rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
+        # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
+        # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
+        # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
         # rospy.loginfo('******************************************************')
         x_arm = (vel_arm[0]-vel_auv[0])
         y_arm = (vel_arm[1]-vel_auv[1])
@@ -1366,20 +1366,36 @@ class learningReproductorAct:
         #         x_arm = x_arm/2.0
         #         y_arm = y_arm/2.0
 
-        # x_arm = vel_arm[0] * 60
-        # y_arm = vel_arm[1] * 60
-        # z_arm = vel_arm[2] * 60
-
+        rospy.loginfo('Original ' + str(vel_arm[0]) + ' ' +
+                      str(vel_arm[1]) + ' ' + str(vel_arm[2]))
+        x_arm = vel_arm[0] * 60
+        y_arm = vel_arm[1] * 60
+        z_arm = vel_arm[2] * 60
+        rospy.loginfo('Vel Arm ' + str(x_arm) + ' ' +
+                      str(y_arm) + ' ' + str(z_arm))
+        rospy.loginfo('******************************************************')
         if not np.isnan(x_arm):
+            if(abs(x_arm) <= 8.0):
+                vel_com.twist.linear.x = x_arm #/50.0
+            else:
+                vel_com.twist.linear.x = np.sign(x_arm)*8.0
             joyCommand.axes.append(x_arm)
         else:
             rospy.loginfo('NAN NAN NAN NAN NAN')
             joyCommand.axes.append(0.0)
         if not np.isnan(y_arm):
+            if(abs(y_arm) <= 8.0):
+                vel_com.twist.linear.y = y_arm #/50.0
+            else:
+                vel_com.twist.linear.y = np.sign(y_arm)*8.0
             joyCommand.axes.append(y_arm)
         else:
             joyCommand.axes.append(0.0)
         if not np.isnan(z_arm):
+            if(abs(z_arm) <= 8.0):
+                vel_com.twist.linear.z = z_arm #/50.0
+            else:
+                vel_com.twist.linear.z = np.sign(z_arm)*8.0
             joyCommand.axes.append(z_arm)
         else:
             joyCommand.axes.append(0.0)

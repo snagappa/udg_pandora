@@ -90,9 +90,14 @@ class learningDmp:
         # v2
         # init_time = [1415707681, 1415707973, 1415708048]
         # end_time = [1415707711, 1415707999, 1415708080]
-        # v3
-        init_time = [1416044166, 1416044428, 1416045022]
-        end_time = [1416044321, 1416044560, 1416045136]
+        # v3 0-2
+        # init_time = [1416044166, 1416044428, 1416045022]
+        # end_time = [1416044321, 1416044560, 1416045136]
+
+        # v3 3-6
+        init_time = [1416135344, 1416135577, 1416135787, 1416136091]
+        end_time = [1416135477, 1416135699, 1416135912, 1416136210]
+
 
         # AUV X Y Yaw
         dof_list = [1,1,0,1,0,0,0,0,0,0]
@@ -117,8 +122,6 @@ class learningDmp:
         # EE X and Y
         #dof_list = [0,0,0,0,1,1,0,1,0,0]
         dof_list = [0,0,0,0,1,1,0,0,0,0]
-        init_time = [1416044166, 1416044428, 1416045022]
-        end_time = [1416044321, 1416044560, 1416045136]
         dmp_1 = LearningDmpGeneric(self.kP[2], self.kV[2], self.kPmin[2], self.kPmax[2],
                                    self.alpha, self.nbStates[2], dof_list,
                                    self.nbData, self.demonstration_file,

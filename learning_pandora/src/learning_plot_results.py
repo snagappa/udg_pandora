@@ -54,7 +54,7 @@ if __name__ == '__main__':
     #load demonstration
     if demos:
         demos = load_trajectory('../learning_data/trajectory_demonstration_v3',
-                                [0, 1, 2])
+                                [3, 4, 5, 6])
     if sim:
         simulation = load_trajectory('../learning_data/trajectoryPlayed_individual',
                                      [])

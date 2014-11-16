@@ -111,7 +111,6 @@ class LearningRecord:
                              pose_msg.pose.pose.orientation.w])[2]
             if not self.initGoalPose:
                 self.initGoalPose = True
-                rospy.loginfo('Aqui tambe')
                 if (self.initGoalOri and
                     not self.initGoal):
                     self.initGoal = True
