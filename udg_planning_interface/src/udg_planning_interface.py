@@ -21,6 +21,7 @@ import tf
 from diagnostic_msgs.msg import KeyValue
 from pose_ekf_slam.msg import Map
 from std_srvs.srv import Empty, EmptyRequest
+import numpy as np
 
 class PlanningInterface(object):
     def __init__(self, name):
@@ -36,10 +37,10 @@ class PlanningInterface(object):
         self.ekf_panel_centre = None
 
         # Action Feedback/Dispatch publishers/subscriber
-        self.pub_feedback = rospy.Publisher("/action_feedback",
+        self.pub_feedback = rospy.Publisher("/planning_system/action_feedback",
                                             ActionFeedback)
 
-        rospy.Subscriber("/action_dispatch",
+        rospy.Subscriber("/planning_system/action_dispatch",
                          ActionDispatch,
                          self.dispatch_action,
                          queue_size = 1)
@@ -55,9 +56,9 @@ class PlanningInterface(object):
             self.goto_holonomic_srv = rospy.ServiceProxy(
                                 '/cola2_control/goto_holonomic', GotoWithYaw)
         except rospy.exceptions.ROSException:
-            rospy.logerr('%s, Error creating client.', name)
+            rospy.logerr('%s, Error creating client. (goto_holonomic)', name)
             rospy.signal_shutdown('Error creating client')
-        
+
 
         # VALVE STATUS
         rospy.Subscriber("/valve_tracker/valve0",
@@ -91,34 +92,36 @@ class PlanningInterface(object):
 
 
         # TURN VALVE
-        # TODO: Remember to start /learning/valve_turning_action and 
+        # TODO: Remember to start /learning/valve_turning_action and
         #       uncomment this section!!!
-        """
         self.turn_valve_action = actionlib.SimpleActionClient(
                                         '/learning/valve_turning_action',
                                         ValveTurningAction)
         rospy.loginfo("%s: wait for turn valve actionlib ...", self.name)
         self.turn_valve_action.wait_for_server()
         rospy.loginfo("%s: turn valve actionlib found!", self.name)
-        """
-
-        # CHAIN FOLLOW SERVICES 
+        # CHAIN FOLLOW SERVICES
+        #try:
+        #    rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
+        #    self.enable_chain_planner_srv = rospy.ServiceProxy(
+        #                        '/udg_pandora/enable_chain_planner', Empty)
+        #except rospy.exceptions.ROSException:
+        #    rospy.logerr('%s, Error creating client. (chain planner enable)', name)
+        #    rospy.signal_shutdown('Error creating client')
+        #try:
+        #    rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
+        #    self.disable_chain_planner_srv = rospy.ServiceProxy(
+        #                        '/udg_pandora/disable_chain_planner', Empty)
+        #except rospy.exceptions.ROSException:
+        #    rospy.logerr('%s, Error creating client. (chain planner disable)', name)
+        #    rospy.signal_shutdown('Error creating client')
         try:
-            rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
-            self.enable_chain_planner_srv = rospy.ServiceProxy(
-                                '/udg_pandora/enable_chain_planner', Empty)
+            rospy.wait_for_service('/csip_e5_arm/arm_calibration', 10)
+            self.enable_arm_calibration_srv = rospy.ServiceProxy(
+                '/csip_e5_arm/arm_calibration', Empty)
         except rospy.exceptions.ROSException:
-            rospy.logerr('%s, Error creating client.', name)
-            rospy.signal_shutdown('Error creating client')
-            
-        try:
-            rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
-            self.disable_chain_planner_srv = rospy.ServiceProxy(
-                                '/udg_pandora/disable_chain_planner', Empty)
-        except rospy.exceptions.ROSException:
-            rospy.logerr('%s, Error creating client.', name)
-            rospy.signal_shutdown('Error creating client')
-
+           rospy.logerr('%s, Error creating client. (Arm Calibration enable)', name)
+           rospy.signal_shutdown('Error creating client')
 
     def dispatch_action(self, req):
         if req.name == 'goto':
@@ -131,7 +134,7 @@ class PlanningInterface(object):
                               param_list)
             else:
                 self.__execute_goto__(req.action_id, params)
-        elif req.name == 'valve_state':
+        elif req.name in ("valve_state", "examine_panel"):
             rospy.loginfo("%s: Received valve_state action.", self.name)
             self.__execute_valve_state__(req.action_id)
         elif req.name == 'turn_valve':
@@ -144,11 +147,11 @@ class PlanningInterface(object):
                               param_list)
             else:
                 self.__execute_turn_valve__(req.action_id, params)
-        elif req.name in ("check_panel", "observe"):
+        elif req.name in ("check_panel", "observe", "observe_inspection_point"):
             rospy.loginfo("%s: Received check_panel action.", self.name)
             self.__execute_check_panel__(req.action_id)
         elif req.name == 'enable_chain_follow':
-            rospy.loginfo("%s: Received enable_chain_follow action.", 
+            rospy.loginfo("%s: Received enable_chain_follow action.",
                           self.name)
             self.enable_chain_planner_srv(EmptyRequest())
             feedback = ActionFeedback()
@@ -156,15 +159,23 @@ class PlanningInterface(object):
             feedback.status = "action enabled"
             self.pub_feedback.publish(feedback)
         elif req.name == 'disable_chain_follow':
-            rospy.loginfo("%s: Received disable_chain_follow action.", 
+            rospy.loginfo("%s: Received disable_chain_follow action.",
                           self.name)
             self.disable_chain_planner_srv(EmptyRequest())
             feedback = ActionFeedback()
             feedback.action_id = req.action_id
             feedback.status = "action enabled"
             self.pub_feedback.publish(feedback)
+        elif req.name == 'recalibrate_arm':
+            rospy.loginfo("%s: Received recalibrate_arm action.",
+                          self.name)
+            self.enable_arm_calibration_srv(EmptyRequest())
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action achieved"
+            self.pub_feedback.publish(feedback)
         else:
-            rospy.logwarn('Invalid action name: ', req.name)
+            rospy.logwarn('Invalid action name: %s', req.name)
 
 
     # CLASS ACTIONS
@@ -251,6 +262,7 @@ class PlanningInterface(object):
             rospy.loginfo('%s: Panel out of field of view.', self.name)
 
         ret = list()
+        rospy.wait_for_service('/cola2_control/goto_holonomic', 20)
         ret.append(element)
 
         # Publish action response
@@ -344,11 +356,18 @@ class PlanningInterface(object):
     def update_ekf_panel_centre(self, data):
         if len(data.landmark) > 0:
             self.ekf_panel_centre = data.landmark[0].pose.pose.position
-            angle = tf.transformations.euler_from_quaternion(
+            original_matrix = tf.transformations.quaternion_matrix(
                                     [data.landmark[0].pose.pose.orientation.x,
                                      data.landmark[0].pose.pose.orientation.y,
                                      data.landmark[0].pose.pose.orientation.z,
                                      data.landmark[0].pose.pose.orientation.w])
+            inv_matrix = np.linalg.pinv(original_matrix[0:3, 0:3])
+            inv_trans_matrix = np.zeros([4,4])
+            inv_trans_matrix[0:3, 0:3] = inv_matrix
+            inv_trans_matrix[3,3] = 1.0
+
+            angle = tf.transformations.euler_from_matrix(
+                inv_trans_matrix)
             self.ekf_panel_yaw = angle[1]
 
 
