@@ -50,7 +50,7 @@ def load_trajectory(file_name, samples):
 if __name__ == '__main__':
     demos = True
     sim = True
-    real = False
+    real = True
     #load demonstration
     if demos:
         demos = load_trajectory('../learning_data/trajectory_demonstration_v3',
@@ -106,7 +106,7 @@ if __name__ == '__main__':
                          real[i][:,3], color='g')
         #plot time, yaw
             axis[3].plot(real[i][:,0] - real[i][1,0],
-                         real[i][:,9], color='g')
+                         real[i][:,4], color='g')
     plt.show()
 
     f, axis = plt.subplots(4, sharex=True)

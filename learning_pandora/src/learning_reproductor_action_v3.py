@@ -687,8 +687,8 @@ class learningReproductorAct:
                                 self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
                                 self.desPos[6] = des_pose_arm_z
                                 self.desVel[6] = des_vel_arm_z
-                                self.currPos[9] = des_pose_arm_x_y_yaw[2]
-                                self.currVel[9] = des_vel_arm_x_y_yaw[2]
+                                self.desPos[9] = des_pose_arm_x_y_yaw[2]
+                                self.desVel[9] = des_vel_arm_x_y_yaw[2]
                                 desPose_msg = PoseStamped()
                                 desPose_msg.header.stamp = rospy.get_rostime()
                                 desPose_msg.header.frame_id = "valve2"
@@ -1462,17 +1462,17 @@ class learningReproductorAct:
         #         x_arm = x_arm/2.0
         #         y_arm = y_arm/2.0
 
-        rospy.loginfo('Original ' + str(vel_arm[0]) + ' ' +
-                      str(vel_arm[1]) + ' ' + str(vel_arm[2]))
+        # rospy.loginfo('Original ' + str(vel_arm[0]) + ' ' +
+        #               str(vel_arm[1]) + ' ' + str(vel_arm[2]))
         # x_arm = vel_arm[0] * 60
         # y_arm = vel_arm[1] * 60
         # z_arm = vel_arm[2] * 60
         x_arm = vel_arm[0]
         y_arm = vel_arm[1]
         z_arm = vel_arm[2]
-        rospy.loginfo('Vel Arm ' + str(x_arm) + ' ' +
-                      str(y_arm) + ' ' + str(z_arm))
-        rospy.loginfo('******************************************************')
+        # rospy.loginfo('Vel Arm ' + str(x_arm) + ' ' +
+        #               str(y_arm) + ' ' + str(z_arm))
+        # rospy.loginfo('******************************************************')
         if not np.isnan(x_arm):
             if(abs(x_arm) <= 8.0):
                 vel_com.twist.linear.x = x_arm #/50.0
@@ -1525,7 +1525,6 @@ class learningReproductorAct:
              repr(self.currPos[8]) + " " +
              repr(self.currPos[9]) + "\n")
              #repr(t) + "\n")
-
         self.fileTraj.write(s)
 
     def unNormalizeAngle(self, current_angle, new_angle):
