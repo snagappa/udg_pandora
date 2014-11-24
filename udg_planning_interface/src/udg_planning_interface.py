@@ -194,9 +194,19 @@ class PlanningInterface(object):
         rospy.loginfo('%s: turn valve action enabled', self.name)
 
         self.turn_valve_action.wait_for_result()
-        feedback.status = 'action achieved'
+        action_result = self.turn_valve_action.get_result()
+        if action_result.succed:
+            feedback.status = 'action achieved'
+        else:
+            feedback.status = 'action failed'
+            if action_result.error_code == 1:
+                # Valve is blocked
+                element = KeyValue()
+                element.key = 'valve_' + params[0] + '_blocked'
+                element.value = "valve_blocked"
+                feedback.information.append(element)
         self.pub_feedback.publish(feedback)
-        rospy.loginfo('%s: turn valve action achieved', self.name)
+        rospy.loginfo('%s: turn valve action finished', self.name)
 
 
     def __execute_valve_state__(self, action_id):
