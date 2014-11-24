@@ -381,7 +381,8 @@ class LearningRecord:
                 # rospy.loginfo('ValveOri ' + str(self.valveOri)
                 #               + ' Unnormalized ' + str(self.unnormalized_roll))
                 # rospy.loginfo('Roll Value ' + str(roll))
-                s = (repr(robotTrans[0]) + " " +
+                s = (repr(rospy.get_time()) + " " +
+                     repr(robotTrans[0]) + " " +
                      repr(robotTrans[1]) + " " +
                      repr(robotTrans[2]) + " " +
                      repr(dif_ori)
@@ -392,8 +393,7 @@ class LearningRecord:
                      repr(arm_frame_pose[2]) + " " +
                      repr(arm_ori[0]) + " " +
                      repr(arm_ori[1]) + " " +
-                     repr(roll) + " " +
-                     repr(rospy.get_time()) + "\n")
+                     repr(roll) + "\n")
                 self.file.write(s)
             else:
                 rospy.loginfo('Goal pose Not initialized')

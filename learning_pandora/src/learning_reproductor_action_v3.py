@@ -87,7 +87,7 @@ class learningReproductorAct:
         """
         self.name = name
         self.get_config()
-        self.getLearnedParameters()
+        #self.getLearnedParameters()
         self.goalPose = Pose()
         self.robotPose = Pose()
         self.armPose = np.zeros(3)
@@ -112,11 +112,15 @@ class learningReproductorAct:
         self.currPosSim = np.zeros(self.nbVar)
         self.currPosSim[0] = 0.0
         self.currPosSim[1] = 0.0
-        self.currPosSim[2] = 4.5
-        self.currPosSim[3] = 0.0
-        self.currPosSim[4] = 0.0
-        self.currPosSim[5] = 0.0
-        self.currPosSim[6] = 0.0
+        self.currPosSim[2] = 2.0
+        self.currPosSim[3] = 0.2
+        self.currPosSim[4] = 0.05
+        self.currPosSim[5] = -0.3
+        self.currPosSim[6] = 0.7
+
+        #Work Around to be removed
+        self.desPos = np.zeros(self.nbVar)
+        self.desVel = np.zeros(self.nbVar)
 
         self.unnormalized_angle = 0.0
         self.unnormalized_roll = 0.0
@@ -226,7 +230,8 @@ class learningReproductorAct:
         This function loads all the parameter form the rosparam server using the
         function developed in the cola2_ros_lib.
         """
-        param_dict = {'reproductor_parameters': 'learning/reproductor/complete/parameters',
+        param_dict = {'reproductor_parameters_long': 'learning/reproductor/complete/parameters_long',
+                      'reproductor_parameters_short': 'learning/reproductor/complete/parameters_short',
                       'alpha': 'learning/reproductor/complete/alpha',
                       's': 'learning/reproductor/complete/s',
                       'nbVar': 'learning/reproductor/complete/nbVar',
@@ -243,6 +248,7 @@ class learningReproductorAct:
                       'force_torque_enable': '/learning/reproductor/complete/force_torque_enable'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
+        self.reproductor_parameters = self.reproductor_parameters_short
         rospy.loginfo('Value parameters ' + str(self.reproductor_parameters))
 
     def updateGoalPose(self, pose_msg):
@@ -612,17 +618,40 @@ class learningReproductorAct:
                                               'learning_data',
                                               False)
         # choose the file of the list in the learning directory
-        param_id = self.learning_param_id
         # build the path and the file name
-        file_path = path + '/' + self.reproductor_parameters[param_id]
-        dmp = LearningDmpReproductor(
-            self.name,
-            path,
-            self.nbVar,
+        file_path = path + '/' + self.reproductor_parameters[0]
+        dmp_z = LearningDmpReproductor(
+            self.name + '_z',
+            file_path,
+            #self.nbVar,
+            1,
             self.alpha,
             self.interval_time)
-
-
+        file_path = path + '/' + self.reproductor_parameters[1]
+        dmp_x_y_yaw = LearningDmpReproductor(
+            self.name + '_x_y_yaw',
+            file_path,
+            #self.nbVar,
+            3,
+            self.alpha,
+            self.interval_time)
+        file_path = path + '/' + self.reproductor_parameters[2]
+        dmp_arm_z = LearningDmpReproductor(
+            self.name + '_z',
+            file_path,
+            #self.nbVar,
+            1,
+            self.alpha,
+            self.interval_time)
+        file_path = path + '/' + self.reproductor_parameters[3]
+        dmp_arm_x_y_yaw = LearningDmpReproductor(
+            self.name + '_x_y_yaw',
+            file_path,
+            #self.nbVar,
+            3,
+            self.alpha,
+            self.interval_time)
+        time = 0
         while not rospy.is_shutdown():
             self.lock.acquire()
             #rospy.loginfo('Num states ' + str(self.nbSates) + ' Llegits ' + str(self.))
@@ -636,16 +665,36 @@ class learningReproductorAct:
                 if self.enabled:
                     if not self.simulation:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
-#                            self.generateNewPose()
-                            [des_pose, des_vel] = dmp.generateNewPose(
-                                current_pose, current_vel)
-                            if len(des_pose) != 0 :
+                            [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
+                                self.currPos, self.currVel)
+                            [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
+                                self.currPos, self.currVel)
+                            [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                                self.currPos, self.currVel)
+                            [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                                self.currPos, self.currVel)
+                            if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                                # self.desPos[0:4] = des_pose[0:4]
+                                # self.desVel[0:4] = des_vel[0:4]
+                                self.desPos[0:2] = des_pose_x_y_yaw[0:2]
+                                self.desVel[0:2] = des_vel_x_y_yaw[0:2]
+                                self.desPos[2] = des_pose_z
+                                self.desVel[2] = des_vel_z
+                                self.desPos[3] = des_pose_x_y_yaw[2]
+                                self.desVel[3] = des_vel_x_y_yaw[2]
+                                # ARM
+                                self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                                self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                                self.desPos[6] = des_pose_arm_z
+                                self.desVel[6] = des_vel_arm_z
+                                self.desPos[9] = des_pose_arm_x_y_yaw[2]
+                                self.desVel[9] = des_vel_arm_x_y_yaw[2]
                                 desPose_msg = PoseStamped()
                                 desPose_msg.header.stamp = rospy.get_rostime()
                                 desPose_msg.header.frame_id = "valve2"
-                                desPose_msg.pose.position.x = des_pose[0]
-                                desPose_msg.pose.position.y = des_pose[1]
-                                desPose_msg.pose.position.z = des_pose[2]
+                                desPose_msg.pose.position.x = self.desPos[0] #des_pose[0]
+                                desPose_msg.pose.position.y = self.desPos[1] #des_pose[1]
+                                desPose_msg.pose.position.z = self.desPos[2] #des_pose[2]
                                 desPose_msg.pose.orientation.x = 0
                                 desPose_msg.pose.orientation.y = 0
                                 desPose_msg.pose.orientation.z = 0
@@ -653,19 +702,60 @@ class learningReproductorAct:
                                 self.pub_arm_des_pose.publish(desPose_msg)
                                 self.publishCommands()
                             else:
+                                rospy.loginfo('Learning has finished ')
+                                #self.lock.release()
+                                self.fileTraj.close()
                                 break
                     else:
-                        [des_pose, des_vel] = generateNewPose(
-                            current_pose, current_vel)
 #                        self.simulatedNewPose()
-                        # if self.currNbDataRepro >= self.nbDataRepro:
-                        #     rospy.loginfo('Finish !!!!')
-                        #     self.enabled = False
-                        #     self.s = self.initial_s
-                        #     rospy.signal_shutdown('The reproduction has finish')
+                        if time == 0 :
+                            time = rospy.get_time()
+                            self.currPos = self.currPosSim
+                        else:
+                            time += self.interval_time
+                        [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
+                            self.currPos, self.currVel)
+                        [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
+                            self.currPos, self.currVel)
+                        [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                            self.currPos, self.currVel)
+                        [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                            self.currPos, self.currVel)
+                        if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                            self.currPos[0:2] = des_pose_x_y_yaw[0:2]
+                            self.currVel[0:2] = des_vel_x_y_yaw[0:2]
+                            self.currPos[2] = des_pose_z
+                            self.currVel[2] = des_vel_z
+                            self.currPos[3] = des_pose_x_y_yaw[2]
+                            self.currVel[3] = des_vel_x_y_yaw[2]
+                            # ARM
+                            self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                            self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                            self.currPos[6] = des_pose_arm_z
+                            self.currVel[6] = des_vel_arm_z
+                            self.currPos[9] = des_pose_arm_x_y_yaw[2]
+                            self.currVel[9] = des_vel_arm_x_y_yaw[2]
+                            s = (repr(time) + " " +
+                                 repr(self.currPos[0]) + " " +
+                                 repr(self.currPos[1]) + " " +
+                                 repr(self.currPos[2]) + " " +
+                                 repr(self.currPos[3]) + " " +
+                                 repr(self.currPos[4]) + " " +
+                                 repr(self.currPos[5]) + " " +
+                                 repr(self.currPos[6]) + " " +
+                                 repr(self.currPos[7]) + " " +
+                                 repr(self.currPos[8]) + " " +
+                                 repr(self.currPos[9]) + "\n")
+                            self.file.write(s)
+                        else:
+                            rospy.loginfo('Learning has finished ')
+                            #self.lock.release()
+                            self.file.close()
+                            break
             finally:
                 self.lock.release()
-            rate.sleep()
+            if not self.simulation:
+                rate.sleep()
             # rospy.sleep(self.interval_time)
 
     def valve_turning_act(self, goal):
@@ -685,14 +775,46 @@ class learningReproductorAct:
 
         #Set the id of the file which will be learned
         if goal.long_approach == True:
-            self.learning_param_id = 0
+            self.reproductor_parameters = self.reproductor_parameters_long
         elif goal.long_approach == False:
-            self.learning_param_id = 1
+            self.reproductor_parameters = self.reproductor_parameters_short
 
         rospy.loginfo('Start Action enable')
 
         #Load the learned data for the desired behaviour
-        self.getLearnedParameters()
+        path = roslib.packages.get_pkg_subdir('learning_pandora',
+                                              'learning_data',
+                                              False)
+        # choose the file of the list in the learning directory
+        # build the path and the file name
+        file_path = path + '/' + self.reproductor_parameters[0]
+        dmp_z = LearningDmpReproductor(
+            self.name + '_z',
+            file_path,
+            1,
+            self.alpha,
+            self.interval_time)
+        file_path = path + '/' + self.reproductor_parameters[1]
+        dmp_x_y_yaw = LearningDmpReproductor(
+            self.name + '_x_y_yaw',
+            file_path,
+            3,
+            self.alpha,
+            self.interval_time)
+        file_path = path + '/' + self.reproductor_parameters[2]
+        dmp_arm_z = LearningDmpReproductor(
+            self.name + '_z',
+            file_path,
+            1,
+            self.alpha,
+            self.interval_time)
+        file_path = path + '/' + self.reproductor_parameters[3]
+        dmp_arm_x_y_yaw = LearningDmpReproductor(
+            self.name + '_x_y_yaw',
+            file_path,
+            2,
+            self.alpha,
+            self.interval_time)
         #Restartin position data aboid multiple loop while waiting to call the action
         self.dataRollReceived = False
         self.dataReceivedArm = 0
@@ -706,8 +828,46 @@ class learningReproductorAct:
         while not success and not preempted: #and self.force_big_update == 0:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
                 if not self.simulation:
-                    success = self.generateNewPose()
-                    if self.force_torque_enable:
+                    #success = self.generateNewPose()
+                    [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
+                        self.currPos, self.currVel)
+                    [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
+                        self.currPos, self.currVel)
+                    [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                        self.currPos, self.currVel)
+                    [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                        self.currPos, self.currVel)
+                    if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                        # self.desPos[0:4] = des_pose[0:4]
+                        # self.desVel[0:4] = des_vel[0:4]
+                        self.desPos[0:2] = des_pose_x_y_yaw[0:2]
+                        self.desVel[0:2] = des_vel_x_y_yaw[0:2]
+                        self.desPos[2] = des_pose_z
+                        self.desVel[2] = des_vel_z
+                        self.desPos[3] = des_pose_x_y_yaw[2]
+                        self.desVel[3] = des_vel_x_y_yaw[2]
+                        # ARM
+                        self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                        self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                        self.desPos[6] = des_pose_arm_z
+                        self.desVel[6] = des_vel_arm_z
+                        desPose_msg = PoseStamped()
+                        desPose_msg.header.stamp = rospy.get_rostime()
+                        desPose_msg.header.frame_id = "valve2"
+                        desPose_msg.pose.position.x = self.desPos[0] #des_pose[0]
+                        desPose_msg.pose.position.y = self.desPos[1] #des_pose[1]
+                        desPose_msg.pose.position.z = self.desPos[2] #des_pose[2]
+                        desPose_msg.pose.orientation.x = 0
+                        desPose_msg.pose.orientation.y = 0
+                        desPose_msg.pose.orientation.z = 0
+                        desPose_msg.pose.orientation.w = 1
+                        self.pub_arm_des_pose.publish(desPose_msg)
+                        self.publishCommands()
+                        success = False
+                    else:
+                        success = True
+
+                    if self.force_torque_enable and success == False:
                         self.lock_force.acquire()
                         try:
                             #rospy.loginfo('Force in Z ' + str(self.force_vector[2]))
@@ -718,6 +878,51 @@ class learningReproductorAct:
                             self.lock_force.release()
                 else :
                     success = self.simulatedNewPose()
+                    if time == 0 :
+                        time = rospy.get_time()
+                        self.currPos = self.currPosSim
+                    else:
+                        time += self.interval_time
+                    [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
+                        self.currPos, self.currVel)
+                    [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
+                        self.currPos, self.currVel)
+                    [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                        self.currPos, self.currVel)
+                    [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                        self.currPos, self.currVel)
+                    if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                        self.currPos[0:2] = des_pose_x_y_yaw[0:2]
+                        self.currVel[0:2] = des_vel_x_y_yaw[0:2]
+                        self.currPos[2] = des_pose_z
+                        self.currVel[2] = des_vel_z
+                        self.currPos[3] = des_pose_x_y_yaw[2]
+                        self.currVel[3] = des_vel_x_y_yaw[2]
+                        # ARM
+                        self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                        self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                        self.currPos[6] = des_pose_arm_z
+                        self.currVel[6] = des_vel_arm_z
+                        # self.currPos[7] = des_pose_arm_x_y_yaw[2]
+                        # self.currVel[7] = des_vel_arm_x_y_yaw[2]
+                        s = (repr(time) + " " +
+                             repr(self.currPos[0]) + " " +
+                             repr(self.currPos[1]) + " " +
+                             repr(self.currPos[2]) + " " +
+                             repr(self.currPos[3]) + " " +
+                             repr(self.currPos[4]) + " " +
+                             repr(self.currPos[5]) + " " +
+                             repr(self.currPos[6]) + " " +
+                             repr(self.currPos[7]) + " " +
+                             repr(self.currPos[8]) + " " +
+                             repr(self.currPos[9]) + "\n")
+                        self.file.write(s)
+                        success = False
+                    else:
+                        rospy.loginfo('Learning has finished ')
+                        #self.lock.release()
+                        self.file.close()
+                        success = True
             else:
                 rospy.loginfo('Waiting to initialize all the data')
             if self.valve_turning_action.is_preempt_requested():
@@ -736,117 +941,96 @@ class learningReproductorAct:
                 rate.sleep()
         #Finished or aborted
         result = ValveTurningResult()
-        # if preempted:
-        #     result.valve_turned = False
-        #     self.valve_turning_action.set_preempted()
-        #     #retart the time
-        #     self.s = self.initial_s
-        # else :
-        #     # Push until it touch the valve
-        #     # Turn the valve and the desired degrees
-        #     # stop pushing and go back
-        #     # fold the arm
-        #     # rospy.wait_for_service('/cola2_control/push_desired_froce')
-        #     # rospy.wait_for_service('/cola2_control/turnDesiredRadians')
-        #     # rospy.wait_for_service('/cola2_control/disable_push')
-        #     try:
-        #         push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
-        #                                       PushWithAUV)
-        #         rospy.loginfo('Pushing the valve ')
-        #         push_srv = push_srv([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        if preempted:
+            result.valve_turned = False
+            self.valve_turning_action.set_preempted()
+            #retart the time
+            self.s = self.initial_s
+        else :
+            # Push until it touch the valve
+            # Turn the valve and the desired degrees
+            # stop pushing and go back
+            # fold the arm
+            # rospy.wait_for_service('/cola2_control/push_desired_froce')
+            # rospy.wait_for_service('/cola2_control/turnDesiredRadians')
+            # rospy.wait_for_service('/cola2_control/disable_push')
+            try:
+                push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
+                                              PushWithAUV)
+                rospy.loginfo('Pushing the valve ')
+                push_srv = push_srv([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
-        #         # Keep stable force
-        #         # if self.force_torque_enable:
-        #         #     iterations = 0
-        #         #     rate = rospy.Rate(1.0/self.interval_time)
-        #         #     while iterations <= 20 and self.force_big_update < 5 and not rospy.is_shutdown():
-        #         #         self.lock_force.acquire()
-        #         #         try:
-        #         #             if self.force_new_data:
-        #         #                 if np.abs(self.force_vector_old[2] - self.force_vector[2]) > 20:
-        #         #                     self.force_big_update = self.force_big_update + 1
-        #         #                 else:
-        #         #                     self.force_big_update = 0
-        #         #                     self.force_vector_old = np.copy(self.force_vector)
-        #         #                 self.force_new_data = False
-        #         #         finally:
-        #         #             self.lock_force.release()
-        #         #         rate.sleep()
-        #         # #wait until it feel the valve
-        #         # else:
-        #         #     rospy.sleep(4.0)
+                rospy.sleep(4.0)
 
-        #         rospy.sleep(4.0)
+                turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
+                                               TurnDesiredDegrees)
+                rospy.loginfo('desired increment ' + str(goal.desired_increment))
+                res = turn_srv(goal.desired_increment)
 
-        #         turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
-        #                                        TurnDesiredDegrees)
-        #         rospy.loginfo('desired increment ' + str(goal.desired_increment))
-        #         res = turn_srv(goal.desired_increment)
+                # Is needed a slipt to be sure we turn the valve ?
+                #rospy.sleep(1.0)
 
-        #         #stop the push
-        #         dis_push_srv = rospy.ServiceProxy('/cola2_control/disable_push',
-        #                                           Empty)
+                #stop the push
+                dis_push_srv = rospy.ServiceProxy('/cola2_control/disable_push',
+                                                  Empty)
 
-        #         dis_push_srv()
-        #         rospy.loginfo('Stop Pushing and go backwards')
-        #         #go backward
-        #         rate = rospy.Rate(10)
-        #         #rospy.loginfo('Init bucle')
-        #         for i in range(80):
-        #             #rospy.loginfo('Going backward')
-        #             vel_com = BodyVelocityReq()
-        #             vel_com.header.stamp = rospy.get_rostime()
-        #             vel_com.goal.priority = 10
-        #             #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
-        #             vel_com.goal.requester = 'learning_algorithm'
-        #             vel_com.twist.linear.x = -0.1
-        #             vel_com.twist.linear.y = 0.0
-        #             vel_com.twist.linear.z = 0.0
-        #             vel_com.twist.angular.z = 0.0
+                dis_push_srv()
+                rospy.loginfo('Stop Pushing and go backwards')
+                #go backward
+                rate = rospy.Rate(10)
+                #rospy.loginfo('Init bucle')
+                for i in range(80):
+                    #rospy.loginfo('Going backward')
+                    vel_com = BodyVelocityReq()
+                    vel_com.header.stamp = rospy.get_rostime()
+                    vel_com.goal.priority = 10
+                    #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
+                    vel_com.goal.requester = 'learning_algorithm'
+                    vel_com.twist.linear.x = -0.1
+                    vel_com.twist.linear.y = 0.0
+                    vel_com.twist.linear.z = 0.0
+                    vel_com.twist.angular.z = 0.0
 
-        #             #disabled_axis boby_velocity_req
-        #             vel_com.disable_axis.x = False # True False
-        #             vel_com.disable_axis.y = False # True False
-        #             vel_com.disable_axis.z = True # True False
-        #             vel_com.disable_axis.roll = True
-        #             vel_com.disable_axis.pitch = True
-        #             vel_com.disable_axis.yaw = False # True False
-        #             self.pub_auv_vel.publish(vel_com)
-        #             rate.sleep()
+                    #disabled_axis boby_velocity_req
+                    vel_com.disable_axis.x = False # True False
+                    vel_com.disable_axis.y = False # True False
+                    vel_com.disable_axis.z = True # True False
+                    vel_com.disable_axis.roll = True
+                    vel_com.disable_axis.pitch = True
+                    vel_com.disable_axis.yaw = False # True False
+                    self.pub_auv_vel.publish(vel_com)
+                    rate.sleep()
 
-        #         # Fold the arm
-        #         fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF',
-        #                                           EFPose)
+                # Fold the arm
+                fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF',
+                                                  EFPose)
 
-        #         value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
+                value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
 
-        #         for i in range(80):
-        #             #rospy.loginfo('Going backward')
-        #             vel_com = BodyVelocityReq()
-        #             vel_com.header.stamp = rospy.get_rostime()
-        #             vel_com.goal.priority = 10
-        #             #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
-        #             vel_com.goal.requester = 'learning_algorithm'
-        #             vel_com.twist.linear.x = -0.05
-        #             vel_com.twist.linear.y = 0.0
-        #             vel_com.twist.linear.z = 0.0
-        #             vel_com.twist.angular.z = 0.0
-
-        #             #disabled_axis boby_velocity_req
-        #             vel_com.disable_axis.x = False # True False
-        #             vel_com.disable_axis.y = False # True False
-        #             vel_com.disable_axis.z = True # True False
-        #             vel_com.disable_axis.roll = True
-        #             vel_com.disable_axis.pitch = True
-        #             vel_com.disable_axis.yaw = False # True False
-        #             self.pub_auv_vel.publish(vel_com)
-        #             rate.sleep()
-
-            #     rospy.loginfo('Finish')
-            #     result.valve_turned = res.success
-
-            # except rospy.ServiceException, e:
-            #     print "Service call failed: %s"%e
+                for i in range(80):
+                    #rospy.loginfo('Going backward')
+                    vel_com = BodyVelocityReq()
+                    vel_com.header.stamp = rospy.get_rostime()
+                    vel_com.goal.priority = 10
+                    #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
+                    vel_com.goal.requester = 'learning_algorithm'
+                    vel_com.twist.linear.x = -0.05
+                    vel_com.twist.linear.y = 0.0
+                    vel_com.twist.linear.z = 0.0
+                    vel_com.twist.angular.z = 0.0
+                    #disabled_axis boby_velocity_req
+                    vel_com.disable_axis.x = False # True False
+                    vel_com.disable_axis.y = False # True False
+                    vel_com.disable_axis.z = True # True False
+                    vel_com.disable_axis.roll = True
+                    vel_com.disable_axis.pitch = True
+                    vel_com.disable_axis.yaw = False # True False
+                    self.pub_auv_vel.publish(vel_com)
+                    rate.sleep()
+                rospy.loginfo('Finish')
+                result.valve_turned = res.success
+            except rospy.ServiceException, e:
+                print "Service call failed: %s"%e
 
         # JUST FOR TEST
         rospy.loginfo('Finish')
@@ -879,12 +1063,12 @@ class learningReproductorAct:
         vel_com.twist.angular.z = 0.0
 
         #disabled_axis boby_velocity_req
-        vel_com.disable_axis.x = True # True False
-        vel_com.disable_axis.y = True # True False
-        vel_com.disable_axis.z = True # True False
+        vel_com.disable_axis.x = False # True False
+        vel_com.disable_axis.y = False # True False
+        vel_com.disable_axis.z = False # True False
         vel_com.disable_axis.roll = True
         vel_com.disable_axis.pitch = True
-        vel_com.disable_axis.yaw = True # True False
+        vel_com.disable_axis.yaw = False # True False
         self.pub_auv_vel.publish(vel_com)
 
         self.action_in_process = False
@@ -1202,34 +1386,34 @@ class learningReproductorAct:
         #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
         vel_com.goal.requester = 'learning_algorithm'
         if not np.isnan(vel_auv[0]):
-            if(abs(vel_auv[0]) <= 0.1):
+            if(abs(vel_auv[0]) <= 0.2):
                 vel_com.twist.linear.x = vel_auv[0] #/50.0
             else:
-                vel_com.twist.linear.x = np.sign(vel_auv[0])*0.1
+                vel_com.twist.linear.x = np.sign(vel_auv[0])*0.2
         else:
             vel_com.twist.linear.x = 0.0
 
         if not np.isnan(vel_auv[1]):
-            if(abs(vel_auv[1]) <= 0.1):
+            if(abs(vel_auv[1]) <= 0.2):
                 vel_com.twist.linear.y = vel_auv[1] #/50.0
             else:
-                vel_com.twist.linear.y = np.sign(vel_auv[1])*0.1
+                vel_com.twist.linear.y = np.sign(vel_auv[1])*0.2
         else:
             vel_com.twist.linear.y = 0.0
 
         if not np.isnan(vel_auv[2]):
-            if(abs(vel_auv[2]) <= 0.07):
+            if(abs(vel_auv[2]) <= 0.2):
                 vel_com.twist.linear.z = vel_auv[2] #/30.0
             else:
-                vel_com.twist.linear.z = np.sign(vel_auv[2])*0.07
+                vel_com.twist.linear.z = np.sign(vel_auv[2])*0.2
         else:
             vel_com.twist.linear.z = 0.0
 
         if not np.isnan(self.desVel[3]):
-            if(abs(vel_auv[2]) <= 0.05):
+            if(abs(self.desVel[3]) <= 0.2):
                 vel_com.twist.angular.z = self.desVel[3]
             else:
-                vel_com.twist.angular.z = np.sign(self.desVel[3])*0.05
+                vel_com.twist.angular.z = np.sign(self.desVel[3])*0.2
         else:
             vel_com.twist.angular.z = 0.0
 
@@ -1241,11 +1425,11 @@ class learningReproductorAct:
         vel_com.disable_axis.pitch = True
         vel_com.disable_axis.yaw = False # True False
 
-        rospy.loginfo('Desired Velocities X : '
-                      + str(vel_com.twist.linear.x)
-                      + ' Y: ' + str(vel_com.twist.linear.y)
-                      + ' Z: ' + str(vel_com.twist.linear.z)
-                      + ' Yaw: ' + str(vel_com.twist.angular.z))
+        # rospy.loginfo('Desired Velocities X : '
+        #               + str(vel_com.twist.linear.x)
+        #               + ' Y: ' + str(vel_com.twist.linear.y)
+        #               + ' Z: ' + str(vel_com.twist.linear.z)
+        #               + ' Yaw: ' + str(vel_com.twist.angular.z))
         self.pub_auv_vel.publish(vel_com)
 
         ##############################################
@@ -1260,9 +1444,9 @@ class learningReproductorAct:
         # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
         # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
         # rospy.loginfo('******************************************************')
-        x_arm = (vel_arm[0]-vel_auv[0])*120.0
-        y_arm = (vel_arm[1]-vel_auv[1])*100.0
-        z_arm = (vel_arm[2]-vel_auv[2])*100.0
+        x_arm = (vel_arm[0]-vel_auv[0])
+        y_arm = (vel_arm[1]-vel_auv[1])
+        z_arm = (vel_arm[2]-vel_auv[2])
         # if np.abs(x_arm) > np.abs(y_arm) :
         #     if np.abs(x_arm) > np.abs(z_arm) :
         #         y_arm = y_arm/2.0
@@ -1278,20 +1462,39 @@ class learningReproductorAct:
         #         x_arm = x_arm/2.0
         #         y_arm = y_arm/2.0
 
+        # rospy.loginfo('Original ' + str(vel_arm[0]) + ' ' +
+        #               str(vel_arm[1]) + ' ' + str(vel_arm[2]))
         # x_arm = vel_arm[0] * 60
         # y_arm = vel_arm[1] * 60
         # z_arm = vel_arm[2] * 60
-
+        x_arm = vel_arm[0]
+        y_arm = vel_arm[1]
+        z_arm = vel_arm[2]
+        # rospy.loginfo('Vel Arm ' + str(x_arm) + ' ' +
+        #               str(y_arm) + ' ' + str(z_arm))
+        # rospy.loginfo('******************************************************')
         if not np.isnan(x_arm):
+            if(abs(x_arm) <= 8.0):
+                vel_com.twist.linear.x = x_arm #/50.0
+            else:
+                vel_com.twist.linear.x = np.sign(x_arm)*8.0
             joyCommand.axes.append(x_arm)
         else:
             rospy.loginfo('NAN NAN NAN NAN NAN')
             joyCommand.axes.append(0.0)
         if not np.isnan(y_arm):
+            if(abs(y_arm) <= 8.0):
+                vel_com.twist.linear.y = y_arm #/50.0
+            else:
+                vel_com.twist.linear.y = np.sign(y_arm)*8.0
             joyCommand.axes.append(y_arm)
         else:
             joyCommand.axes.append(0.0)
         if not np.isnan(z_arm):
+            if(abs(z_arm) <= 8.0):
+                vel_com.twist.linear.z = z_arm #/50.0
+            else:
+                vel_com.twist.linear.z = np.sign(z_arm)*8.0
             joyCommand.axes.append(z_arm)
         else:
             joyCommand.axes.append(0.0)
@@ -1308,9 +1511,10 @@ class learningReproductorAct:
         else:
             joyCommand.axes.append(0.0)
 
-        #self.pub_arm_command.publish(joyCommand)
+        self.pub_arm_command.publish(joyCommand)
 
-        s = (repr(self.currPos[0]) + " " +
+        s = (repr(rospy.get_time()) + " " +
+             repr(self.currPos[0]) + " " +
              repr(self.currPos[1]) + " " +
              repr(self.currPos[2]) + " " +
              repr(self.currPos[3]) + " " +
@@ -1319,10 +1523,8 @@ class learningReproductorAct:
              repr(self.currPos[6]) + " " +
              repr(self.currPos[7]) + " " +
              repr(self.currPos[8]) + " " +
-             repr(self.currPos[9]) + " " +
-             repr(rospy.get_time()) + "\n")
+             repr(self.currPos[9]) + "\n")
              #repr(t) + "\n")
-
         self.fileTraj.write(s)
 
     def unNormalizeAngle(self, current_angle, new_angle):
@@ -1364,7 +1566,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "learning_pandora", "learning_reproductor_action.yaml")
+            "learning_pandora", "learning_reproductor_action_v3.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

@@ -119,7 +119,7 @@ class LearningDmpReproductor(object):
         #CurrTar = The center of the GMM * weight of the state
         #CurrWp = Sigma of the GMM * weight of the State
 
-        for i in xrange(self.dof):
+        for i in xrange(self.states):
             currTar = currTar + self.Mu_x[:, i]*h[i]
             currWp = currWp + self.Wp[i, :, :]*h[i]
 
@@ -130,7 +130,7 @@ class LearningDmpReproductor(object):
 
         #Current pose has to bee a np array
         #Work Around to aboid the diference size of the algorithm
-        #print 'Size pose ' + str(len(current_pose)) + ' Size dof ' + str(self.dof)
+        #print 'Size pose ' + str(current_pose) + ' Size dof ' + str(self.dof)
         if len(current_pose) != self.dof:
             selected_pose = current_pose[self.dofs == 1]
             selected_vel = current_vel[self.dofs == 1]
@@ -138,7 +138,7 @@ class LearningDmpReproductor(object):
             selected_pose = current_pose
             selected_vel = current_vel
         diff = currTar-selected_pose
-        diff[3] = cola2_lib.normalizeAngle(diff[3])
+        #diff[3] = cola2_lib.normalizeAngle(diff[3])
 
         #rospy.loginfo('Kv ' + str(self.kV.tolist()))
         desAcc = np.dot(
