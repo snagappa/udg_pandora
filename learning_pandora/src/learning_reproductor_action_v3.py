@@ -666,13 +666,13 @@ class learningReproductorAct:
                     if not self.simulation:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
                             [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                                 # self.desPos[0:4] = des_pose[0:4]
                                 # self.desVel[0:4] = des_vel[0:4]
@@ -714,13 +714,13 @@ class learningReproductorAct:
                         else:
                             time += self.interval_time
                         [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                             self.currPos[0:2] = des_pose_x_y_yaw[0:2]
                             self.currVel[0:2] = des_vel_x_y_yaw[0:2]
@@ -830,13 +830,13 @@ class learningReproductorAct:
                 if not self.simulation:
                     #success = self.generateNewPose()
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                         # self.desPos[0:4] = des_pose[0:4]
                         # self.desVel[0:4] = des_vel[0:4]
@@ -886,13 +886,13 @@ class learningReproductorAct:
                     else:
                         time += self.interval_time
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                         self.currPos[0:2] = des_pose_x_y_yaw[0:2]
                         self.currVel[0:2] = des_vel_x_y_yaw[0:2]
