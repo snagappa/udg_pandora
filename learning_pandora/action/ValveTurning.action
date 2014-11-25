@@ -8,7 +8,7 @@ float64 desired_increment
 # Define the result
 
 bool valve_turned
-
+int32 error_code
 ---
 
 # Define the feedback

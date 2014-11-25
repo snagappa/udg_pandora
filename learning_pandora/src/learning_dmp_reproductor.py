@@ -86,7 +86,7 @@ class LearningDmpReproductor(object):
             else:
                 pass
 
-    def generateNewPose(self, current_pose, current_vel):
+    def generateNewPose(self, current_pose, current_vel, action):
         """
         Generates the new position in the current state
         """
@@ -150,7 +150,7 @@ class LearningDmpReproductor(object):
         #NOT needed
         desPos = selected_pose + desVel * self.interval_time
 
-        self.s = self.s - self.alpha*self.s*self.interval_time*self.action#*1.5
+        self.s = self.s - self.alpha*self.s*self.interval_time*action#*1.5
 
         return [desPos, desVel]
 

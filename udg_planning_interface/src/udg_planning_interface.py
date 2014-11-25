@@ -195,14 +195,14 @@ class PlanningInterface(object):
 
         self.turn_valve_action.wait_for_result()
         action_result = self.turn_valve_action.get_result()
-        if action_result.succed:
+        if action_result.valve_turned:
             feedback.status = 'action achieved'
         else:
             feedback.status = 'action failed'
             if action_result.error_code == 1:
                 # Valve is blocked
                 element = KeyValue()
-                element.key = 'valve_' + params[0] + '_blocked'
+                element.key = 'valve_' + params[0] + '_state'
                 element.value = "valve_blocked"
                 feedback.information.append(element)
         self.pub_feedback.publish(feedback)

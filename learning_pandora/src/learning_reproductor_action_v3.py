@@ -52,7 +52,7 @@ from learning_pandora.msg import ValveTurningResult
 from geometry_msgs.msg import WrenchStamped
 
 from learning_pandora.msg import rfdm_msg
-#from rfdm_pkg.msg import rfdm_msg
+#from rfdm.msg import rfdm_msg
 
 #from udg_pandora.srv import WorkAreaError
 
@@ -666,13 +666,13 @@ class learningReproductorAct:
                     if not self.simulation:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
                             [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                                self.currPos, self.currVel)
+                                self.currPos, self.currVel, self.action)
                             if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                                 # self.desPos[0:4] = des_pose[0:4]
                                 # self.desVel[0:4] = des_vel[0:4]
@@ -714,13 +714,13 @@ class learningReproductorAct:
                         else:
                             time += self.interval_time
                         [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                            self.currPos, self.currVel)
+                            self.currPos, self.currVel, self.action)
                         if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                             self.currPos[0:2] = des_pose_x_y_yaw[0:2]
                             self.currVel[0:2] = des_vel_x_y_yaw[0:2]
@@ -812,7 +812,7 @@ class learningReproductorAct:
         dmp_arm_x_y_yaw = LearningDmpReproductor(
             self.name + '_x_y_yaw',
             file_path,
-            2,
+            3,
             self.alpha,
             self.interval_time)
         #Restartin position data aboid multiple loop while waiting to call the action
@@ -830,13 +830,13 @@ class learningReproductorAct:
                 if not self.simulation:
                     #success = self.generateNewPose()
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                         # self.desPos[0:4] = des_pose[0:4]
                         # self.desVel[0:4] = des_vel[0:4]
@@ -851,6 +851,8 @@ class learningReproductorAct:
                         self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
                         self.desPos[6] = des_pose_arm_z
                         self.desVel[6] = des_vel_arm_z
+                        self.desPos[9] = 0.0 #des_pose_arm_x_y_yaw[2]
+                        self.desVel[9] = 0.0 #des_vel_arm_x_y_yaw[2]
                         desPose_msg = PoseStamped()
                         desPose_msg.header.stamp = rospy.get_rostime()
                         desPose_msg.header.frame_id = "valve2"
@@ -877,20 +879,20 @@ class learningReproductorAct:
                         finally:
                             self.lock_force.release()
                 else :
-                    success = self.simulatedNewPose()
+                    #success = self.simulatedNewPose()
                     if time == 0 :
                         time = rospy.get_time()
                         self.currPos = self.currPosSim
                     else:
                         time += self.interval_time
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel)
+                        self.currPos, self.currVel, self.action)
                     if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
                         self.currPos[0:2] = des_pose_x_y_yaw[0:2]
                         self.currVel[0:2] = des_vel_x_y_yaw[0:2]
@@ -903,8 +905,8 @@ class learningReproductorAct:
                         self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
                         self.currPos[6] = des_pose_arm_z
                         self.currVel[6] = des_vel_arm_z
-                        # self.currPos[7] = des_pose_arm_x_y_yaw[2]
-                        # self.currVel[7] = des_vel_arm_x_y_yaw[2]
+                        self.currPos[9] = des_pose_arm_x_y_yaw[2]
+                        self.currVel[9] = des_vel_arm_x_y_yaw[2]
                         s = (repr(time) + " " +
                              repr(self.currPos[0]) + " " +
                              repr(self.currPos[1]) + " " +
@@ -955,6 +957,7 @@ class learningReproductorAct:
             # rospy.wait_for_service('/cola2_control/turnDesiredRadians')
             # rospy.wait_for_service('/cola2_control/disable_push')
             try:
+                error_code = 0
                 push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
                                               PushWithAUV)
                 rospy.loginfo('Pushing the valve ')
@@ -966,6 +969,9 @@ class learningReproductorAct:
                                                TurnDesiredDegrees)
                 rospy.loginfo('desired increment ' + str(goal.desired_increment))
                 res = turn_srv(goal.desired_increment)
+                if not res.success:
+                    error_code = 1
+                print 'Res ' + str(res.success)
 
                 # Is needed a slipt to be sure we turn the valve ?
                 #rospy.sleep(1.0)
@@ -1029,6 +1035,7 @@ class learningReproductorAct:
                     rate.sleep()
                 rospy.loginfo('Finish')
                 result.valve_turned = res.success
+                result.error_code = error_code
             except rospy.ServiceException, e:
                 print "Service call failed: %s"%e
 
