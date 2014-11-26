@@ -90,7 +90,6 @@ class PlanningInterface(object):
                          queue_size = 1)
 
 
-
         # TURN VALVE
         # TODO: Remember to start /learning/valve_turning_action and
         #       uncomment this section!!!
@@ -100,6 +99,21 @@ class PlanningInterface(object):
         rospy.loginfo("%s: wait for turn valve actionlib ...", self.name)
         self.turn_valve_action.wait_for_server()
         rospy.loginfo("%s: turn valve actionlib found!", self.name)
+
+        try:
+            rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation', 10)
+            self.disable_valve_orientation_srv = rospy.ServiceProxy("/valve_tracker/disable_update_valve_orientation", Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (valve orientation disable)', name)
+            rospy.signal_shutdown('Error creating client')
+
+        try:
+            rospy.wait_for_service('/valve_tracker/enable_update_valve_orientation', 10)
+            self.enable_valve_orientation_srv = rospy.ServiceProxy("/valve_tracker/enable_update_valve_orientation", Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (valve orientation enable)', name)
+            rospy.signal_shutdown('Error creating client')
+
         # CHAIN FOLLOW SERVICES
         #try:
         #    rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
@@ -107,7 +121,7 @@ class PlanningInterface(object):
         #                        '/udg_pandora/enable_chain_planner', Empty)
         #except rospy.exceptions.ROSException:
         #    rospy.logerr('%s, Error creating client. (chain planner enable)', name)
-        #    rospy.signal_shutdown('Error creating client')
+        #    rospy.sienable_valve_orientation_srvgnal_shutdown('Error creating client')
         #try:
         #    rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
         #    self.disable_chain_planner_srv = rospy.ServiceProxy(
@@ -184,6 +198,9 @@ class PlanningInterface(object):
         feedback.action_id = action_id
         feedback.status = 'action enabled'
 
+        # disable valve angle update
+        self.disable_valve_orientation_srv(EmptyRequest())
+
         goal = ValveTurningGoal()
         goal.valve_id = int(params[0])
         goal.long_approach = False
@@ -208,6 +225,8 @@ class PlanningInterface(object):
         self.pub_feedback.publish(feedback)
         rospy.loginfo('%s: turn valve action finished', self.name)
 
+        # enable valve angle update
+        self.enable_valve_orientation_srv(EmptyRequest())
 
     def __execute_valve_state__(self, action_id):
         # Publish action enabled
@@ -216,7 +235,7 @@ class PlanningInterface(object):
         feedback.status = 'action enabled'
         self.pub_feedback.publish(feedback)
         rospy.loginfo('%s: valve state action enabled', self.name)
-        rospy.sleep(2.0)
+        rospy.sleep(10.0)
         if rospy.Time.now().to_sec() - self.last_panel_update < 2.0:
             rospy.loginfo('%s: We are looking at the panel right now!', self.name)
             wait = action_id.duration - 2.0
@@ -260,6 +279,7 @@ class PlanningInterface(object):
 
         print 'current time: ', rospy.Time.now().to_sec()
         print 'last time we see the panel: ', self.last_panel_update
+        rospy.sleep(6)
         if rospy.Time.now().to_sec() - self.last_panel_update < 2.0:
             rospy.loginfo('%s: We are looking at the panel right now!', self.name)
             wait = action_id.duration - 2.0
