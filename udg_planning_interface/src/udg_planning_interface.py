@@ -93,9 +93,7 @@ class PlanningInterface(object):
         # TURN VALVE
         # TODO: Remember to start /learning/valve_turning_action and
         #       uncomment this section!!!
-        self.turn_valve_action = actionlib.SimpleActionClient(
-                                        '/learning/valve_turning_action',
-                                        ValveTurningAction)
+        self.turn_valve_action = actionlib.SimpleActionClient('/learning/valve_turning_action', ValveTurningAction)
         rospy.loginfo("%s: wait for turn valve actionlib ...", self.name)
         self.turn_valve_action.wait_for_server()
         rospy.loginfo("%s: turn valve actionlib found!", self.name)
@@ -201,6 +199,7 @@ class PlanningInterface(object):
             feedback.action_id = req.action_id
             feedback.status = "action achieved"
             self.pub_feedback.publish(feedback)
+
         elif req.name == 'reset_landmarks':
             rospy.loginfo("%s: Received reset_landmarks action.",
                           self.name)
@@ -208,6 +207,13 @@ class PlanningInterface(object):
             feedback = ActionFeedback()
             feedback.action_id = req.action_id
             feedback.status = "action achieved"
+
+        elif req.name == 'cancel_action':
+            rospy.loginfo("%s: Received cancel_action request.", self.name)
+            self.turn_valve_action.cancel_goal()
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action failed"
             self.pub_feedback.publish(feedback)
         else:
             rospy.logwarn('Invalid action name: %s', req.name)
