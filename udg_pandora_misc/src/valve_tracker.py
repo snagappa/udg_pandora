@@ -484,7 +484,7 @@ class valveTracker():
             self.predictpose()
             if self.enable_valve_ori:
                 self.updatebumbleebetf()
-            self.updatekf()
+                self.updatekf()
             #self.updatehandcameraoritf()
             #self.updatekfhand()
             self.publish()
