@@ -129,6 +129,8 @@ class PlanningInterface(object):
         #except rospy.exceptions.ROSException:
         #    rospy.logerr('%s, Error creating client. (chain planner disable)', name)
         #    rospy.signal_shutdown('Error creating client')
+        
+        # CALIBRATE ARM
         try:
             rospy.wait_for_service('/csip_e5_arm/arm_calibration', 10)
             self.enable_arm_calibration_srv = rospy.ServiceProxy(
@@ -136,6 +138,17 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Arm Calibration enable)', name)
            rospy.signal_shutdown('Error creating client')
+           
+        # RESET LANDMARKS
+        try:
+            rospy.wait_for_service('/cola2_navigation/reset_landmarks', 10)
+            self.reset_landmarks_srv = rospy.ServiceProxy(
+                '/cola2_navigation/reset_landmarks', Empty)
+        except rospy.exceptions.ROSException:
+           rospy.logerr('%s, Error creating client. (Reset landmarks enable)', name)
+           rospy.signal_shutdown('Error creating client')
+
+
 
     def dispatch_action(self, req):
         if req.name == 'goto':
@@ -184,6 +197,14 @@ class PlanningInterface(object):
             rospy.loginfo("%s: Received recalibrate_arm action.",
                           self.name)
             self.enable_arm_calibration_srv(EmptyRequest())
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action achieved"
+            self.pub_feedback.publish(feedback)
+        elif req.name == 'reset_landmarks':
+            rospy.loginfo("%s: Received reset_landmarks action.",
+                          self.name)
+            self.reset_landmarks_srv(EmptyRequest())
             feedback = ActionFeedback()
             feedback.action_id = req.action_id
             feedback.status = "action achieved"
