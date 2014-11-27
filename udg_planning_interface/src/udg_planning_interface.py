@@ -21,6 +21,8 @@ import tf
 from diagnostic_msgs.msg import KeyValue
 from pose_ekf_slam.msg import Map
 from std_srvs.srv import Empty, EmptyRequest
+from std_msgs.msg import Float64
+from cola2_control.srv import EFPose
 import numpy as np
 
 class PlanningInterface(object):
@@ -61,24 +63,24 @@ class PlanningInterface(object):
 
 
         # VALVE STATUS
-        rospy.Subscriber("/valve_tracker/valve0",
-                         PoseWithCovarianceStamped,
+        rospy.Subscriber("/valve_tracker/valve_0_ori",
+                         Float64,
                          self.update_valve_0,
                          queue_size = 1)
-        rospy.Subscriber("/valve_tracker/valve1",
-                         PoseWithCovarianceStamped,
+        rospy.Subscriber("/valve_tracker/valve_1_ori",
+                         Float64,
                          self.update_valve_1,
                          queue_size = 1)
-        rospy.Subscriber("/valve_tracker/valve2",
-                         PoseWithCovarianceStamped,
+        rospy.Subscriber("/valve_tracker/valve_2_ori",
+                         Float64,
                          self.update_valve_2,
                          queue_size = 1)
-        rospy.Subscriber("/valve_tracker/valve3",
-                         PoseWithCovarianceStamped,
+        rospy.Subscriber("/valve_tracker/valve_3_ori",
+                         Float64,
                          self.update_valve_3,
                          queue_size = 1)
 
-        rospy.Subscriber("/pose_ekf_slam/update_landmark/panel_centre",
+        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
                          PoseWithCovarianceStamped,
                          self.update_panel_centre,
                          queue_size = 1)
@@ -195,6 +197,9 @@ class PlanningInterface(object):
             rospy.loginfo("%s: Received recalibrate_arm action.",
                           self.name)
             self.enable_arm_calibration_srv(EmptyRequest())
+            fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF', EFPose)
+            value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
+            rospy.sleep(30.0)
             feedback = ActionFeedback()
             feedback.action_id = req.action_id
             feedback.status = "action achieved"
@@ -263,57 +268,59 @@ class PlanningInterface(object):
         self.pub_feedback.publish(feedback)
         rospy.loginfo('%s: valve state action enabled', self.name)
         rospy.sleep(10.0)
-        if rospy.Time.now().to_sec() - self.last_panel_update < 2.0:
+        if rospy.Time.now().to_sec() - self.last_panel_update < 8.0:
             rospy.loginfo('%s: We are looking at the panel right now!', self.name)
-            wait = action_id.duration - 2.0
-            if wait < 0.0:
-                wait = 0.0
-            rospy.sleep(wait)
+            
+            # Publish action response
+            ret = list()
+            for i in range(4):
+                if self.valve_covariance[i] > 0 and self.valve_covariance[i] < 1.0:
+                    element = KeyValue()
+                    element.key = 'valve_' + str(i) + '_angle'
+                    element.value = str(self.valve_orientation[i])
+                    ret.append(element)
+
+                    # If we have more than one panel we indicated the panel id (now is always 0)
+                    element1 = KeyValue()
+                    element1.key = 'valve_' + str(i) + '_in_panel'
+                    element1.value = '0'
+                    ret.append(element1)
+
+            feedback.status = 'action achieved'
+            feedback.information = ret
+            rospy.loginfo('%s: valve state response: \n%s', self.name, feedback)
+            self.pub_feedback.publish(feedback)
         else:
             rospy.loginfo('%s: Panel out of field of view.', self.name)
-
-
-        # Publish action response
-        ret = list()
-        for i in range(4):
-            if self.valve_covariance[i] > 0 and self.valve_covariance[i] < 1.0:
-                element = KeyValue()
-                element.key = 'valve_' + str(i) + '_angle'
-                element.value = str(self.valve_orientation[i])
-                ret.append(element)
-
-                element1 = KeyValue()
-                element1.key = 'valve_' + str(i) + '_in_panel'
-                element1.value = '0'
-                ret.append(element1)
-
-        feedback.status = 'action achieved'
-        feedback.information = ret
-        rospy.loginfo('%s: valve state response: \n%s', self.name, feedback)
-        self.pub_feedback.publish(feedback)
-
+            feedback.status = 'action failed'
+            element = KeyValue()
+            element.key = 'panel_0_state'
+            element.value = 'panel_missing'
+            feedback.information.append(element)
+            self.pub_feedback.publish(feedback)
+            
 
     def __execute_check_panel__(self, action_id):
+
         # Publish action enabled
         feedback = ActionFeedback()
         feedback.action_id = action_id
         feedback.status = 'action enabled'
         self.pub_feedback.publish(feedback)
         rospy.loginfo('%s: check panel action enabled', self.name)
+
+        # forget old panel location
+        self.ekf_panel_centre = None
+
         rospy.sleep(2.0)
         element = KeyValue()
         element.key = 'panel_0_in_fov'
 
         print 'current time: ', rospy.Time.now().to_sec()
         print 'last time we see the panel: ', self.last_panel_update
-        rospy.sleep(6)
+        rospy.sleep(8)
         if rospy.Time.now().to_sec() - self.last_panel_update < 2.0:
-            rospy.loginfo('%s: We are looking at the panel right now!', self.name)
-            wait = action_id.duration - 2.0
-            if wait < 0.0:
-                wait = 0.0
             element.value = 'true'
-            rospy.sleep(wait)
         else:
             element.value = 'false'
             rospy.loginfo('%s: Panel out of field of view.', self.name)
@@ -326,10 +333,13 @@ class PlanningInterface(object):
         if self.ekf_panel_centre != None:
             element1 = KeyValue()
             element1.key = 'panel_0_position'
-            position = [self.ekf_panel_centre.x,
-                        self.ekf_panel_centre.y,
-                        self.ekf_panel_centre.z,
-			self.ekf_panel_yaw]
+            position = [self.ekf_panel_centre.position.x,
+                        self.ekf_panel_centre.position.y,
+                        self.ekf_panel_centre.position.z,
+                        self.ekf_panel_centre.orientation.x,
+                        self.ekf_panel_centre.orientation.y,
+                        self.ekf_panel_centre.orientation.z,
+                        self.ekf_panel_centre.orientation.w]
             element1.value = str(position)
             ret.append(element1)
 
@@ -383,16 +393,8 @@ class PlanningInterface(object):
         self.set_valve_info(3, data)
 
     def set_valve_info(self, valve_id, data):
-        angle = tf.transformations.euler_from_quaternion(
-                                    [data.pose.pose.orientation.x,
-                                     data.pose.pose.orientation.y,
-                                     data.pose.pose.orientation.z,
-                                     data.pose.pose.orientation.w])
-        self.valve_orientation[valve_id] = angle[2]
-        self.valve_covariance[valve_id] = data.pose.covariance[35]
-        self.valve_pose[valve_id][0] = data.pose.pose.position.x
-        self.valve_pose[valve_id][1] = data.pose.pose.position.y
-        self.valve_pose[valve_id][2] = data.pose.pose.position.z
+        self.valve_orientation[valve_id] = data.data
+        self.valve_covariance[valve_id] = 0.1
 
     def goto_result(self, data):
         print 'goto_result: \n', data
@@ -407,27 +409,12 @@ class PlanningInterface(object):
     def update_panel_centre(self, data):
         # Save last time that the panel was in the field of view
         self.last_panel_update = rospy.Time.now().to_sec()
-        print '**'
 
 
     def update_ekf_panel_centre(self, data):
         if len(data.landmark) > 0:
-            self.ekf_panel_centre = data.landmark[0].pose.pose.position
-            original_matrix = tf.transformations.quaternion_matrix(
-                                    [data.landmark[0].pose.pose.orientation.x,
-                                     data.landmark[0].pose.pose.orientation.y,
-                                     data.landmark[0].pose.pose.orientation.z,
-                                     data.landmark[0].pose.pose.orientation.w])
-            inv_matrix = np.linalg.pinv(original_matrix[0:3, 0:3])
-            inv_trans_matrix = np.zeros([4,4])
-            inv_trans_matrix[0:3, 0:3] = inv_matrix
-            inv_trans_matrix[3,3] = 1.0
-
-            angle = tf.transformations.euler_from_matrix(
-                inv_trans_matrix)
-            self.ekf_panel_yaw = angle[1]
-
-
+            self.ekf_panel_centre = data.landmark[0].pose.pose
+           
 # PRIVATE AUXILIAR FUNCTIONS
 
 def  __get_params__(key_value, param_list):
