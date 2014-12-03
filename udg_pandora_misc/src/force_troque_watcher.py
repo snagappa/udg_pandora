@@ -42,7 +42,7 @@ class froceTorqueWatcher(object):
         # sub_force = rospy.Subscriber(
         #     '/force_torque_controller/wrench_stamped', WrenchStamped, self.force_callback)
         th_iit = threading.Thread(target=self.run_force_torque_iit)
-        th_ii.daemon = True
+        th_iit.daemon = True
         th_iit.start()
         rospy.sleep(KILLTIME)
         th_controller = threading.Thread(target=self.run_force_torque_controll)
