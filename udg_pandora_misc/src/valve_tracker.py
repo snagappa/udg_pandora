@@ -438,8 +438,9 @@ class valveTracker():
                 #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
                 #rospy.loginfo('Euler values ' + str(eul))
                 #rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
+                angle = self.wrap_angle_zero_pi(wrap_angle_zero_pi[i])
                 rot_matrix = tf.transformations.euler_matrix(
-                    0.0, 0.0, self.kf_valves_ori[i])
+                    0.0, 0.0, angle)
                 panel_matrix = tf.transformations.quaternion_matrix([
                     self.valve_msg[i].pose.pose.orientation.x,
                     self.valve_msg[i].pose.pose.orientation.y,
@@ -469,7 +470,6 @@ class valveTracker():
                     rospy.Time.now(),
                     "valve_"+str(i)+"_tracker",
                     "world")
-                      
                 # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
@@ -496,6 +496,16 @@ class valveTracker():
         This function load by default param configurations
         """
         pass
+
+    def wrap_angle_zero_pi(self, angle):
+        """
+        This function gets the positive orientation of the valve (only 1st
+        and 2n)
+        """
+        if 0.0 <= angle <= np.pi:
+            return angle
+        else:
+            return (np.pi + angle)
 
 if __name__ == '__main__':
     try:
