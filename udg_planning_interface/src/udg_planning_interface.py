@@ -129,16 +129,15 @@ class PlanningInterface(object):
         #except rospy.exceptions.ROSException:
         #    rospy.logerr('%s, Error creating client. (chain planner disable)', name)
         #    rospy.signal_shutdown('Error creating client')
-        
+
         # CALIBRATE ARM
         try:
-            rospy.wait_for_service('/csip_e5_arm/arm_calibration', 10)
+            rospy.wait_for_service('/cola2_control/arm_calibration', 10)
             self.enable_arm_calibration_srv = rospy.ServiceProxy(
-                '/csip_e5_arm/arm_calibration', Empty)
+                '/cola2_control/arm_calibration', Empty)
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Arm Calibration enable)', name)
            rospy.signal_shutdown('Error creating client')
-           
         # RESET LANDMARKS
         try:
             rospy.wait_for_service('/cola2_navigation/reset_landmarks', 10)
@@ -147,8 +146,22 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Reset landmarks enable)', name)
            rospy.signal_shutdown('Error creating client')
-
-
+        # Enable Keep position
+        try:
+            rospy.wait_for_service('/cola2_control/enable_keep_position_g500', 10)
+            self.enable_keep_pose_srv = rospy.ServiceProxy(
+                '/cola2_control/enable_keep_position_g500', Empty)
+        except rospy.exceptions.ROSException:
+           rospy.logerr('%s, Error creating client. (Enable_keep_position enable)', name)
+           rospy.signal_shutdown('Error creating client')
+        # Enable Keep position
+        try:
+            rospy.wait_for_service('/cola2_control/disable_keep_position', 10)
+            self.disable_keep_pose_srv = rospy.ServiceProxy(
+                '/cola2_control/disable_keep_position', Empty)
+        except rospy.exceptions.ROSException:
+           rospy.logerr('%s, Error creating client. (Enable_keep_position disable)', name)
+           rospy.signal_shutdown('Error creating client')
 
     def dispatch_action(self, req):
         if req.name == 'goto':
@@ -196,10 +209,14 @@ class PlanningInterface(object):
         elif req.name == 'recalibrate_arm':
             rospy.loginfo("%s: Received recalibrate_arm action.",
                           self.name)
+            self.enable_keep_pose_srv(EmptyRequest())
+            self.disable_valve_orientation_srv(EmptyRequest())
             self.enable_arm_calibration_srv(EmptyRequest())
-            fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF', EFPose)
-            value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
-            rospy.sleep(30.0)
+            self.enable_valve_orientation_srv(EmptyRequest())
+            self.disable_keep_pose_srv(EmptyRequest())
+            # fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF', EFPose)
+            # value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
+            #rospy.sleep(30.0)
             feedback = ActionFeedback()
             feedback.action_id = req.action_id
             feedback.status = "action achieved"
@@ -270,7 +287,7 @@ class PlanningInterface(object):
         rospy.sleep(10.0)
         if rospy.Time.now().to_sec() - self.last_panel_update < 8.0:
             rospy.loginfo('%s: We are looking at the panel right now!', self.name)
-            
+
             # Publish action response
             ret = list()
             for i in range(4):
@@ -298,7 +315,7 @@ class PlanningInterface(object):
             element.value = 'panel_missing'
             feedback.information.append(element)
             self.pub_feedback.publish(feedback)
-            
+
 
     def __execute_check_panel__(self, action_id):
 
@@ -414,7 +431,7 @@ class PlanningInterface(object):
     def update_ekf_panel_centre(self, data):
         if len(data.landmark) > 0:
             self.ekf_panel_centre = data.landmark[0].pose.pose
-           
+
 # PRIVATE AUXILIAR FUNCTIONS
 
 def  __get_params__(key_value, param_list):
