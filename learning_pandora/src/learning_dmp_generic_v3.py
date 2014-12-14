@@ -115,9 +115,48 @@ class learningDmp:
         # end_time = [1416562818, 1416562947, 1416563160]
 
         # v3 Short 16-17
-        init_time = [1416562865, 1416563101]
-        end_time = [1416562947, 1416563160]
+        # init_time = [1416562865, 1416563101]
+        # end_time = [1416562947, 1416563160]
 
+        # v3 Short 19 21
+        # init_time = [1416820392, 1416905126]
+        # end_time = [1416820489, 1416905203]
+
+        # v3 Short 30 31
+        # init_time = [1416933728, 1416933910]
+        # end_time = [1416933822, 1416933997]
+
+        # v3 Short Correct ori 35 36
+        # init_time = [1416990052, 1416990248]
+        # end_time = [1416990120, 1416990325]
+
+        # v3 Short Correct ori 37 38 39 40
+        # init_time = [1416999900, 1417000037,1417000224, 1417000336]
+        # end_time = [1416999987, 1417000134, 1417000286, 1417000419]
+
+        # v3 Short Correct ori and yaw robot 45,46,47
+        # init_time = [1417078150, 1417078307, 1417078423]
+        # end_time = [1417078235, 1417078384, 1417078488]
+
+        # v3 Short Correct ori and yaw robot 46,47
+        # init_time = [1417078307, 1417078423]
+        # end_time = [1417078374, 1417078488]
+
+        # v3 Short Correct ori and yaw robot 50,51
+        # init_time = [1417700808, 1417700942]
+        # end_time = [1417700873, 1417701015]
+
+        # v3 Short Correct ori and yaw robot 60,61,62
+        # init_time = [1418381955, 1418382242, 1418382383]
+        # end_time = [1418382040, 1418382304, 1418382446]
+
+        # v3 Short Correct ori and yaw robot 61,62
+        # init_time = [1418382242, 1418382383]
+        # end_time = [1418382304, 1418382446]
+
+        # v3 Short Correct ori and yaw robot 70, 71, 72
+        init_time = [1418556105, 1418556507, 1418556965]
+        end_time = [1418556193, 1418556594, 1418557044]
 
         # AUV X Y Yaw
         dof_list = [1,1,0,1,0,0,0,0,0,0]

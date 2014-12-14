@@ -49,12 +49,12 @@ def load_trajectory(file_name, samples):
 
 if __name__ == '__main__':
     demos = True
-    sim = True
+    sim = False
     real = True
     #load demonstration
     if demos:
         demos = load_trajectory('../learning_data/trajectory_demonstration_v3',
-                                [16, 17])
+                                [70, 71, 72]) #[16,17]) [19,21])
     if sim:
         simulation = load_trajectory('../learning_data/trajectoryPlayed_individual',
                                      [])

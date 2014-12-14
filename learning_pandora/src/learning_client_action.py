@@ -28,8 +28,8 @@ def learning_client():
     # goal = udg_pandora.msg.ValveTurningAction(valve_id=2, long_approach=False)
     goal = learning_pandora.msg.ValveTurningGoal()
     goal.valve_id = 2
-    goal.long_approach = True
-    goal.desired_increment = np.deg2rad(90)
+    goal.long_approach = False
+    goal.desired_increment = np.deg2rad(-90)
 
     # Sends the goal to the action server.
     client.send_goal(goal)

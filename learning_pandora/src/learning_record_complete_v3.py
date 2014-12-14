@@ -39,13 +39,14 @@ class LearningRecord:
         rospy.loginfo('Configuration Loaded')
         self.goalPose = Pose()
         self.robotPose = Pose()
+        self.valve_orientation = Pose()
         self.lock = threading.Lock()
         self.initTime = 0.0
         self.initGoal = False
         self.initGoalPose = False
         self.initGoalOri = False
         self.initRobotPose = False
-        self.initRoll = False
+        self.initRoll = True
         self.valveOri = 0.0
         self.valveOriInit = False
         self.unnormalized_angle = 0.0
@@ -67,11 +68,11 @@ class LearningRecord:
             self.updateRobotPose,
             queue_size = 1)
 
-        rospy.Subscriber(
-            "/csip_e5_arm/joint_state",
-            JointState,
-            self.updateRollEndEffector,
-            queue_size = 1)
+        # rospy.Subscriber(
+        #     "/csip_e5_arm/joint_state",
+        #     JointState,
+        #     self.updateRollEndEffector,
+        #     queue_size = 1)
 
         rospy.Subscriber("/valve_tracker/valve" + str(self.goal_valve),
                          PoseWithCovarianceStamped,
@@ -109,6 +110,7 @@ class LearningRecord:
                              pose_msg.pose.pose.orientation.y,
                              pose_msg.pose.pose.orientation.z,
                              pose_msg.pose.pose.orientation.w])[2]
+            self.valve_orientation.orientation = pose_msg.pose.pose.orientation
             if not self.initGoalPose:
                 self.initGoalPose = True
                 if (self.initGoalOri and
@@ -309,7 +311,7 @@ class LearningRecord:
                 mat_ori_test = np.dot(robotOri[0:3, 0:3], inv_new_panel[0:3, 0:3] )
                 mat_ori_test_2 = np.dot(robotOri[0:3, 0:3], new_panel[0:3, 0:3] )
 
-                rospy.loginfo('Dif Ori R*P_I ' + str(tf.transformations.euler_from_matrix(mat_ori_test)))
+                #rospy.loginfo('Dif Ori R*P_I ' + str(tf.transformations.euler_from_matrix(mat_ori_test)))
                 #rospy.loginfo('Dif Ori R*P ' + str(tf.transformations.euler_from_matrix(mat_ori_test_2)))
 
                 #WORK AROUND
@@ -373,14 +375,38 @@ class LearningRecord:
                                                  armPose.pose.orientation.y,
                                                  armPose.pose.orientation.z,
                                                  armPose.pose.orientation.w])
-                if self.valveOriInit:
-                    roll = self.valveOri - self.unnormalized_roll
-                else:
-                    roll = self.unnormalized_roll
 
-                # rospy.loginfo('ValveOri ' + str(self.valveOri)
-                #               + ' Unnormalized ' + str(self.unnormalized_roll))
-                # rospy.loginfo('Roll Value ' + str(roll))
+                ori_valve_n = tf.transformations.quaternion_matrix([
+                    self.valve_orientation.orientation.x,
+                    self.valve_orientation.orientation.y,
+                    self.valve_orientation.orientation.z,
+                    self.valve_orientation.orientation.w])
+
+                #Same orientation like the AUV, Z down X backward Y lateral
+                rot_test = tf.transformations.euler_matrix(np.pi,0.0,0.0)
+
+                #new_panel = np.dot(trans_matrix[0:3, 0:3], rot_test[0:3, 0:3])
+                valve_orientated_as_end_effector = np.dot(ori_valve_n, rot_test)
+
+                end_effector_ori = tf.transformations.quaternion_matrix([
+                    armPose.pose.orientation.x,
+                    armPose.pose.orientation.y,
+                    armPose.pose.orientation.z,
+                    armPose.pose.orientation.w])
+
+                ee_ori_base = np.dot(robot_base[0:3, 0:3], end_effector_ori[0:3,0:3])
+
+                ee_ori_world = np.dot(trans_matrix_v2[0:3, 0:3], ee_ori_base)
+
+                end_effector_ori_frame_valve = np.dot(
+                    np.transpose(ee_ori_world),
+                    valve_orientated_as_end_effector[0:3, 0:3])
+
+                # rospy.loginfo('EE' + str(tf.transformations.euler_from_matrix(ee_ori_world)))
+                # rospy.loginfo('Valve' + str(tf.transformations.euler_from_matrix(ori_valve_n)))
+                # rospy.loginfo('Valve as EE ' + str(tf.transformations.euler_from_matrix(valve_orientated_as_end_effector)))
+                rospy.loginfo('EE frame Valve 1 ' + str(tf.transformations.euler_from_matrix(end_effector_ori_frame_valve)))
+                ee_euler= tf.transformations.euler_from_matrix(end_effector_ori_frame_valve)
                 s = (repr(rospy.get_time()) + " " +
                      repr(robotTrans[0]) + " " +
                      repr(robotTrans[1]) + " " +
@@ -391,9 +417,9 @@ class LearningRecord:
                      repr(arm_frame_pose[0]) + " " +
                      repr(arm_frame_pose[1]) + " " +
                      repr(arm_frame_pose[2]) + " " +
-                     repr(arm_ori[0]) + " " +
-                     repr(arm_ori[1]) + " " +
-                     repr(roll) + "\n")
+                     repr(ee_euler[0]) + " " +
+                     repr(ee_euler[1]) + " " +
+                     repr(ee_euler[2]) + "\n")
                 self.file.write(s)
             else:
                 rospy.loginfo('Goal pose Not initialized')
