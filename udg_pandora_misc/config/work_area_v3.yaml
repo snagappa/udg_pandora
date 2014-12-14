@@ -1,0 +1,18 @@
+#Distance from the valve to the auv base
+work_area/distance_goal : [0.5, 1.4]
+#Angle in the horizontal plane, yaw.
+work_area/gamma: 0.3
+#Angle in the horizontal plane valve(z,x) or robot(x,y) seen by the valve
+work_area/alpha: 0.3
+#Angel in the vertical plane valve(z,y) or robot(x,z) seen by the valve
+work_area/beta: [-0.6, -0.1]
+#identification parameters
+work_area/landmark_id: '/pose_ekf_slam/landmark_update/panel_centre'
+work_area/period: 0.2
+work_area/goal_valve: 2
+work_area/limit_enter_zone: 10
+# 10s = period * 50
+work_area/limit_wait_outsite: 40
+# 10s
+work_area/limit_outsite: 80
+# 40s
