@@ -54,42 +54,7 @@ class valveTracker():
         time = rospy.Time.now()
         self.last_update_ee_tf = time
         self.last_update_ee_p_tf = time
-        for i in xrange(self.num_valves):
-            pub_name = '/valve_tracker/valve'+str(i)
-            self.valve_publishers.append(rospy.Publisher(
-                pub_name, PoseWithCovarianceStamped))
-            self.valve_poses.append([0, 0, 0])
-            # pub_name_ori = '/valve_tracker/valve_ori'+str(i)
-            # self.valve_ori_pub.append(rospy.Publisher(
-            #     pub_name_ori, Float64))
-            # pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
-            # self.valve_ori_cov.append(rospy.Publisher(
-            #     pub_name_cov, Float64))
-            self.valve_msg.append(PoseWithCovarianceStamped())
-            self.last_update_tf.append(time)
-        #Comented because is not used
-        # self.pub_valve_landmark = rospy.Publisher(
-        #     self.publisher_landmark, PoseWithCovarianceStamped)
-        #subscrive to the Map where is the position of the center
-        rospy.Subscriber("/pose_ekf_slam/map",
-                         Map,
-                         self.updatepanelpose,
-                         queue_size = 1)
-        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
-                         PoseWithCovarianceStamped,
-                         self.updatecovariance,
-                         queue_size = 1)
-
-        self.enable_srv = rospy.Service(
-            '/valve_tracker/enable_update_valve_orientation',
-            Empty,
-            self.enable_update_valve_srv)
-
-        self.disable_srv = rospy.Service(
-            '/valve_tracker/disable_update_valve_orientation',
-            Empty,
-            self.disable_update_valve_srv)
-
+        
         self.enable_valve_ori = True
 
         self.lock = threading.Lock()
@@ -123,6 +88,43 @@ class valveTracker():
 
         #broadcaster for the valve pose
         self.tf_broadcaster = tf.TransformBroadcaster()
+        for i in xrange(self.num_valves):
+            pub_name = '/valve_tracker/valve'+str(i)
+            self.valve_publishers.append(rospy.Publisher(
+                pub_name, PoseWithCovarianceStamped))
+            self.valve_poses.append([0, 0, 0])
+            pub_name_ori = '/valve_tracker/valve_'+str(i)+'_ori'
+            self.valve_ori_pub.append(rospy.Publisher(
+                pub_name_ori, Float64))
+            # pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
+            # self.valve_ori_cov.append(rospy.Publisher(
+            #     pub_name_cov, Float64))
+            self.valve_msg.append(PoseWithCovarianceStamped())
+            self.last_update_tf.append(time)
+        #Comented because is not used
+        # self.pub_valve_landmark = rospy.Publisher(
+        #     self.publisher_landmark, PoseWithCovarianceStamped)
+        #subscrive to the Map where is the position of the center
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.updatepanelpose,
+                         queue_size = 1)
+        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
+                         PoseWithCovarianceStamped,
+                         self.updatecovariance,
+                         queue_size = 1)
+
+        self.enable_srv = rospy.Service(
+            '/valve_tracker/enable_update_valve_orientation',
+            Empty,
+            self.enable_update_valve_srv)
+
+        self.disable_srv = rospy.Service(
+            '/valve_tracker/disable_update_valve_orientation',
+            Empty,
+            self.disable_update_valve_srv)
+
+        
 
     def getconfig(self):
         """
@@ -470,7 +472,8 @@ class valveTracker():
                     rospy.Time.now(),
                     "valve_"+str(i)+"_tracker",
                     "world")
-                # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+                      
+                self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
                 self.lock.release()
