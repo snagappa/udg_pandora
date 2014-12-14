@@ -440,7 +440,7 @@ class valveTracker():
                 #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
                 #rospy.loginfo('Euler values ' + str(eul))
                 #rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
-                angle = self.wrap_angle_zero_pi(wrap_angle_zero_pi[i])
+                angle = self.wrap_angle_zero_pi(self.kf_valves_ori[i])
                 rot_matrix = tf.transformations.euler_matrix(
                     0.0, 0.0, angle)
                 panel_matrix = tf.transformations.quaternion_matrix([
@@ -505,7 +505,7 @@ class valveTracker():
         This function gets the positive orientation of the valve (only 1st
         and 2n)
         """
-        if 0.0 <= angle <= np.pi:
+        if 0.0 < angle <= np.pi:
             return angle
         else:
             return (np.pi + angle)
