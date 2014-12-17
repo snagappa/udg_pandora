@@ -54,7 +54,7 @@ class valveTracker():
         time = rospy.Time.now()
         self.last_update_ee_tf = time
         self.last_update_ee_p_tf = time
-        
+
         self.enable_valve_ori = True
 
         self.lock = threading.Lock()
@@ -124,7 +124,7 @@ class valveTracker():
             Empty,
             self.disable_update_valve_srv)
 
-        
+
 
     def getconfig(self):
         """
@@ -472,8 +472,8 @@ class valveTracker():
                     rospy.Time.now(),
                     "valve_"+str(i)+"_tracker",
                     "world")
-                      
-                self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+
+                self.valve_ori_pub[i].publish(self.wrap_angle_zero_pi(self.kf_valves_ori[i]))
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
                 self.lock.release()
