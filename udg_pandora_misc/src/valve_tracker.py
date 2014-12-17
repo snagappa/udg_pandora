@@ -502,7 +502,7 @@ class valveTracker():
         This function gets the positive orientation of the valve (only 1st
         and 2n)
         """
-        if 0.0 <= angle <= np.pi:
+        if 0.0 < angle <= np.pi:
             return angle
         else:
             return (np.pi + angle)
