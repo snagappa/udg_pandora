@@ -700,7 +700,7 @@ class learningReproductorAct:
                 if self.enabled:
                     if not self.simulation:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
-                            rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
+                            #rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
                             [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
                                 self.currPos, self.currVel, self.action)
                             [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
@@ -871,7 +871,7 @@ class learningReproductorAct:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
                 if not self.simulation:
                     #success = self.generateNewPose()
-                    rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
+                    #rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
                         self.currPos, self.currVel, self.action)
                     [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
@@ -917,8 +917,9 @@ class learningReproductorAct:
                     if self.force_torque_enable and success == False:
                         self.lock_force.acquire()
                         try:
-                            #rospy.loginfo('Force in Z ' + str(self.force_vector[2]))
-                            if np.abs(self.force_vector[2] - self.force_vector_old[2]) >= 15.0:
+                            rospy.loginfo('Force in Z ' + str(np.abs(self.force_vector[2] - self.force_vector_old[2])) + ' Force ' + str(self.force_vector[2]))
+                            if (np.abs(self.force_vector[2] - self.force_vector_old[2]) >= 3.0 and
+                                self.force_vector[2] < -3.0):
                                 #self.force_big_update = 1
                                 success = True
                         finally:
@@ -1060,7 +1061,7 @@ class learningReproductorAct:
 
                 fold_arm_srv = rospy.ServiceProxy('/cola2_control/setJointPose',
                                                   JointPose)
-                value = fold_arm_srv([0.0, 40.0, -40.0, 0.0, 0.0])
+                value = fold_arm_srv([0.0, 50.0, -30.0, 0.0, 0.0])
 
                 for i in range(40):
                     #rospy.loginfo('Going backward')
@@ -1098,15 +1099,15 @@ class learningReproductorAct:
         self.action = 1.0
 
         #Stop all the movement sending Zero velocities
-        joy_command = Joy()
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        self.pub_arm_command.publish(joy_command)
-        rospy.loginfo('Joy Message stop sent !!!!!')
+        # joy_command = Joy()
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # self.pub_arm_command.publish(joy_command)
+        # rospy.loginfo('Joy Message stop sent !!!!!')
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
