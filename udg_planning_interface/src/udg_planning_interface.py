@@ -253,7 +253,9 @@ class PlanningInterface(object):
         goal = ValveTurningGoal()
         goal.valve_id = int(params[0])
         goal.long_approach = False
-        goal.desired_increment = float(params[1])
+        desired_increment = float(params[1])
+        desired_increment = np.sign(desired_increment)*0.2 + desired_increment
+        goal.desired_increment = -1.0*desired_increment
         self.turn_valve_action.send_goal(goal)
 
         self.pub_feedback.publish(feedback)
