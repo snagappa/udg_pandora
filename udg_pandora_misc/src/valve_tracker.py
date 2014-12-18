@@ -440,7 +440,7 @@ class valveTracker():
                 #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
                 #rospy.loginfo('Euler values ' + str(eul))
                 #rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
-                angle = self.wrap_angle_zero_pi(self.kf_valves_ori[i])
+                angle = self.discretize_valve_angle(self.kf_valves_ori[i])
                 rot_matrix = tf.transformations.euler_matrix(
                     0.0, 0.0, angle)
                 panel_matrix = tf.transformations.quaternion_matrix([
@@ -473,7 +473,7 @@ class valveTracker():
                     "valve_"+str(i)+"_tracker",
                     "world")
 
-                self.valve_ori_pub[i].publish(self.wrap_angle_zero_pi(self.kf_valves_ori[i]))
+                self.valve_ori_pub[i].publish(self.discretize_valve_angle(self.kf_valves_ori[i]))
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
                 self.lock.release()
@@ -509,6 +509,31 @@ class valveTracker():
             return angle
         else:
             return (np.pi + angle)
+            
+    def angle_valve(self, angle):
+        if np.pi >=angle and angle >= (np.pi/2.0):
+            return angle
+        elif -np.pi <=angle and angle <= (3*(-np.pi/4.0)):
+            return np.pi
+        elif (3*(-np.pi/4.0)) <= angle and angle <= (-np.pi/2.0):
+            return np.pi/2.0
+        elif (-np.pi/2.0) <= angle and angle <= 0.0:
+            return (np.pi + angle)
+        elif 0.0 <= angle and angle <= (np.pi/4.0):
+            return np.pi
+        elif (np.pi/2.0) >= angle and angle >=(np.pi/4.0):
+            return np.pi/2.0
+        else:
+            rospy.logerr('Wrong Angle')
+
+    def discretize_valve_angle(self, angle):
+        if ((angle < 2.1 and angle > 0.78) or (angle < -1.05 and angle > -2.35)):
+            return 1.57
+        elif ((angle >= 2.1 and angle <= 2.62) or (angle <= -0.524 and angle >= -1.05)):
+            return 2.35
+        else:
+            return 3.14
+                
 
 if __name__ == '__main__':
     try:
