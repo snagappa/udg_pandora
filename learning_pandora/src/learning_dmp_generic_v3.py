@@ -155,6 +155,10 @@ class learningDmp:
         # end_time = [1418382304, 1418382446]
 
         # v3 Short Correct ori and yaw robot 70, 71, 72
+        # init_time = [1418556105, 1418556507, 1418556965]
+        # end_time = [1418556193, 1418556594, 1418557044]
+
+        # v3 Short Correct ori and yaw robot 75, 76, 77
         init_time = [1418556105, 1418556507, 1418556965]
         end_time = [1418556193, 1418556594, 1418557044]
 
