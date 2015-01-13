@@ -74,7 +74,7 @@
 </state>
 
 <state id="moving_out">
-    <invoke src="traj_auv_valve_moving_out.txt" type="dmp_auv" >
+    <invoke src="traj_auv_world.txt" type="dmp_auv" >
         <frame>world</frame>
         <dof>4</dof>
         <alpha>1.0</alpha>
@@ -82,6 +82,7 @@
     <invoke src="des_pos_arm.txt" type="ee_pose">
         <frame>auv</frame>
     </invoke>
+    <transition event="finish_dmp" target="end"/>
 </state>
 
 </scxml>

@@ -54,41 +54,6 @@ class valveTracker():
         time = rospy.Time.now()
         self.last_update_ee_tf = time
         self.last_update_ee_p_tf = time
-        for i in xrange(self.num_valves):
-            pub_name = '/valve_tracker/valve'+str(i)
-            self.valve_publishers.append(rospy.Publisher(
-                pub_name, PoseWithCovarianceStamped))
-            self.valve_poses.append([0, 0, 0])
-            # pub_name_ori = '/valve_tracker/valve_ori'+str(i)
-            # self.valve_ori_pub.append(rospy.Publisher(
-            #     pub_name_ori, Float64))
-            # pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
-            # self.valve_ori_cov.append(rospy.Publisher(
-            #     pub_name_cov, Float64))
-            self.valve_msg.append(PoseWithCovarianceStamped())
-            self.last_update_tf.append(time)
-        #Comented because is not used
-        # self.pub_valve_landmark = rospy.Publisher(
-        #     self.publisher_landmark, PoseWithCovarianceStamped)
-        #subscrive to the Map where is the position of the center
-        rospy.Subscriber("/pose_ekf_slam/map",
-                         Map,
-                         self.updatepanelpose,
-                         queue_size = 1)
-        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
-                         PoseWithCovarianceStamped,
-                         self.updatecovariance,
-                         queue_size = 1)
-
-        self.enable_srv = rospy.Service(
-            '/valve_tracker/enable_update_valve_orientation',
-            Empty,
-            self.enable_update_valve_srv)
-
-        self.disable_srv = rospy.Service(
-            '/valve_tracker/disable_update_valve_orientation',
-            Empty,
-            self.disable_update_valve_srv)
 
         self.enable_valve_ori = True
 
@@ -123,6 +88,43 @@ class valveTracker():
 
         #broadcaster for the valve pose
         self.tf_broadcaster = tf.TransformBroadcaster()
+        for i in xrange(self.num_valves):
+            pub_name = '/valve_tracker/valve'+str(i)
+            self.valve_publishers.append(rospy.Publisher(
+                pub_name, PoseWithCovarianceStamped))
+            self.valve_poses.append([0, 0, 0])
+            pub_name_ori = '/valve_tracker/valve_'+str(i)+'_ori'
+            self.valve_ori_pub.append(rospy.Publisher(
+                pub_name_ori, Float64))
+            # pub_name_cov = '/valve_tracker/valve_ori_cov'+str(i)
+            # self.valve_ori_cov.append(rospy.Publisher(
+            #     pub_name_cov, Float64))
+            self.valve_msg.append(PoseWithCovarianceStamped())
+            self.last_update_tf.append(time)
+        #Comented because is not used
+        # self.pub_valve_landmark = rospy.Publisher(
+        #     self.publisher_landmark, PoseWithCovarianceStamped)
+        #subscrive to the Map where is the position of the center
+        rospy.Subscriber("/pose_ekf_slam/map",
+                         Map,
+                         self.updatepanelpose,
+                         queue_size = 1)
+        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
+                         PoseWithCovarianceStamped,
+                         self.updatecovariance,
+                         queue_size = 1)
+
+        self.enable_srv = rospy.Service(
+            '/valve_tracker/enable_update_valve_orientation',
+            Empty,
+            self.enable_update_valve_srv)
+
+        self.disable_srv = rospy.Service(
+            '/valve_tracker/disable_update_valve_orientation',
+            Empty,
+            self.disable_update_valve_srv)
+
+
 
     def getconfig(self):
         """
@@ -438,8 +440,9 @@ class valveTracker():
                 #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
                 #rospy.loginfo('Euler values ' + str(eul))
                 #rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
+                angle = self.discretize_valve_angle(self.kf_valves_ori[i])
                 rot_matrix = tf.transformations.euler_matrix(
-                    0.0, 0.0, self.kf_valves_ori[i])
+                    0.0, 0.0, angle)
                 panel_matrix = tf.transformations.quaternion_matrix([
                     self.valve_msg[i].pose.pose.orientation.x,
                     self.valve_msg[i].pose.pose.orientation.y,
@@ -469,8 +472,8 @@ class valveTracker():
                     rospy.Time.now(),
                     "valve_"+str(i)+"_tracker",
                     "world")
-                      
-                # self.valve_ori_pub[i].publish(self.kf_valves_ori[i])
+
+                self.valve_ori_pub[i].publish(self.discretize_valve_angle(self.kf_valves_ori[i]))
                 # self.valve_ori_cov[i].publish(self.kf_p[i])
             finally:
                 self.lock.release()
@@ -496,6 +499,41 @@ class valveTracker():
         This function load by default param configurations
         """
         pass
+
+    def wrap_angle_zero_pi(self, angle):
+        """
+        This function gets the positive orientation of the valve (only 1st
+        and 2n)
+        """
+        if 0.0 < angle <= np.pi:
+            return angle
+        else:
+            return (np.pi + angle)
+            
+    def angle_valve(self, angle):
+        if np.pi >=angle and angle >= (np.pi/2.0):
+            return angle
+        elif -np.pi <=angle and angle <= (3*(-np.pi/4.0)):
+            return np.pi
+        elif (3*(-np.pi/4.0)) <= angle and angle <= (-np.pi/2.0):
+            return np.pi/2.0
+        elif (-np.pi/2.0) <= angle and angle <= 0.0:
+            return (np.pi + angle)
+        elif 0.0 <= angle and angle <= (np.pi/4.0):
+            return np.pi
+        elif (np.pi/2.0) >= angle and angle >=(np.pi/4.0):
+            return np.pi/2.0
+        else:
+            rospy.logerr('Wrong Angle')
+
+    def discretize_valve_angle(self, angle):
+        if ((angle < 2.1 and angle > 0.78) or (angle < -1.05 and angle > -2.35)):
+            return 1.57
+        elif ((angle >= 2.1 and angle <= 2.62) or (angle <= -0.524 and angle >= -1.05)):
+            return 2.35
+        else:
+            return 3.14
+                
 
 if __name__ == '__main__':
     try:

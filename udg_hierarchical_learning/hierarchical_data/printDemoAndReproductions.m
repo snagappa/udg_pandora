@@ -16,7 +16,6 @@ xlabel( 'Z (m)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
-
 % Z i X
 % for n=1:nbSamples
 %     ni = listSamples(n) ;
@@ -33,7 +32,7 @@ for n=1:nbSamples
     plot(sample.data(:,4), sample.data(:,2),'color',[0,0,1]) ;
 end
 
-sim_traj = importdata(['traj_simulated.csv' ], ' ', 1) ;
+sim_traj = importdata(['sim_traj_auv_panel_centre.csv' ], ' ', 1) ;
 plot(sim_traj.data(:,4), sim_traj.data(:,2),'color',[1,0,0]) ;
 
 hold off;
@@ -62,7 +61,7 @@ for n=1:nbSamples
     plot(sample.data(:,4), sample.data(:,3),'color',[0,0,1]) ;
 end
 
-sim_traj = importdata(['traj_simulated.csv' ], ' ', 1) ;
+sim_traj = importdata(['sim_traj_auv_panel_centre.csv' ], ' ', 1) ;
 plot(sim_traj.data(:,4), sim_traj.data(:,3),'color',[1,0,0]) ;
 
 hold off
@@ -82,8 +81,8 @@ for n=1:nbSamples
     plot(sample.data(:,1)-sample.data(1,1), sample.data(:,5),'color',[0,0,1]) ;
 end
 
-sim_traj = importdata(['traj_simulated.csv' ], ' ', 1) ;
-plot(sim_traj.data(:,1)-sim_traj.data(1,1), sim_traj.data(:,5),'color',[1,0,0]) ;
+sim_traj = importdata(['sim_traj_auv_panel_centre.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,4), sim_traj.data(:,2),'color',[1,0,0]) ;
 
 hold off
 
@@ -258,6 +257,9 @@ for n=1:nbSamples
     plot(sample.data(:,4), sample.data(:,2),'color',[0,0,1]) ;
 end
 
+sim_traj = importdata(['sim_traj_auv_valve_2.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,4), sim_traj.data(:,2),'color',[1,0,0]) ;
+
 hold off;
 
 subplot(3,1,2)
@@ -284,6 +286,10 @@ for n=1:nbSamples
     plot(sample.data(:,4), sample.data(:,3),'color',[0,0,1]) ;
 end
 
+sim_traj = importdata(['sim_traj_auv_valve_2.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,4), sim_traj.data(:,3),'color',[1,0,0]) ;
+
+
 subplot(3,1,3)
 hold on ;
 title('Ori AUV Valve 2 (Side View)')
@@ -298,6 +304,9 @@ for n=1:nbSamples
     plot(sample.data(:,1), sample.data(:,5),'color',[0,0,1]) ;
 end
 hold off
+
+sim_traj = importdata(['sim_traj_auv_valve_2.csv' ], ' ', 1) ;
+plot(sim_traj.data(:,1), sim_traj.data(:,5),'color',[1,0,0]) ;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -726,6 +735,10 @@ for n=1:nbSamples
     plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'color',[0,1,0]) ;
     plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'color',[0,0,1]) ;
 end
+sample = importdata('sim_traj_auv_world.csv', ' ', 1) ;
+plot(sample.data(:,1)-sample.data(1,1), sample.data(:,2),'.','color',[1,0,0]) ;
+plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'.','color',[0,1,0]) ;
+plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'.','color',[0,0,1]) ;
 hold off
 
 figure()
@@ -760,8 +773,13 @@ for n=1:nbSamples
     plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'color',[0,1,0]) ;
     plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'color',[0,0,1]) ;
 end
-hold off
 
+% sample = importdata('sim_traj_ee_auv.csv', ' ', 1) ;
+% plot(sample.data(:,1)-sample.data(1,1), sample.data(:,2), '.', 'color',[1,0,0]) ;
+% plot(sample.data(:,1)-sample.data(1,1), sample.data(:,3),'.','color',[0,1,0]) ;
+% plot(sample.data(:,1)-sample.data(1,1), sample.data(:,4),'.', 'color',[0,0,1]) ;
+
+hold off
 
 figure()
 hold on ;

@@ -58,7 +58,7 @@ from learning_pandora.msg import rfdm_msg
 
 from cola2_control.srv import TurnDesiredDegrees, PushWithAUV
 
-from cola2_control.srv import EFPose
+from cola2_control.srv import EFPose, JointPose
 
 import threading
 import tf
@@ -90,6 +90,7 @@ class learningReproductorAct:
         #self.getLearnedParameters()
         self.goalPose = Pose()
         self.robotPose = Pose()
+        self.valve_orientation = Pose()
         self.armPose = np.zeros(3)
         self.prevPos = np.zeros(self.nbVar)
         self.prevTimeArm = 0.0
@@ -207,7 +208,7 @@ class learningReproductorAct:
 
         if self.force_torque_enable:
             rospy.loginfo('Force Torque Enabled ')
-            rospy.Subscriber('/forceTorque_controller/forceTorqueData',
+            rospy.Subscriber('/force_torque_controller/wrench_stamped',
                              WrenchStamped,
                              self.updateForceTorque,
                              queue_size = 1)
@@ -267,6 +268,7 @@ class learningReproductorAct:
                              pose_msg.pose.pose.orientation.y,
                              pose_msg.pose.pose.orientation.z,
                              pose_msg.pose.pose.orientation.w])[2]
+            self.valve_orientation.orientation = pose_msg.pose.pose.orientation
             if not self.dataGoalPoseReceived:
                 self.dataGoalPoseReceived = True
                 if (self.dataGoalOriReceived and
@@ -519,23 +521,55 @@ class learningReproductorAct:
                 endEfWorld = np.dot(inv_mat, arm_world_pose)
 
                 self.armPose[0:3] = endEfWorld[0:3]
-                s = (repr(self.armPose[0]) + " " +
-                     repr(self.armPose[1]) + " " +
-                     repr(self.armPose[2]) + " " +
-                     repr(self.armOrientation[0]) + " " +
-                     repr(self.armOrientation[1]) + " " +
-                     repr(self.armOrientation[2]) + " " +
-                     repr(rospy.get_time()) + "\n")
-                self.fileEFPose.write(s)
-
                 self.prevPos[4:10] = self.currPos[4:10]
                 self.currPos[4:7] = self.armPose
 
-                if self.valveOriInit:
-                    self.currPos[9] = self.valveOri - self.unnormalized_roll
-                else:
-                    self.currPos[9] = self.unnormalized_roll
-                self.currPos[7:9] = self.armOrientation[0:2]
+                # Compute orientation
+
+                ori_valve_n = tf.transformations.quaternion_matrix([
+                    self.valve_orientation.orientation.x,
+                    self.valve_orientation.orientation.y,
+                    self.valve_orientation.orientation.z,
+                    self.valve_orientation.orientation.w])
+
+                #Same orientation like the AUV, Z down X backward Y lateral
+                rot_test = tf.transformations.euler_matrix(np.pi,0.0,0.0)
+
+                #new_panel = np.dot(trans_matrix[0:3, 0:3], rot_test[0:3, 0:3])
+                valve_orientated_as_end_effector = np.dot(ori_valve_n, rot_test)
+
+                end_effector_ori = tf.transformations.quaternion_matrix([
+                    data.pose.orientation.x,
+                    data.pose.orientation.y,
+                    data.pose.orientation.z,
+                    data.pose.orientation.w])
+
+                ee_ori_base = np.dot(robot_base[0:3, 0:3], end_effector_ori[0:3,0:3])
+
+                ee_ori_world = np.dot(trans_matrix_v2[0:3, 0:3], ee_ori_base)
+
+                end_effector_ori_frame_valve = np.dot(
+                    np.transpose(ee_ori_world),
+                    valve_orientated_as_end_effector[0:3, 0:3])
+
+                ee_euler= tf.transformations.euler_from_matrix(end_effector_ori_frame_valve)
+
+                # if self.valveOriInit:
+                #     self.currPos[9] = self.valveOri - self.unnormalized_roll
+                # else:
+                #     self.currPos[9] = self.unnormalized_roll
+                # self.currPos[7:9] = self.armOrientation[0:2]
+
+                self.armOrientation = ee_euler
+                self.currPos[7:10] = self.armOrientation
+                s = (repr(self.armPose[0]) + " " +
+                     repr(self.armPose[1]) + " " +
+                     repr(self.armPose[2]) + " " +
+                     repr(ee_euler[0]) + " " +
+                     repr(ee_euler[1]) + " " +
+                     repr(ee_euler[2]) + " " +
+                     repr(rospy.get_time()) + "\n")
+                self.fileEFPose.write(s)
 
                 if self.dataReceivedArm == 0:
                     self.currTimeArm = (data.header.stamp.secs +
@@ -568,12 +602,13 @@ class learningReproductorAct:
     def updateSafety(self, rfdm_msg):
         self.lock.acquire()
         try:
-            if (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) and np.sign(rfdm_msg.reactive_data) == -1 :
-                self.tf = -math.log(self.s)/self.alpha
-                self.backward = True
-            if np.sign(rfdm_msg.reactive_data) == 1.0 and (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) :
-                self.backward = False
-                self.h_value = 0.0
+            # if (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) and np.sign(rfdm_msg.reactive_data) == -1 :
+            #     self.tf = -math.log(self.s)/self.alpha
+            #     self.backward = True
+            # if np.sign(rfdm_msg.reactive_data) == 1.0 and (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) :
+            #     self.backward = False
+            #     self.h_value = 0.0
+            # #TODO Uncomment this
             self.action = rfdm_msg.reactive_data
         finally:
             self.lock.release()
@@ -581,6 +616,7 @@ class learningReproductorAct:
     def updateForceTorque(self, wrench_msg):
         self.lock_force.acquire()
         try:
+            self.force_vector_old = np.copy(self.force_vector)
             self.force_vector[0] = wrench_msg.wrench.force.x
             self.force_vector[1] = wrench_msg.wrench.force.y
             self.force_vector[2] = wrench_msg.wrench.force.z
@@ -665,6 +701,7 @@ class learningReproductorAct:
                 if self.enabled:
                     if not self.simulation:
                         if self.dataReceived > 1 and self.dataReceivedArm > 1:
+                            #rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
                             [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
                                 self.currPos, self.currVel, self.action)
                             [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
@@ -673,7 +710,9 @@ class learningReproductorAct:
                                 self.currPos, self.currVel, self.action)
                             [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                                 self.currPos, self.currVel, self.action)
-                            if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                            if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                                and len(des_pose_arm_z) != 0
+                                and len(des_pose_arm_x_y_yaw) != 0):
                                 # self.desPos[0:4] = des_pose[0:4]
                                 # self.desVel[0:4] = des_vel[0:4]
                                 self.desPos[0:2] = des_pose_x_y_yaw[0:2]
@@ -721,7 +760,9 @@ class learningReproductorAct:
                             self.currPos, self.currVel, self.action)
                         [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                             self.currPos, self.currVel, self.action)
-                        if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                        if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                            and len(des_pose_arm_z) != 0
+                            and len(des_pose_arm_x_y_yaw) != 0 ):
                             self.currPos[0:2] = des_pose_x_y_yaw[0:2]
                             self.currVel[0:2] = des_vel_x_y_yaw[0:2]
                             self.currPos[2] = des_pose_z
@@ -825,10 +866,13 @@ class learningReproductorAct:
         preempted = False
         self.enabled = False
         self.action_in_process = True
+        push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
+                                      PushWithAUV)
         while not success and not preempted: #and self.force_big_update == 0:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
                 if not self.simulation:
                     #success = self.generateNewPose()
+                    #rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
                         self.currPos, self.currVel, self.action)
                     [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
@@ -837,7 +881,9 @@ class learningReproductorAct:
                         self.currPos, self.currVel, self.action)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                         self.currPos, self.currVel, self.action)
-                    if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                    if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                        and len(des_pose_arm_z) != 0
+                        and len(des_pose_arm_x_y_yaw) != 0 ):
                         # self.desPos[0:4] = des_pose[0:4]
                         # self.desVel[0:4] = des_vel[0:4]
                         self.desPos[0:2] = des_pose_x_y_yaw[0:2]
@@ -851,8 +897,8 @@ class learningReproductorAct:
                         self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
                         self.desPos[6] = des_pose_arm_z
                         self.desVel[6] = des_vel_arm_z
-                        self.desPos[9] = 0.0 #des_pose_arm_x_y_yaw[2]
-                        self.desVel[9] = 0.0 #des_vel_arm_x_y_yaw[2]
+                        self.desPos[9] = des_pose_arm_x_y_yaw[2]
+                        self.desVel[9] = des_vel_arm_x_y_yaw[2]
                         desPose_msg = PoseStamped()
                         desPose_msg.header.stamp = rospy.get_rostime()
                         desPose_msg.header.frame_id = "valve2"
@@ -872,8 +918,10 @@ class learningReproductorAct:
                     if self.force_torque_enable and success == False:
                         self.lock_force.acquire()
                         try:
-                            #rospy.loginfo('Force in Z ' + str(self.force_vector[2]))
-                            if np.abs(self.force_vector[2]) >= 20:
+                            # rospy.loginfo('Force in Z ' + str(np.abs(self.force_vector[2] - self.force_vector_old[2])) + ' Force ' + str(self.force_vector[2]))
+                            rospy.loginfo('Action value ' + str(self.action))
+                            if (np.abs(self.force_vector[2] - self.force_vector_old[2]) >= 1.0 and
+                                self.force_vector[2] < -3.0):
                                 #self.force_big_update = 1
                                 success = True
                         finally:
@@ -893,7 +941,9 @@ class learningReproductorAct:
                         self.currPos, self.currVel, self.action)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                         self.currPos, self.currVel, self.action)
-                    if len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0 :
+                    if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                        and len(des_pose_arm_z) != 0
+                        and len(des_pose_arm_x_y_yaw) != 0 ):
                         self.currPos[0:2] = des_pose_x_y_yaw[0:2]
                         self.currVel[0:2] = des_vel_x_y_yaw[0:2]
                         self.currPos[2] = des_pose_z
@@ -957,13 +1007,12 @@ class learningReproductorAct:
             # rospy.wait_for_service('/cola2_control/turnDesiredRadians')
             # rospy.wait_for_service('/cola2_control/disable_push')
             try:
-                error_code = 0
-                push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
-                                              PushWithAUV)
-                rospy.loginfo('Pushing the valve ')
-                push_srv = push_srv([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
-                rospy.sleep(4.0)
+
+                push_srv = push_srv([30.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                error_code = 0
+                rospy.loginfo('Pushing the valve ')
+                rospy.sleep(3.0)
 
                 turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
                                                TurnDesiredDegrees)
@@ -1008,30 +1057,33 @@ class learningReproductorAct:
                     rate.sleep()
 
                 # Fold the arm
-                fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF',
-                                                  EFPose)
+                # fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF',
+                #                                   EFPose)
+                # value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
 
-                value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
+                fold_arm_srv = rospy.ServiceProxy('/cola2_control/setJointPose',
+                                                  JointPose)
+                value = fold_arm_srv([0.0, 50.0, -30.0, 0.0, 0.0])
 
-                for i in range(80):
+                for i in range(40):
                     #rospy.loginfo('Going backward')
-                    vel_com = BodyVelocityReq()
-                    vel_com.header.stamp = rospy.get_rostime()
-                    vel_com.goal.priority = 10
-                    #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
-                    vel_com.goal.requester = 'learning_algorithm'
-                    vel_com.twist.linear.x = -0.05
-                    vel_com.twist.linear.y = 0.0
-                    vel_com.twist.linear.z = 0.0
-                    vel_com.twist.angular.z = 0.0
-                    #disabled_axis boby_velocity_req
-                    vel_com.disable_axis.x = False # True False
-                    vel_com.disable_axis.y = False # True False
-                    vel_com.disable_axis.z = True # True False
-                    vel_com.disable_axis.roll = True
-                    vel_com.disable_axis.pitch = True
-                    vel_com.disable_axis.yaw = False # True False
-                    self.pub_auv_vel.publish(vel_com)
+                    # vel_com = BodyVelocityReq()
+                    # vel_com.header.stamp = rospy.get_rostime()
+                    # vel_com.goal.priority = 10
+                    # #auv_msgs.GoalDescriptor.PRIORITY_NORMAL
+                    # vel_com.goal.requester = 'learning_algorithm'
+                    # vel_com.twist.linear.x = -0.0
+                    # vel_com.twist.linear.y = 0.0
+                    # vel_com.twist.linear.z = 0.0
+                    # vel_com.twist.angular.z = 0.0
+                    # #disabled_axis boby_velocity_req
+                    # vel_com.disable_axis.x = False # True False
+                    # vel_com.disable_axis.y = False # True False
+                    # vel_com.disable_axis.z = True # True False
+                    # vel_com.disable_axis.roll = True
+                    # vel_com.disable_axis.pitch = True
+                    # vel_com.disable_axis.yaw = False # True False
+                    # self.pub_auv_vel.publish(vel_com)
                     rate.sleep()
                 rospy.loginfo('Finish')
                 result.valve_turned = res.success
@@ -1049,15 +1101,15 @@ class learningReproductorAct:
         self.action = 1.0
 
         #Stop all the movement sending Zero velocities
-        joy_command = Joy()
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        joy_command.axes.append(0.0)
-        self.pub_arm_command.publish(joy_command)
-        rospy.loginfo('Joy Message stop sent !!!!!')
+        # joy_command = Joy()
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # joy_command.axes.append(0.0)
+        # self.pub_arm_command.publish(joy_command)
+        # rospy.loginfo('Joy Message stop sent !!!!!')
 
         vel_com = BodyVelocityReq()
         vel_com.header.stamp = rospy.get_rostime()
