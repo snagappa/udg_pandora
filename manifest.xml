@@ -32,6 +32,7 @@
   <depend package="image_geometry"/>
   <depend package="cola2_control" />
   <depend package="cola2_perception_dev"/> 
+  <depend package="cola2_lib"/>
 
  <!-- <depend package="rfdm_pkg" /> -->
 </package>

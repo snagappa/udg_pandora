@@ -5,9 +5,12 @@ import roslib
 roslib.load_manifest('udg_pandora')
 import rospy
 import numpy as np
-
+import cv2 
+import math 
+import cola2_lib 
 from auv_msgs.msg import WorldWaypointReq, NavSts
 from visualization_msgs.msg import MarkerArray, Marker
+from geometry_msgs.msg import Point
 #from nav_msgs.msg import Odometry
 import tf
 
@@ -29,6 +32,7 @@ class ChainPlanner:
         self.name = name
         
         self.min_num_det_x_cluster = 3
+        self.direction = False
         self.orientation_line = 0.7
         self.rot_matrix = np.array([[np.cos(self.orientation_line), np.sin(self.orientation_line), 0],
                                      [-np.sin(self.orientation_line), np.cos(self.orientation_line), 0],
@@ -221,40 +225,81 @@ class ChainPlanner:
                 #     markeredgecolor='k', markersize=14)
                 #ipdb.set_trace()
                 print "len my member: " , sum(my_members)
-                
-                if np.sum(my_members) > self.min_num_det_x_cluster:
-                    marker = Marker()
-                    marker.type = Marker.SPHERE
-                    marker.pose.position.x = cluster_center[0]
-                    marker.pose.position.y = cluster_center[1]          
-                    marker.pose.position.z = cluster_center[2]                                       
-                    marker.pose.orientation.x = 0.0
-                    marker.pose.orientation.y = 0.0
-                    marker.pose.orientation.z = 0.0
-                    marker.pose.orientation.w = 0.0
-                    marker.header.frame_id = '/world'
-                    marker.header.stamp = rospy.Time.now()
-                    marker.scale.x = 0.1
-                    marker.scale.y = 0.1
-                    marker.scale.z = 0.1
-                    marker.color.r = 1.0
-                    marker.color.g = 0.0
-                    marker.color.b = 0.0
-                    marker.color.a = 1.0
-                    marker.id = k
-                    self.markerArray.markers.append(marker)
-                    if len(cluster_centers_filtered) != 0:
-                        cluster_centers_filtered = np.vstack((cluster_centers_filtered,cluster_centers[k]))                   
-                    else:
+                if len(cluster_centers_filtered) != 0:
+                        cluster_centers_filtered = np.vstack((cluster_centers_filtered,cluster_centers[k]))
+                else:
                         cluster_centers_filtered = cluster_centers[k]
-        
-            
+ 
+        self.sort_cluster_centers([cluster_centers_filtered, ])
+
+        points_cluster_centers = []
+
+        for k in range(len(self.cluster_centers_sorted)):
+                #if np.sum(my_members) > self.min_num_det_x_cluster:
+                marker = Marker()
+                marker.type = Marker.SPHERE
+                marker.pose.position.x = self.cluster_centers_sorted[k,0]
+                marker.pose.position.y = self.cluster_centers_sorted[k,1]          
+                marker.pose.position.z = self.cluster_centers_sorted[k,2]                                       
+                marker.pose.orientation.x = 0.0
+                marker.pose.orientation.y = 0.0
+                marker.pose.orientation.z = 0.0
+                marker.pose.orientation.w = 0.0
+                marker.header.frame_id = '/world'
+                marker.header.stamp = rospy.Time.now()
+                marker.scale.x = 0.1 + k*0.05
+                marker.scale.y = 0.1 + k*0.05
+                marker.scale.z = 0.1 + k*0.05
+                marker.color.r = 1.0
+                marker.color.g = 0.0 + k*0.07
+                marker.color.b = 0.0
+                marker.color.a = 1.0
+                marker.id = k
+                self.markerArray.markers.append(marker)
+                
+                # Gather all points of clusters from current to last detected to compute the chain main axis line
+                if k >= self.iter_wps:
+                        points_cluster_centers.append([self.cluster_centers_sorted[k,0], self.cluster_centers_sorted[k,1], self.cluster_centers_sorted[k,2]])
+                        print 'Waypoints per calcular la ratlla:', k
+ 
+        # Fit line to cluster points
+        vx, vy, vz, cx, cy, cz = cv2.fitLine(np.array(np.float32(points_cluster_centers)), cv2.cv.CV_DIST_HUBER, 0, 0.01, 0.01)        
+        # Publish a line marker to visualize main chain axis
+        marker = Marker()
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+        marker.header.frame_id = '/world'
+        marker.header.stamp = rospy.Time.now()
+        marker.scale.x = 0.1
+        marker.color.b = 1.0
+        marker.color.a = 1.0
+        marker.id = 10000
+	
+        p1 = Point()
+        p1.x = cx
+        p1.y = cy
+        p1.z = cz
+
+        p2 = Point()
+        p2.x = vx*4 + cx
+        p2.y = vy*4 + cy
+        p2.z = vz*4 + cz
+
+        marker.points.append(p1)
+        marker.points.append(p2)
+        self.markerArray.markers.append(marker)     
+   
+        # Update orientation of main chain axis line		   
+        self.orientation_line = math.atan2((p2.y-p1.y),(p2.x-p1.x))
+        if self.direction:
+                self.orientation_line = cola2_lib.normalizeAngle(self.orientation_line + math.pi)
+        print 'Line orientation: ', math.degrees(self.orientation_line)
+
         #my_members = labels == -1             
         #pl.plot(X[my_members, 0], X[my_members, 1], 'k' + '.')
             
         #pl.title('Estimated number of clusters: %d' % n_clusters_)      
         #pl.draw()
-        self.sort_cluster_centers([cluster_centers_filtered, ])
   
     def sort_cluster_centers(self, cluster_centers):
       
@@ -262,6 +307,11 @@ class ChainPlanner:
         print "Cluster centers ", len(cluster_centers)
         cluster_centers_rot = np.zeros((len(cluster_centers[0]),3))
         
+        self.rot_matrix = np.array([[np.cos(self.orientation_line), np.sin(self.orientation_line), 0],
+                                     [-np.sin(self.orientation_line), np.cos(self.orientation_line), 0],
+                                      [0, 0, 1]])
+
+
         for i in range(len(cluster_centers[0])):
             cluster_centers_rot[i,0:] = np.dot(self.rot_matrix,cluster_centers[0][i, :]) 
         
@@ -269,7 +319,7 @@ class ChainPlanner:
         cluster_centers_ind_sorted = np.argsort(cluster_centers_rot[:,0])
      
         self.cluster_centers_sorted = cluster_centers[0][cluster_centers_ind_sorted,:]
-        
+	
 
         
           

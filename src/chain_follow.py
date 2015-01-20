@@ -236,12 +236,16 @@ class ChainFollow:
         # print 'big turn: ', self.big_turn_around
 
     def publish_control(self, event):
+        print 'Publish_control: look_around is ', self.look_around 
         if not self.look_around:
+            print 'Publish_control: before mutex'
             self.lock.acquire()
+            print 'Publish_control: after mutex'
+            self.body_velocity_req.header.stamp = rospy.Time.now()
             self.pub_yaw_rate.publish(self.body_velocity_req)
-            # print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
+            print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
            
-            if abs(self.body_velocity_req.twist.angular.z) < 0.05:
+            if abs(self.body_velocity_req.twist.angular.z) < 0.1:
                 print self.name, ', WP: ', self.waypoint_req.goal.id 
                 print 'Distance: ', np.sqrt((self.odometry.pose.pose.position.x - self.waypoint_req.position.north)**2 + 
                                               (self.odometry.pose.pose.position.y - self.waypoint_req.position.east)**2)
