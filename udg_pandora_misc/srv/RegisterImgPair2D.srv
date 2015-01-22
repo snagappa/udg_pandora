@@ -1,0 +1,9 @@
+uint32 img0_id
+uint32 img1_id
+---
+bool found
+geometry_msgs/Pose2D transformation
+float64[9] covariance
+float64 goodness_trans
+float64 goodness_rot
+
