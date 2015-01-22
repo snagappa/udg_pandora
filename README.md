@@ -13,5 +13,4 @@ Set lib.common.blas.DEBUG to False to disable basic checks on function arguments
 
 ## FOR SCI-KIT-LEARN
 
-    sudo pip intall sci-kit-learn
-
+    sudo pip install sci-kit-learn
