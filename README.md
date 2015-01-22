@@ -9,3 +9,9 @@ The simulator depends on (recent versions of) gtk and glade libraries. The Pytho
 
 ## BLAS DEBUG:
 Set lib.common.blas.DEBUG to False to disable basic checks on function arguments. This reduces function overhead, but can result in segfaults or *silent failures* if incorrect arguments are specified. Recommend that DEBUG be disabled only when all testing is complete.
+
+
+## FOR SCI-KIT-LEARN
+
+    sudo pip intall sci-kit-learn
+
