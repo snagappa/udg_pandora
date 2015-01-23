@@ -5,13 +5,14 @@ import rospy
 import numpy as np
 import cv2 
 import math 
-import cola2_lib 
+from cola2_lib import cola2_lib 
 from auv_msgs.msg import WorldWaypointReq, NavSts
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Point
+from std_msgs.msg import Float32
 #from nav_msgs.msg import Odometry
 import tf
-
+import threading
 from sklearn.cluster import MeanShift, estimate_bandwidth
 #from sklearn.datasets.samples_generator import make_blobs
 
@@ -41,6 +42,9 @@ class ChainPlanner:
         self.cluster_centers_sorted = None    
         self.markerArray = None
         
+        self.lock = threading.RLock()
+
+
         # Create Subscriber Updates (z)
         rospy.Subscriber('/link_pose2',
                          MarkerArray,
@@ -53,17 +57,20 @@ class ChainPlanner:
         self.pub_sonar_wps = rospy.Publisher("/udg_pandora/link_waypoints", MarkerArray)  
         self.pub_sonar_next_wp = rospy.Publisher("/udg_pandora/next_waypoint", Marker)
         self.pub_wwr = rospy.Publisher("/udg_pandora/world_waypoint_req", WorldWaypointReq)
-        
+        self.pub_chain_orientation = rospy.Publisher("/udg_pandora/chain_orientation", Float32)
+
         #Timer
         rospy.Timer(rospy.Duration(0.1), self.iterate)
         
     def iterate(self, event):
 
-    
+        self.lock.acquire()
         
         if self.markerArray != None:
             self.pub_sonar_wps.publish(self.markerArray)   
         
+        self.lock.release()
+
     def updateNavSts(self, nav_sts):
         x = nav_sts.position.north
         y = nav_sts.position.east
@@ -198,6 +205,8 @@ class ChainPlanner:
       
         
         print("number of estimated clusters : %d" % n_clusters_)
+        
+        self.lock.acquire()
               
         self.markerArray = MarkerArray()
         #fig = pl.figure(1)
@@ -293,11 +302,14 @@ class ChainPlanner:
                 self.orientation_line = cola2_lib.normalizeAngle(self.orientation_line + math.pi)
         print 'Line orientation: ', math.degrees(self.orientation_line)
 
+        self.pub_chain_orientation.publish(Float32(self.orientation_line))
         #my_members = labels == -1             
         #pl.plot(X[my_members, 0], X[my_members, 1], 'k' + '.')
             
         #pl.title('Estimated number of clusters: %d' % n_clusters_)      
-        #pl.draw()
+        #pl.draw(i)
+
+        self.lock.release()
   
     def sort_cluster_centers(self, cluster_centers):
       

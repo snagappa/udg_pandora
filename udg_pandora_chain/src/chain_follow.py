@@ -2,19 +2,22 @@
 
 # ROS imports
 import rospy
-
+import math
+from geometry_msgs.msg import Point
 from auv_msgs.msg import WorldWaypointReq
 from auv_msgs.msg import BodyVelocityReq
+from std_msgs.msg import Float32
 from visualization_msgs.msg import MarkerArray
 import tf
 from cola2_perception.msg import SonarInfo
 import numpy as np
 from auv_msgs.msg import GoalDescriptor
+from auv_msgs.msg import NavSts
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 import threading
 from visualization_msgs.msg import Marker
-import cola2_lib
+from cola2_lib import cola2_lib
 import threading
 
 class ChainFollow:
@@ -36,8 +39,11 @@ class ChainFollow:
         self.lock = threading.RLock()
         self.listener = tf.TransformListener()        
         self.broadcaster = tf.TransformBroadcaster()
-	self.odometry_updated = False 
+        self.odometry_updated = False 
         self.big_turn_around = False
+        self.chain_orientation = 0.0
+        self.current_yaw = 0.0
+
         # self.get_config()
 
         self.pub_yaw_rate = rospy.Publisher('/cola2_control/body_velocity_req',
@@ -67,11 +73,25 @@ class ChainFollow:
                          PoseStamped,
                          self.sonar_img_pose_update)
 
+        rospy.Subscriber('/udg_pandora/chain_orientation',
+                        Float32,
+                        self.chain_orientation_update)
+
+        rospy.Subscriber('/cola2_navigation/nav_sts',
+                        NavSts,
+                        self.nav_sts_update)
+
         rospy.Timer(rospy.Duration(0.05), 
                     self.publish_control)
 
         rospy.Timer(rospy.Duration(0.5), 
                     self.update_sonar_img_tf) 
+
+    def nav_sts_update(self,data):
+        self.current_yaw = data.orientation.yaw
+
+    def chain_orientation_update(self, data):
+        self.chain_orientation = data.data
 
     def update_sonar_img_tf(self, data):
         (self.trans, self.rot) = self.listener.lookupTransform('/world', '/soundmetrics_aris3000_img', rospy.Time(0))
@@ -118,7 +138,9 @@ class ChainFollow:
 
 
     def sonar_waypoint_update(self, data):
-       # Transform all waypoint from world frame to sensor frame
+        print 'TOTAL SIZE: ', len(data.markers)
+
+        # Transform all waypoint from world frame to sensor frame
         wTs = tf.transformations.quaternion_matrix(
                         [self.odometry.pose.pose.orientation.x,
                          self.odometry.pose.pose.orientation.y,
@@ -128,13 +150,12 @@ class ChainFollow:
                        self.sonar_img_pose.pose.position.y,
                        self.sonar_img_pose.pose.position.z]
 
-	self.broadcaster.sendTransform(
-	    (self.sonar_img_pose.pose.position.x, self.sonar_img_pose.pose.position.y, self.sonar_img_pose.pose.position.z),
+        self.broadcaster.sendTransform((self.sonar_img_pose.pose.position.x, self.sonar_img_pose.pose.position.y, self.sonar_img_pose.pose.position.z),
             (self.odometry.pose.pose.orientation.x, self.odometry.pose.pose.orientation.y,self.odometry.pose.pose.orientation.z, self.odometry.pose.pose.orientation.w),
             rospy.Time.now(),
             '/sonar_tf', 
             '/world'
-	)     
+    	)     
 
         # print 'robot orientation: \n',self.odometry.pose.pose.orientation
         # print 'sonar position: \n', self.sonar_img_pose.pose.position 
@@ -147,19 +168,47 @@ class ChainFollow:
             Pw[2] = waypoint.pose.position.z
             Ps = np.dot(sTw, Pw)
             list_of_wp.append(Ps)
-
-	# print 'WP wrt SONAR: ', list_of_wp
+            print Ps
+        print '-------------------------------' 
+	    #print 'WP wrt SONAR: ', list_of_wp
 
         # take those points inside field of view
         # Rectangle that approximates FOV
         # cross range = total range / 2 (Tali says)
         min_x = -self.window_length/2.0
         max_x = self.window_length/2.0
-        min_y = -(self.window_length + self.window_start)/4.0
-        max_y = (self.window_length + self.window_start)/4.0
+        min_y = -(self.window_length)/4.0
+        max_y = (self.window_length)/4.0
         max_wp_x = -999
         max_wp_index = -1
         i = 0
+
+        marker = Marker
+        marker = Marker()
+        marker.type = Marker.LINE_STRIP
+        marker.header.frame_id = '/sonar_tf'
+        marker.header.stamp = rospy.Time.now()
+        marker.scale.x = 0.1
+        marker.color.a = 1.0
+        marker.color.g = 1.0
+        marker.id = 731
+        marker.lifetime = rospy.Duration(0.1)
+        marker.action = Marker.ADD
+        
+        """p1 = Point(-min_x,-min_y, self.sonar_img_pose.pose.position.z )
+        p2 = Point(-min_x,max_y, self.sonar_img_pose.pose.position.z)
+        p3 = Point(max_x,max_y, self.sonar_img_pose.pose.position.z)
+        p4 = Point(max_x,-min_y, self.sonar_img_pose.pose.position.z)
+        p5 = Point(-min_x,-min_y, self.sonar_img_pose.pose.position.z)"""
+ 
+        marker.points.append(Point(-min_x,-min_y, 0.0 ))
+        marker.points.append(Point(-min_x,min_y, 0.0 ))
+        marker.points.append(Point(min_x,min_y, 0.0 ))
+        marker.points.append(Point(min_x,-min_y, 0.0 )) 
+        marker.points.append(Point(-min_x,-min_y, 0.0 ))
+
+        self.pub_marker.publish(marker)
+
         for waypoint in list_of_wp:
             # print '--> ', waypoint
             if waypoint[0] > min_x and waypoint[0] < max_x and waypoint[1] > min_y and waypoint[1] < max_y:
@@ -186,7 +235,7 @@ class ChainFollow:
                 marker.color.b = 1.0
                 marker.color.a = 1.0
                 marker.id = i*3
-                marker.lifetime = rospy.Duration(1.0)
+                marker.lifetime = rospy.Duration(0.1)
                 marker.type = Marker.SPHERE
                 self.pub_marker.publish(marker)
  
@@ -195,12 +244,12 @@ class ChainFollow:
         if max_wp_index >= 0:
             # It is the waypoint in the sonar fov with larger x
             # rospy.loginfo("%s: Compute yaw rate", self.name) 
-            self.body_velocity_req = self.__compute_yaw_rate__(list_of_wp[max_wp_index][1])
-            print 'MAX X: ', list_of_wp[max_wp_index][0], '/', -(self.window_length/4.0)
-            if list_of_wp[max_wp_index][0] < -(self.window_length/4.0):
-                self.do_turn_around = True
-            else:
-                self.do_turn_around = False           
+            self.body_velocity_req = self.__compute_yaw_rate__(list_of_wp[max_wp_index][1], list_of_wp[max_wp_index][0])
+            #print 'MAX X: ', list_of_wp[max_wp_index][0], '/', -(self.window_length/4.0)
+            #if list_of_wp[max_wp_index][0] < -(self.window_length/4.0):
+            #    self.do_turn_around = True
+            #else:
+            #    self.do_turn_around = False           
  
             point = np.dot(wTs, list_of_wp[max_wp_index])
 
@@ -225,28 +274,29 @@ class ChainFollow:
             marker.type = Marker.ARROW
             self.pub_marker.publish(marker)
         else:
-            rospy.loginfo("%s: No waypoints inside sonar FOV", self.name)
-            self.do_turn_around = True
-            self.big_turn_around = True
+            if not self.look_around:
+                rospy.loginfo("%s: No waypoints inside sonar FOV", self.name)
+                self.do_turn_around = True
+                self.big_turn_around = True
             # if not self.look_around:
             #    self.look_around_movement(2) 
         # print 'do turn around: ', self.do_turn_around
         # print 'big turn: ', self.big_turn_around
 
     def publish_control(self, event):
-        print 'Publish_control: look_around is ', self.look_around 
+        #print 'Publish_control: look_around is ', self.look_around 
         if not self.look_around:
-            print 'Publish_control: before mutex'
+            
             self.lock.acquire()
-            print 'Publish_control: after mutex'
+            
             self.body_velocity_req.header.stamp = rospy.Time.now()
             self.pub_yaw_rate.publish(self.body_velocity_req)
-            print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
+            #print self.name, ', YAW RATE: ', self.body_velocity_req.twist.angular.z
            
             if abs(self.body_velocity_req.twist.angular.z) < 0.1:
-                print self.name, ', WP: ', self.waypoint_req.goal.id 
-                print 'Distance: ', np.sqrt((self.odometry.pose.pose.position.x - self.waypoint_req.position.north)**2 + 
-                                              (self.odometry.pose.pose.position.y - self.waypoint_req.position.east)**2)
+                #print self.name, ', WP: ', self.waypoint_req.goal.id 
+                #print 'Distance: ', np.sqrt((self.odometry.pose.pose.position.x - self.waypoint_req.position.north)**2 + 
+                #                              (self.odometry.pose.pose.position.y - self.waypoint_req.position.east)**2)
 
                 self.waypoint_req.header.stamp = rospy.Time.now()
                 self.pub_waypoint_req.publish(self.waypoint_req)
@@ -274,7 +324,7 @@ class ChainFollow:
 
         waypoint_req.position.north = float(self.odometry.pose.pose.position.x)
         waypoint_req.position.east = float(self.odometry.pose.pose.position.y)
-        waypoint_req.orientation.yaw = current_orientation[2] + (factor * self.yaw_offset)
+        waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(current_orientation[2] + (factor * self.yaw_offset))
         
         for i in range(int(100*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
@@ -282,7 +332,7 @@ class ChainFollow:
             rospy.sleep(0.1)
             print 'look around.'
 
-        waypoint_req.orientation.yaw = current_orientation[2] - (factor * self.yaw_offset)
+        waypoint_req.orientation.yaw = cola2_lib.normalizeAngle(current_orientation[2] - (factor * self.yaw_offset))
         for i in range(int(150*factor)):
             waypoint_req.header.stamp = rospy.Time.now()        
             self.pub_waypoint_req.publish(waypoint_req)
@@ -299,17 +349,32 @@ class ChainFollow:
         self.look_around = False
         
 
-    def __compute_yaw_rate__(self, y_offset):
+    def __compute_yaw_rate__(self, y_offset, x_offset):
          # Publish Body Velocity Request
         body_velocity_req = BodyVelocityReq()
+        
+        distance = math.sqrt(y_offset**2 + x_offset**2)
+
+        #print 'distance compute yaw: ', distance
+
+        if  distance > 1.5:
+            # twist set-point
+            body_velocity_req.twist.angular.z = y_offset/4.0
+            #print '>>>>>>>>>>>>>>>>>>>>>>>bigger than 1.5 m'
+        else:
+            body_velocity_req.twist.angular.z = cola2_lib.normalizeAngle(self.chain_orientation - self.current_yaw)/10.0
+            #print '>>>>>>>>>>>>>>>>>>>>>>>smaller than 1.5 m'
+            #print 'Chain orientation:', self.chain_orientation, ' Current yaw: ', self.current_yaw
+
+        if body_velocity_req.twist.angular.z > 0.15:
+            body_velocity_req.twist.angular.z = 0.15
+        elif body_velocity_req.twist.angular.z < -0.15:
+            body_velocity_req.twist.angular.z = -0.15
 
         # header & goal
         body_velocity_req.header.stamp = rospy.Time().now()
         body_velocity_req.goal.priority = GoalDescriptor.PRIORITY_NORMAL
         body_velocity_req.goal.requester = self.name + '_velocity'
-
-        # twist set-point
-        body_velocity_req.twist.angular.z = y_offset/4.0
 
         # Check if DoF is disable
         body_velocity_req.disable_axis.x = True
