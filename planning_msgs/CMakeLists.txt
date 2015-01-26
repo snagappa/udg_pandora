@@ -10,6 +10,9 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   genmsg
   diagnostic_msgs
+  message_generation
+  actionlib_msgs
+  actionlib
 )
 
 ## System dependencies are found with CMake's conventions
@@ -50,6 +53,7 @@ add_message_files(
   FILES
   ActionDispatch.msg
   ActionFeedback.msg
+  CompletePlan.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -63,15 +67,17 @@ add_message_files(
 
 
 ## Generate actions in the 'action' folder
-#add_action_files(
-#  FILES
-#)
+add_action_files(
+  FILES
+  SearchForChain.action
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs
   diagnostic_msgs
+  actionlib_msgs
 )
 
 ###################################
@@ -79,19 +85,13 @@ generate_messages(
 ###################################
 ## The catkin_package macro generates cmake config files for your package
 ## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if you package contains header files
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  CATKIN_DEPENDS
-  roscpp
-  rospy
-  std_msgs
-  diagnostic_msgs
-#  INCLUDE_DIRS include
-#  LIBRARIES learning_pandora
-#  CATKIN_DEPENDS rospy std_msgs
+# INCLUDE_DIRS include
+#  LIBRARIES auv_msgs
+  CATKIN_DEPENDS actionlib_msgs std_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -101,25 +101,22 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-# include_directories(include)
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-)
+include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
 ## Declare a cpp library
-# add_library(learning_pandora
-#   src/${PROJECT_NAME}/learning_pandora.cpp
+# add_library(auv_msgs
+#   src/${PROJECT_NAME}/auv_msgs.cpp
 # )
 
 ## Declare a cpp executable
-# add_executable(learning_pandora_node src/learning_pandora_node.cpp)
+# add_executable(auv_msgs_node src/auv_msgs_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(learning_pandora_node learning_pandora_generate_messages_cpp)
+# add_dependencies(auv_msgs_node auv_msgs_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(learning_pandora_node
+# target_link_libraries(auv_msgs_node
 #   ${catkin_LIBRARIES}
 # )
 
@@ -138,7 +135,7 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS learning_pandora learning_pandora_node
+# install(TARGETS auv_msgs auv_msgs_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -163,7 +160,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_learning_pandora.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_auv_msgs.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
