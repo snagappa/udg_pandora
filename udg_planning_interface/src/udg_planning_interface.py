@@ -125,7 +125,7 @@ class PlanningInterface(object):
         # TURN VALVE
         # TODO: Remember to start /learning/valve_turning_action and
         #       uncomment this section!!!
-        self.turn_valve_action = actionlib.SimpleActionClient('/learning/valve_turning_action', ValveTurningAction)
+        """ self.turn_valve_action = actionlib.SimpleActionClient('/learning/valve_turning_action', ValveTurningAction)
         rospy.loginfo("%s: wait for turn valve actionlib ...", self.name)
         self.turn_valve_action.wait_for_server()
         rospy.loginfo("%s: turn valve actionlib found!", self.name)
@@ -143,31 +143,34 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
             rospy.logerr('%s, Error creating client. (valve orientation enable)', name)
             rospy.signal_shutdown('Error creating client')
+        """
 
         # CHAIN FOLLOW SERVICES
-        #try:
-        #    rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
-        #    self.enable_chain_planner_srv = rospy.ServiceProxy(
-        #                        '/udg_pandora/enable_chain_planner', Empty)
-        #except rospy.exceptions.ROSException:
-        #    rospy.logerr('%s, Error creating client. (chain planner enable)', name)
-        #    rospy.sienable_valve_orientation_srvgnal_shutdown('Error creating client')
-        #try:
-        #    rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
-        #    self.disable_chain_planner_srv = rospy.ServiceProxy(
-        #                        '/udg_pandora/disable_chain_planner', Empty)
-        #except rospy.exceptions.ROSException:
-        #    rospy.logerr('%s, Error creating client. (chain planner disable)', name)
-        #    rospy.signal_shutdown('Error creating client')
+        try:
+            rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
+            self.enable_chain_planner_srv = rospy.ServiceProxy(
+                                '/udg_pandora/enable_chain_planner', Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (chain planner enable)', name)
+            rospy.enable_valve_orientation_srv = rospy.signal_shutdown('Error creating client')
+        try:
+            rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
+            self.disable_chain_planner_srv = rospy.ServiceProxy(
+                                '/udg_pandora/disable_chain_planner', Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (chain planner disable)', name)
+            rospy.signal_shutdown('Error creating client')
 
         # CALIBRATE ARM
-        try:
+        """try:
             rospy.wait_for_service('/cola2_control/arm_calibration', 10)
             self.enable_arm_calibration_srv = rospy.ServiceProxy(
                 '/cola2_control/arm_calibration', Empty)
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Arm Calibration enable)', name)
            rospy.signal_shutdown('Error creating client')
+        """
+        
         # RESET LANDMARKS
         try:
             rospy.wait_for_service('/cola2_navigation/reset_landmarks', 10)
@@ -176,6 +179,7 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Reset landmarks enable)', name)
            rospy.signal_shutdown('Error creating client')
+           
         # Enable Keep position
         try:
             rospy.wait_for_service('/cola2_control/enable_keep_position_g500', 10)
@@ -184,7 +188,8 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Enable_keep_position enable)', name)
            rospy.signal_shutdown('Error creating client')
-        # Enable Keep position
+
+        # Disable Keep position
         try:
             rospy.wait_for_service('/cola2_control/disable_keep_position', 10)
             self.disable_keep_pose_srv = rospy.ServiceProxy(
