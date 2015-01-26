@@ -55,23 +55,28 @@ class ChainFollow:
         # Create Subscriber Updates (z)
         rospy.Subscriber('/udg_pandora/link_waypoints',
                          MarkerArray,
-                         self.sonar_waypoint_update)
+                         self.sonar_waypoint_update,
+                         queue_size = 1)
 
         rospy.Subscriber('/cola2_perception/soundmetrics_aris3000/sonar_info',
                          SonarInfo,
-                         self.sonar_info_update)
+                         self.sonar_info_update,
+                         queue_size = 1)
 
         rospy.Subscriber('/udg_pandora/world_waypoint_req',
                          WorldWaypointReq,
-                         self.world_waypoint_req_update)
+                         self.world_waypoint_req_update,
+                         queue_size = 1)
 
         rospy.Subscriber('/pose_ekf_slam/odometry',
                          Odometry,
-                         self.odometry_update)
+                         self.odometry_update,
+                         queue_size = 1)
         
         rospy.Subscriber('/cola2_perception/soundmetrics_aris3000/sonar_img_pose',
                          PoseStamped,
-                         self.sonar_img_pose_update)
+                         self.sonar_img_pose_update,
+                         queue_size = 1)
 
         rospy.Subscriber('/udg_pandora/chain_orientation',
                         Float32,

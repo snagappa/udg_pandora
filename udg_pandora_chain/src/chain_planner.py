@@ -13,6 +13,7 @@ from std_msgs.msg import Float32
 #from nav_msgs.msg import Odometry
 import tf
 import threading
+from std_srvs.srv import Empty, EmptyResponse
 from sklearn.cluster import MeanShift, estimate_bandwidth
 #from sklearn.datasets.samples_generator import make_blobs
 
@@ -59,8 +60,26 @@ class ChainPlanner:
         self.pub_wwr = rospy.Publisher("/udg_pandora/world_waypoint_req", WorldWaypointReq)
         self.pub_chain_orientation = rospy.Publisher("/udg_pandora/chain_orientation", Float32)
 
+        #Create services
+        self.enable_srv = rospy.Service('/udg_pandora/enable_chain_planner', 
+                                        Empty, self.enable_chain_planner)
+        self.disable_srv = rospy.Service('/udg_pandora/disable_chain_planner', 
+                                         Empty, self.disable_chain_planner)
+        
+
         #Timer
         rospy.Timer(rospy.Duration(0.1), self.iterate)
+
+
+    def enable_chain_planner(self, req):
+        self.is_enabled = True
+        return EmptyResponse()
+        
+
+    def disable_chain_planner(self, req):
+        self.is_enabled = False
+        return EmptyResponse()
+
         
     def iterate(self, event):
 
@@ -190,7 +209,7 @@ class ChainPlanner:
         bandwidth = estimate_bandwidth(X[:,0:2], quantile=0.2)
         #print "bandwidth: ", bandwidth
         
-        ms = MeanShift(bandwidth=0.2, bin_seeding=False, min_bin_freq=10, cluster_all=False)
+        ms = MeanShift(bandwidth=0.2, bin_seeding=False, cluster_all=False) #, min_bin_freq=10
         ms.fit(X[:,0:2])
         
         labels = ms.labels_
