@@ -9,8 +9,12 @@ find_package(catkin REQUIRED COMPONENTS
   cola2_lib
   cola2_perception_dev
   geometry_msgs
+  laser_geometry
+  pcl_conversions
+  pcl_ros
   roscpp
   rospy
+  sensor_msgs
   std_msgs
   std_srvs
   visualization_msgs
@@ -109,16 +113,16 @@ include_directories(
 # )
 
 ## Declare a cpp executable
-# add_executable(udg_pandora_chain_node src/udg_pandora_chain_node.cpp)
+add_executable(multibeam_chain_detector src/multibeam_chain_detector.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(udg_pandora_chain_node udg_pandora_chain_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(udg_pandora_chain_node
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(multibeam_chain_detector
+   ${catkin_LIBRARIES}
+ )
 
 #############
 ## Install ##
