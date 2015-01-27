@@ -60,6 +60,10 @@ class valveTracker():
         self.lock = threading.Lock()
         self.lock_error = threading.Lock()
         self.panel_centre = Pose()
+        
+        
+        self.assisted_valve_angle = [3.14, 3.14, 3.14, 3.14]
+        
 
         #Linear Kalman Filter
         # oritentation parameters initial guess
@@ -85,6 +89,7 @@ class valveTracker():
         #predictions
         self.kf_p_hat = np.ones(self.num_valves)
         self.kf_valves_ori_hat = np.zeros(self.num_valves)
+
 
         #broadcaster for the valve pose
         self.tf_broadcaster = tf.TransformBroadcaster()
@@ -114,6 +119,33 @@ class valveTracker():
                          self.updatecovariance,
                          queue_size = 1)
 
+        rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
+                         PoseWithCovarianceStamped,
+                         self.updatecovariance,
+                         queue_size = 1)
+
+
+
+
+        rospy.Subscriber("/valve_tracker/valve_0_ass_ori",
+                         Float64,
+                         self.updateAngleValve0,
+                         queue_size = 1)
+        rospy.Subscriber("/valve_tracker/valve_1_ass_ori",
+                         Float64,
+                         self.updateAngleValve1,
+                         queue_size = 1)
+        rospy.Subscriber("/valve_tracker/valve_2_ass_ori",
+                         Float64,
+                         self.updateAngleValve2,
+                         queue_size = 1)
+        rospy.Subscriber("/valve_tracker/valve_3_ass_ori",
+                         Float64,
+                         self.updateAngleValve3,
+                         queue_size = 1)
+                         
+
+
         self.enable_srv = rospy.Service(
             '/valve_tracker/enable_update_valve_orientation',
             Empty,
@@ -126,6 +158,17 @@ class valveTracker():
 
 
 
+    def updateAngleValve0(self, data):
+        self.assisted_valve_angle[0] = data.data        
+    def updateAngleValve1(self, data):
+        self.assisted_valve_angle[1] = data.data
+    def updateAngleValve2(self, data):
+        self.assisted_valve_angle[2] = data.data
+    def updateAngleValve3(self, data):
+        self.assisted_valve_angle[3] = data.data
+        
+        
+        
     def getconfig(self):
         """
         This method load the configuration and initialize the publishers,
@@ -440,7 +483,14 @@ class valveTracker():
                 #     eul[0], eul[1], eul[2]+self.kf_valves_ori[i])
                 #rospy.loginfo('Euler values ' + str(eul))
                 #rospy.loginfo('Euler inc ' + str(self.kf_valves_ori[i]))
-                angle = self.discretize_valve_angle(self.kf_valves_ori[i])
+                
+                
+                #WORK AROUND
+                #angle = self.discretize_valve_angle(self.kf_valves_ori[i])
+                angle = self.assisted_valve_angle[i]
+                
+                
+                
                 rot_matrix = tf.transformations.euler_matrix(
                     0.0, 0.0, angle)
                 panel_matrix = tf.transformations.quaternion_matrix([

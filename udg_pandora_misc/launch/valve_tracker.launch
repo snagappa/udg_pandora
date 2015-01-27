@@ -4,4 +4,5 @@
     <!-- <node name="visual_detector_ee" pkg="udg_pandora" type="visual_detector_ee.py" output="screen"/> -->
     <node name="valve_tracker" pkg="udg_pandora_misc" type="valve_tracker.py" />
     <node name="stare_landmark" pkg="cola2_control" type="stare_landmark.py" />
+    <node name="assisted_valve_tracker" pkg="udg_pandora_misc" type="assisted_valve_tracker.py" output="screen"/>
 </launch>
