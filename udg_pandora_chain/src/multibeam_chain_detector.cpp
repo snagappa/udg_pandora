@@ -8,6 +8,7 @@
 #include "cola2_lib/cola2_util.h"
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Image.h>
 #include <laser_geometry/laser_geometry.h>
 #include <pcl_ros/io/pcd_io.h>
 #include <iostream>
@@ -33,7 +34,7 @@ public:
 		_sub_multibeam_scan = _n.subscribe( "/multibeam_scan", 1, &MultibeamChainDetector::updateLaserScan, this);
 
         _buffer_size = 0;
-        _max_range = 4.0;
+        _max_range = 3.0;
 
         //getConfig();
 	}
@@ -63,9 +64,12 @@ public:
         if (_buffer_size > 10) {
 
             _buffer_size = 0;
-            
+           
+            pcl::toROSMsg(_accumulated_point_cloud, _image);
             _pub_pointcloud.publish(_accumulated_point_cloud);
 
+            _accumulated_point_cloud.width = 0;
+            _accumulated_point_cloud.data.clear();
         }
 
 
@@ -101,7 +105,7 @@ private:
     double _max_range;
     unsigned int _buffer_size;
     sensor_msgs::PointCloud2 _accumulated_point_cloud;
-
+    sensor_msgs::Image _image;
 };
 
 int 
