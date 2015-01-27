@@ -55,7 +55,7 @@ class SimLinkDetector():
                             [3.6, 2.0, 5.75]]
         
         # Create Publisher
-        self.pub_marker = rospy.Publisher("/link_pose", MarkerArray)
+        self.pub_marker = rospy.Publisher("/link_pose2", MarkerArray)
         self.pub_aris_footprint = rospy.Publisher('/aris_foot_print', Marker)
         self.pub_aris_img_pose = rospy.Publisher('/cola2_perception/soundmetrics_aris3000/sonar_img_pose', PoseStamped)
         self.pub_aris_ifo = rospy.Publisher('/cola2_perception/soundmetrics_aris3000/sonar_info', SonarInfo)

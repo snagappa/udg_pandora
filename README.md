@@ -14,3 +14,14 @@ Set lib.common.blas.DEBUG to False to disable basic checks on function arguments
 ## FOR SCI-KIT-LEARN
 
     sudo pip install sci-kit-learn
+
+
+# TO RUN CHAIN SIMULATION SCENARIO
+
+    roslaunch udg_pandora_sim valve_turning_udg.launch
+    rosrun rviz rviz --> File --> Open Config --> udg_pandora/udg_pandora_misc/config/chain_setup.rviz
+    rosservice call /cola2_control/keep_z "z: 4.4 altitude_mode: false"
+    rosrun udg_pandora_sim sim_link_detector.py
+    rosrun udg_pandora_chain chain_planner.py
+    rosrun udg_pandora_chain chain_follow.py
+
