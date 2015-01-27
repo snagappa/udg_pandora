@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
   cola2_perception_dev
   geometry_msgs
   laser_geometry
+  OpenCV
+  cv_bridge
   pcl_conversions
   pcl_ros
   roscpp
@@ -104,7 +106,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
-  ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -121,7 +123,7 @@ add_executable(multibeam_chain_detector src/multibeam_chain_detector.cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(multibeam_chain_detector
-   ${catkin_LIBRARIES}
+   ${OpenCV_LIBRARIES} ${catkin_LIBRARIES}
  )
 
 #############

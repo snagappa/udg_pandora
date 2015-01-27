@@ -59,7 +59,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
-  ValveOrientation.srv
+# ValveOrientation.srv
   RegisterImgPair2D.srv
 )
 
