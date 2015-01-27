@@ -602,12 +602,13 @@ class learningReproductorAct:
     def updateSafety(self, rfdm_msg):
         self.lock.acquire()
         try:
-            if (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) and np.sign(rfdm_msg.reactive_data) == -1 :
-                self.tf = -math.log(self.s)/self.alpha
-                self.backward = True
-            if np.sign(rfdm_msg.reactive_data) == 1.0 and (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) :
-                self.backward = False
-                self.h_value = 0.0
+            # if (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) and np.sign(rfdm_msg.reactive_data) == -1 :
+            #     self.tf = -math.log(self.s)/self.alpha
+            #     self.backward = True
+            # if np.sign(rfdm_msg.reactive_data) == 1.0 and (np.sign(self.action) == 1.0 or np.sign(self.action) == 0.0) :
+            #     self.backward = False
+            #     self.h_value = 0.0
+            # #TODO Uncomment this
             self.action = rfdm_msg.reactive_data
         finally:
             self.lock.release()
@@ -917,8 +918,9 @@ class learningReproductorAct:
                     if self.force_torque_enable and success == False:
                         self.lock_force.acquire()
                         try:
-                            rospy.loginfo('Force in Z ' + str(np.abs(self.force_vector[2] - self.force_vector_old[2])) + ' Force ' + str(self.force_vector[2]))
-                            if (np.abs(self.force_vector[2] - self.force_vector_old[2]) >= 3.0 and
+                            # rospy.loginfo('Force in Z ' + str(np.abs(self.force_vector[2] - self.force_vector_old[2])) + ' Force ' + str(self.force_vector[2]))
+                            rospy.loginfo('Action value ' + str(self.action))
+                            if (np.abs(self.force_vector[2] - self.force_vector_old[2]) >= 1.0 and
                                 self.force_vector[2] < -3.0):
                                 #self.force_big_update = 1
                                 success = True
@@ -1010,7 +1012,7 @@ class learningReproductorAct:
                 push_srv = push_srv([30.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 error_code = 0
                 rospy.loginfo('Pushing the valve ')
-                rospy.sleep(6.0)
+                rospy.sleep(3.0)
 
                 turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
                                                TurnDesiredDegrees)

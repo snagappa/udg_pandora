@@ -28,5 +28,6 @@ learning/dmp/kP : [20.0, 20.0, 20.0, 0.05]
 learning/dmp/kV : [0.01, 0.01, 0.01, 0.1]
 learning/dmp/alpha : 1.0
 learning/dmp/demonstration_file : trajectory_demonstration_v3
-learning/dmp/demonstrations : [70, 71, 72] 
+#learning/dmp/demonstrations : [70, 71, 72] 
+learning/dmp/demonstrations : [75, 76, 77] 
 learning/dmp/export_filename : ['learned_data_complete_individual_short_auv_x.txt', 'learned_data_complete_individual_short_auv_z.txt', 'learned_data_complete_individual_short_ee_x.txt', 'learned_data_complete_individual_short_ee_z.txt']

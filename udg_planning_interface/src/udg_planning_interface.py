@@ -12,6 +12,7 @@ roslib.load_manifest('udg_planning_interface')
 import rospy
 import actionlib
 from cola2_control.srv import GotoWithYaw, GotoWithYawRequest
+from cola2_safety.srv import DigitalOutput
 from learning_pandora.msg import ValveTurningAction, ValveTurningGoal
 from planning_msgs.msg import ActionDispatch
 from planning_msgs.msg import ActionFeedback
@@ -22,7 +23,8 @@ from diagnostic_msgs.msg import KeyValue
 from pose_ekf_slam.msg import Map
 from std_srvs.srv import Empty, EmptyRequest
 from std_msgs.msg import Float64
-from cola2_control.srv import EFPose
+from cola2_control.srv import EFPose, ValveBlocked, ValveBlockedResponse
+
 import numpy as np
 
 class PlanningInterface(object):
@@ -37,6 +39,7 @@ class PlanningInterface(object):
                            [0.0,0.0,0.0]]
         self.last_panel_update = rospy.Time.now().to_sec() - 10
         self.ekf_panel_centre = None
+        self.is_valve_blocked = [False, False, False, False]
 
         # Action Feedback/Dispatch publishers/subscriber
         self.pub_feedback = rospy.Publisher("/planning_system/action_feedback",
@@ -63,22 +66,40 @@ class PlanningInterface(object):
 
 
         # VALVE STATUS
-        rospy.Subscriber("/valve_tracker/valve_0_ori",
+        # rospy.Subscriber("/valve_tracker/valve_0_ori",
+        #                  Float64,
+        #                  self.update_valve_0,
+        #                  queue_size = 1)
+        # rospy.Subscriber("/valve_tracker/valve_1_ori",
+        #                  Float64,
+        #                  self.update_valve_1,
+        #                  queue_size = 1)
+        # rospy.Subscriber("/valve_tracker/valve_2_ori",
+        #                  Float64,
+        #                  self.update_valve_2,
+        #                  queue_size = 1)
+        # rospy.Subscriber("/valve_tracker/valve_3_ori",
+        #                  Float64,
+        #                  self.update_valve_3,
+        #                  queue_size = 1)
+
+        rospy.Subscriber("/valve_tracker/valve_0_ass_ori",
                          Float64,
                          self.update_valve_0,
                          queue_size = 1)
-        rospy.Subscriber("/valve_tracker/valve_1_ori",
+        rospy.Subscriber("/valve_tracker/valve_1_ass_ori",
                          Float64,
                          self.update_valve_1,
                          queue_size = 1)
-        rospy.Subscriber("/valve_tracker/valve_2_ori",
+        rospy.Subscriber("/valve_tracker/valve_2_ass_ori",
                          Float64,
                          self.update_valve_2,
                          queue_size = 1)
-        rospy.Subscriber("/valve_tracker/valve_3_ori",
+        rospy.Subscriber("/valve_tracker/valve_3_ass_ori",
                          Float64,
                          self.update_valve_3,
                          queue_size = 1)
+
 
         rospy.Subscriber("/pose_ekf_slam/landmark_update/panel_centre",
                          PoseWithCovarianceStamped,
@@ -91,11 +112,20 @@ class PlanningInterface(object):
                          self.update_ekf_panel_centre,
                          queue_size = 1)
 
+        # Lights On
+        try:
+            rospy.wait_for_service('/digital_output', 20)
+            self.digital_output_srv = rospy.ServiceProxy(
+                                '/digital_output', DigitalOutput)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (digital_output)', name)
+            rospy.signal_shutdown('Error creating client')
+
 
         # TURN VALVE
         # TODO: Remember to start /learning/valve_turning_action and
         #       uncomment this section!!!
-        self.turn_valve_action = actionlib.SimpleActionClient('/learning/valve_turning_action', ValveTurningAction)
+        """ self.turn_valve_action = actionlib.SimpleActionClient('/learning/valve_turning_action', ValveTurningAction)
         rospy.loginfo("%s: wait for turn valve actionlib ...", self.name)
         self.turn_valve_action.wait_for_server()
         rospy.loginfo("%s: turn valve actionlib found!", self.name)
@@ -113,31 +143,34 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
             rospy.logerr('%s, Error creating client. (valve orientation enable)', name)
             rospy.signal_shutdown('Error creating client')
+        """
 
         # CHAIN FOLLOW SERVICES
-        #try:
-        #    rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
-        #    self.enable_chain_planner_srv = rospy.ServiceProxy(
-        #                        '/udg_pandora/enable_chain_planner', Empty)
-        #except rospy.exceptions.ROSException:
-        #    rospy.logerr('%s, Error creating client. (chain planner enable)', name)
-        #    rospy.sienable_valve_orientation_srvgnal_shutdown('Error creating client')
-        #try:
-        #    rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
-        #    self.disable_chain_planner_srv = rospy.ServiceProxy(
-        #                        '/udg_pandora/disable_chain_planner', Empty)
-        #except rospy.exceptions.ROSException:
-        #    rospy.logerr('%s, Error creating client. (chain planner disable)', name)
-        #    rospy.signal_shutdown('Error creating client')
+        try:
+            rospy.wait_for_service('/udg_pandora/enable_chain_planner', 10)
+            self.enable_chain_planner_srv = rospy.ServiceProxy(
+                                '/udg_pandora/enable_chain_planner', Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (chain planner enable)', name)
+            rospy.enable_valve_orientation_srv = rospy.signal_shutdown('Error creating client')
+        try:
+            rospy.wait_for_service('/udg_pandora/disable_chain_planner', 10)
+            self.disable_chain_planner_srv = rospy.ServiceProxy(
+                                '/udg_pandora/disable_chain_planner', Empty)
+        except rospy.exceptions.ROSException:
+            rospy.logerr('%s, Error creating client. (chain planner disable)', name)
+            rospy.signal_shutdown('Error creating client')
 
         # CALIBRATE ARM
-        try:
+        """try:
             rospy.wait_for_service('/cola2_control/arm_calibration', 10)
             self.enable_arm_calibration_srv = rospy.ServiceProxy(
                 '/cola2_control/arm_calibration', Empty)
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Arm Calibration enable)', name)
            rospy.signal_shutdown('Error creating client')
+        """
+        
         # RESET LANDMARKS
         try:
             rospy.wait_for_service('/cola2_navigation/reset_landmarks', 10)
@@ -146,6 +179,7 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Reset landmarks enable)', name)
            rospy.signal_shutdown('Error creating client')
+           
         # Enable Keep position
         try:
             rospy.wait_for_service('/cola2_control/enable_keep_position_g500', 10)
@@ -154,7 +188,8 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Enable_keep_position enable)', name)
            rospy.signal_shutdown('Error creating client')
-        # Enable Keep position
+
+        # Disable Keep position
         try:
             rospy.wait_for_service('/cola2_control/disable_keep_position', 10)
             self.disable_keep_pose_srv = rospy.ServiceProxy(
@@ -162,6 +197,15 @@ class PlanningInterface(object):
         except rospy.exceptions.ROSException:
            rospy.logerr('%s, Error creating client. (Enable_keep_position disable)', name)
            rospy.signal_shutdown('Error creating client')
+
+
+        self.enable_srv = rospy.Service(
+            '/valve_blocked',
+            ValveBlocked,
+            self.valve_blocked_srv)
+
+        # By default turn the lights on
+        self.digital_output_srv.call(13, True)
 
     def dispatch_action(self, req):
         if req.name == 'goto':
@@ -209,26 +253,35 @@ class PlanningInterface(object):
         elif req.name == 'recalibrate_arm':
             rospy.loginfo("%s: Received recalibrate_arm action.",
                           self.name)
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action enabled"
+            self.pub_feedback.publish(feedback)
             self.enable_keep_pose_srv(EmptyRequest())
             self.disable_valve_orientation_srv(EmptyRequest())
+            self.digital_output_srv.call(13, False)
             self.enable_arm_calibration_srv(EmptyRequest())
+            self.digital_output_srv.call(13, True)
             self.enable_valve_orientation_srv(EmptyRequest())
             self.disable_keep_pose_srv(EmptyRequest())
             # fold_arm_srv = rospy.ServiceProxy('/cola2_control/setPoseEF', EFPose)
             # value = fold_arm_srv([0.45, 0.0, 0.11, 0.0, 0.0, 0.0 ])
             #rospy.sleep(30.0)
-            feedback = ActionFeedback()
-            feedback.action_id = req.action_id
+            # feedback = ActionFeedback()
+            # feedback.action_id = req.action_id
             feedback.status = "action achieved"
             self.pub_feedback.publish(feedback)
 
         elif req.name == 'reset_landmarks':
+            feedback = ActionFeedback()
+            feedback.action_id = req.action_id
+            feedback.status = "action enabled"
+            self.pub_feedback.publish(feedback)
             rospy.loginfo("%s: Received reset_landmarks action.",
                           self.name)
             self.reset_landmarks_srv(EmptyRequest())
-            feedback = ActionFeedback()
-            feedback.action_id = req.action_id
             feedback.status = "action achieved"
+            self.pub_feedback.publish(feedback)
 
         elif req.name == 'cancel_action':
             rospy.loginfo("%s: Received cancel_action request.", self.name)
@@ -243,41 +296,58 @@ class PlanningInterface(object):
 
     # CLASS ACTIONS
     def __execute_turn_valve__(self, action_id, params):
-        feedback = ActionFeedback()
-        feedback.action_id = action_id
-        feedback.status = 'action enabled'
+        if float(params[1]) != 0.0 :
+            feedback = ActionFeedback()
+            feedback.action_id = action_id
+            feedback.status = 'action enabled'
 
-        # disable valve angle update
-        self.disable_valve_orientation_srv(EmptyRequest())
+            # disable valve angle update
+            self.disable_valve_orientation_srv(EmptyRequest())
 
-        goal = ValveTurningGoal()
-        goal.valve_id = int(params[0])
-        goal.long_approach = False
-        desired_increment = float(params[1])
-        desired_increment = np.sign(desired_increment)*0.2 + desired_increment
-        goal.desired_increment = -1.0*desired_increment
-        self.turn_valve_action.send_goal(goal)
+            goal = ValveTurningGoal()
+            goal.valve_id = int(params[0])
+            goal.long_approach = False
+            desired_increment = float(params[1])
+            desired_increment = np.sign(desired_increment)*0.2 + desired_increment
+            goal.desired_increment = -1.0*desired_increment
+            self.turn_valve_action.send_goal(goal)
 
-        self.pub_feedback.publish(feedback)
-        rospy.loginfo('%s: turn valve action enabled', self.name)
+            self.pub_feedback.publish(feedback)
+            rospy.loginfo('%s: turn valve action enabled', self.name)
 
-        self.turn_valve_action.wait_for_result()
-        action_result = self.turn_valve_action.get_result()
-        if action_result.valve_turned:
-            feedback.status = 'action achieved'
-        else:
-            feedback.status = 'action failed'
-            if action_result.error_code == 1:
-                # Valve is blocked
+            self.turn_valve_action.wait_for_result()
+            action_result = self.turn_valve_action.get_result()
+            # if action_result.valve_turned:
+            #     feedback.status = 'action achieved'
+            # else:
+            #     feedback.status = 'action failed'
+            #     if action_result.error_code == 1:
+            #         # Valve is blocked
+            #         element = KeyValue()
+            #         element.key = 'valve_' + params[0] + '_state'
+            #         element.value = "valve_blocked"
+            #         feedback.information.append(element)
+
+            if not self.is_valve_blocked[int(params[0])]:
+                feedback.status = 'action achieved'
+            else:
+                feedback.status = 'action failed'
+                #if action_result.error_code == 1:
+                    # Valve is blocked
                 element = KeyValue()
                 element.key = 'valve_' + params[0] + '_state'
                 element.value = "valve_blocked"
                 feedback.information.append(element)
-        self.pub_feedback.publish(feedback)
-        rospy.loginfo('%s: turn valve action finished', self.name)
+            self.pub_feedback.publish(feedback)
+            rospy.loginfo('%s: turn valve action finished', self.name)
 
-        # enable valve angle update
-        self.enable_valve_orientation_srv(EmptyRequest())
+            # enable valve angle update
+            self.enable_valve_orientation_srv(EmptyRequest())
+        else:
+            feedback = ActionFeedback()
+            feedback.action_id = action_id
+            feedback.status = 'action achieved'
+            self.pub_feedback.publish(feedback)
 
     def __execute_valve_state__(self, action_id):
         # Publish action enabled
@@ -286,7 +356,8 @@ class PlanningInterface(object):
         feedback.status = 'action enabled'
         self.pub_feedback.publish(feedback)
         rospy.loginfo('%s: valve state action enabled', self.name)
-        rospy.sleep(10.0)
+        #rospy.sleep(10.0)
+        rospy.sleep(3.0)
         if rospy.Time.now().to_sec() - self.last_panel_update < 8.0:
             rospy.loginfo('%s: We are looking at the panel right now!', self.name)
 
@@ -434,6 +505,13 @@ class PlanningInterface(object):
         if len(data.landmark) > 0:
             self.ekf_panel_centre = data.landmark[0].pose.pose
 
+
+    def valve_blocked_srv(self, req):
+        if req.valve_id >= 4 or req.valve_id < 0:
+            return ValveBlockedResponse(False)
+        self.is_valve_blocked[req.valve_id] = req.valve_blocked
+        rospy.loginfo('Valve Blocked ' + str(self.is_valve_blocked))
+        return ValveBlockedResponse(True)
 # PRIVATE AUXILIAR FUNCTIONS
 
 def  __get_params__(key_value, param_list):

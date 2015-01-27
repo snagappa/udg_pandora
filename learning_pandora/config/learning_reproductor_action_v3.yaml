@@ -19,7 +19,7 @@ learning/reproductor/complete/poseGoal_z : 0.11
 learning/reproductor/complete/goal_valve : 2
 #default parameter for
 learning/reproductor/complete/learning_param_id : 0
-learning/reproductor/complete/force_torque_enable : True
+learning/reproductor/complete/force_torque_enable : False
 # learning/reproductor/complete/gaussian_factor : 1.2 -> 8 states
 # Not implemented, need to be added at some point
 learning/reproductor/complete/gaussian_factor : 0.6
