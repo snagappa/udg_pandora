@@ -41,13 +41,23 @@ public:
         _pub_pointcloud = _n.advertise<sensor_msgs::PointCloud2>("/udg_pandora_chain/chain_pointcloud", 1);
         _pub_image = _n.advertise<sensor_msgs::Image>("/udg_pandora_chain/image_chain_pointcloud", 1);
 
-		// Subscribe to multibeam laser scan
-		_sub_multibeam_scan = _n.subscribe( "/multibeam_scan", 1, &MultibeamChainDetector::updateLaserScan, this);
+	// Subscribe to multibeam laser scan
+	_sub_multibeam_scan = _n.subscribe( "/multibeam_scan", 1, &MultibeamChainDetector::updateLaserScan, this);
 
         _buffer_size = 0;
         _max_range = 3.0;
         _resolution = 0.05;
-
+	//Params of blob fitering
+	_params.minDistBetweenBlobs = 10.0;
+	_params.filterByColor = false;
+	_params.filterByInertia = false;
+	_params.filterByConvexity = false;
+	_params.filterByCircularity = true;
+	_params.filterByArea = true;
+	_params.minCircularity = 0.5;
+	_params.maxCircularity = 1.0;
+	_params.minArea = 16.0;
+	_params.maxArea = 64.0;
         //getConfig();
 	}
 
@@ -151,15 +161,28 @@ public:
             //Erode image
             unsigned int erode_size = 2;
             cv::Mat filt_img;
-            cv::Mat element_erode = getStrucuringElement( cv::MORPH_ELLIPSE, cv::Size(2*erode_size+1, 2*erode_size+1) cv::Point(erode_size, erode_size));
+            cv::Mat element_erode = getStructuringElement( cv::MORPH_ELLIPSE, cv::Size(2*erode_size+1, 2*erode_size+1), cv::Point(erode_size, erode_size));
            
-            cv::erode(out_img, filt_img, element_erode);
-            
+            cv::erode(out_img.image, filt_img, element_erode);
+            //Dilate image 
             unsigned int dilate_size = 3;
-            cv::Mat element_dilate = getStrucuringElement( cv::MORPH_ELLIPSE, cv::Size(2*dilate_size+1, 2*dilate_size+1) cv::Point(dilate_size, dilate_size));
-            cv::dilate(filt_img, out_img, element_dilate);
+            cv::Mat element_dilate = getStructuringElement( cv::MORPH_ELLIPSE, cv::Size(2*dilate_size+1, 2*dilate_size+1), cv::Point(dilate_size, dilate_size));
+            cv::dilate(filt_img, out_img.image, element_dilate);
+	    out_img.header.stamp = ros::Time::now();
 
-            _pub_image_filtered.publish(out_img.toImageMsg());
+	     _pub_image_filtered.publish(out_img.toImageMsg());
+
+	    //Filter image blobs
+ 	    cv::SimpleBlobDetector blob_detector(_params);
+	    //Blob Detection
+	    std::vector<cv::KeyPoint> keypoints;
+	    blob_detector.detect(out_img.image, keypoints);
+	    //Extract x y coordinates of the keypoint
+	    for(int i=0; i<keypoints.size() ; i++){
+		
+		float X = keypoints[i].pt.x;
+		float Y = keypoints[i].pt.y;
+		}
 
     }
 
@@ -178,18 +201,19 @@ private:
 	// ROS node
 	ros::NodeHandle _n;
 	ros::Subscriber _sub_multibeam_scan;
-    ros::Publisher _pub_pointcloud, _pub_image, _pub_image_filtered;
+    	ros::Publisher _pub_pointcloud, _pub_image, _pub_image_filtered;
 
 	// Others
 	std::string _name;
-    laser_geometry::LaserProjection _projector;
-    tf::TransformListener _listener;
+    	laser_geometry::LaserProjection _projector;
+    	tf::TransformListener _listener;
 
-    double _max_range, _resolution;
-    unsigned int _buffer_size;
-    sensor_msgs::PointCloud2 _accumulated_point_cloud;
+    	double _max_range, _resolution;
+    	unsigned int _buffer_size;
+    	sensor_msgs::PointCloud2 _accumulated_point_cloud;
 
-    cv::Mat _image;
+	cv::Mat _image;
+	cv::SimpleBlobDetector::Params _params;
 };
 
 int 
