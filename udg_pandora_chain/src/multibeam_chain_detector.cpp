@@ -9,7 +9,11 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
+#include <auv_msgs/NavSts.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <laser_geometry/laser_geometry.h>
+
 #include <pcl_ros/io/pcd_io.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/PCLPointCloud2.h>
@@ -23,6 +27,7 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 
+#include <visualization_msgs/Marker.h>
 
 class MultibeamChainDetector{
 
@@ -40,26 +45,55 @@ public:
 
         _pub_pointcloud = _n.advertise<sensor_msgs::PointCloud2>("/udg_pandora_chain/chain_pointcloud", 1);
         _pub_image = _n.advertise<sensor_msgs::Image>("/udg_pandora_chain/image_chain_pointcloud", 1);
+        _pub_image_filtered = _n.advertise<sensor_msgs::Image>("/udg_pandora_chain/image_chain_filtered", 1);
+        _pub_marker = _n.advertise<visualization_msgs::Marker>("/udg_pandora_chain/chain_detection", 1);
+        _pub_pose_cs = _n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/pose_ekf_slam/landmark_update/chain_pose", 1);
 
-	// Subscribe to multibeam laser scan
-	_sub_multibeam_scan = _n.subscribe( "/multibeam_scan", 1, &MultibeamChainDetector::updateLaserScan, this);
+
+	    // Subscribe to multibeam laser scan
+	    _sub_multibeam_scan = _n.subscribe( "/multibeam_scan", 1, &MultibeamChainDetector::updateLaserScan, this);
+        // Subscribe to NavSts
+        _sub_nav_sts = _n.subscribe( "/cola2_navigation/nav_sts", 1, &MultibeamChainDetector::updateNavSts, this);
+
+        _sub_odometry = _n.subscribe( "/pose_ekf_slam/odometry", 1, &MultibeamChainDetector::updateOdometry, this);
 
         _buffer_size = 0;
-        _max_range = 3.0;
+        _max_range = 3.5;
         _resolution = 0.05;
-	//Params of blob fitering
-	_params.minDistBetweenBlobs = 10.0;
-	_params.filterByColor = false;
-	_params.filterByInertia = false;
-	_params.filterByConvexity = false;
-	_params.filterByCircularity = true;
-	_params.filterByArea = true;
-	_params.minCircularity = 0.5;
-	_params.maxCircularity = 1.0;
-	_params.minArea = 16.0;
-	_params.maxArea = 64.0;
+        _chain_orientation = 0.7;
+    	//Params of blob fitering
+	    _params.minDistBetweenBlobs = 10.0;
+	    _params.filterByColor = false;
+	    _params.filterByInertia = false;
+	    _params.filterByConvexity = false;
+	    _params.filterByCircularity = true;
+	    _params.filterByArea = true;
+	    _params.minCircularity = 0.6;
+	    _params.maxCircularity = 1.0;
+	    _params.minArea = 9.0;
+	    _params.maxArea = 64.0;
         //getConfig();
 	}
+
+    void
+    updateNavSts(const auv_msgs::NavSts::ConstPtr& msg){
+    
+       _current_depth = msg->position.depth;
+        
+    }
+
+    void
+    updateOdometry(const nav_msgs::Odometry::ConstPtr& msg){
+
+        tf::Transform robot2world;
+        robot2world.setOrigin(tf::Vector3(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z));
+        robot2world.setRotation(tf::Quaternion(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w));
+
+        
+        _world2robot = robot2world.inverse(); 
+
+    }
+
 
 	void
 	updateLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan){
@@ -159,30 +193,90 @@ public:
             _pub_image.publish(out_img.toImageMsg());
 
             //Erode image
-            unsigned int erode_size = 2;
+            unsigned int erode_size = 5;
             cv::Mat filt_img;
             cv::Mat element_erode = getStructuringElement( cv::MORPH_ELLIPSE, cv::Size(2*erode_size+1, 2*erode_size+1), cv::Point(erode_size, erode_size));
            
-            cv::erode(out_img.image, filt_img, element_erode);
+            //cv::erode(out_img.image, filt_img, element_erode);
             //Dilate image 
-            unsigned int dilate_size = 3;
+            unsigned int dilate_size = 4;
             cv::Mat element_dilate = getStructuringElement( cv::MORPH_ELLIPSE, cv::Size(2*dilate_size+1, 2*dilate_size+1), cv::Point(dilate_size, dilate_size));
-            cv::dilate(filt_img, out_img.image, element_dilate);
-	    out_img.header.stamp = ros::Time::now();
+          
+            cv::dilate(out_img.image, filt_img, element_dilate);
 
-	     _pub_image_filtered.publish(out_img.toImageMsg());
+            cv::erode(filt_img, out_img.image, element_erode);
+           
+	        out_img.header.stamp = ros::Time::now();
 
-	    //Filter image blobs
- 	    cv::SimpleBlobDetector blob_detector(_params);
-	    //Blob Detection
-	    std::vector<cv::KeyPoint> keypoints;
-	    blob_detector.detect(out_img.image, keypoints);
-	    //Extract x y coordinates of the keypoint
-	    for(int i=0; i<keypoints.size() ; i++){
-		
-		float X = keypoints[i].pt.x;
-		float Y = keypoints[i].pt.y;
-		}
+	        _pub_image_filtered.publish(out_img.toImageMsg());
+
+	        //Filter image blobs
+ 	        cv::SimpleBlobDetector blob_detector(_params);
+	        //Blob Detection
+	        std::vector<cv::KeyPoint> keypoints;
+	        blob_detector.detect(out_img.image, keypoints);
+	        //Extract x y coordinates of the keypoint
+	        for(int i=0; i<keypoints.size() ; i++){
+		    
+		        float X = keypoints[i].pt.x;
+		        float Y = keypoints[i].pt.y;
+		        std::cout << "Blob number: " << i << " X: " << X << " Y: " << Y << std::endl;
+            }
+
+            //If only one blob after the filtering we will assume is the chain
+            if( keypoints.size() == 1){
+                
+                // Pass from image pixels to world coordinates
+                float x_world = keypoints[0].pt.x*_resolution + min_x;
+                float y_world = max_y - keypoints[0].pt.y*_resolution;
+
+                // Pass the coordinates of the blob to be with respect the vehicle
+                tf::Vector3 chain_position_world(x_world, y_world, 3.0); //fixed depth wrt world
+                tf::Vector3 chain_position_robot = _world2robot*chain_position_world;
+
+                tf::Quaternion q = tf::createQuaternionFromYaw(_chain_orientation);
+                tf::Quaternion q_robot = _world2robot*q;
+
+                visualization_msgs::Marker marker;
+                marker.header.frame_id = "/girona500";
+                marker.header.stamp = ros::Time::now();
+                marker.id = 100;
+                marker.type = visualization_msgs::Marker::SPHERE;
+                marker.action = visualization_msgs::Marker::ADD;
+                marker.pose.position.x = chain_position_robot[0];
+                marker.pose.position.y = chain_position_robot[1];
+                marker.pose.position.z = 0.0;
+                marker.scale.x = 0.5;
+                marker.scale.y = 0.5;
+                marker.scale.z = 0.5;
+                marker.color.r = 0.0;
+                marker.color.g = 1.0;
+                marker.color.b = 0.0;
+                marker.color.a = 1.0;
+                marker.lifetime = ros::Duration(10.0);
+
+                _pub_marker.publish(marker);
+
+                geometry_msgs::PoseWithCovarianceStamped pose_cs;
+                pose_cs.header.stamp = ros::Time::now();
+                pose_cs.header.frame_id = "/girona500";
+                pose_cs.pose.covariance[0] = 0.2;
+                pose_cs.pose.covariance[7] = 0.2;
+                pose_cs.pose.covariance[14] = 0.1;
+                pose_cs.pose.covariance[21] = 0.01;
+                pose_cs.pose.covariance[28] = 0.01;
+                pose_cs.pose.covariance[35] = 0.01;
+
+                pose_cs.pose.pose.position.x = chain_position_robot[0];
+                pose_cs.pose.pose.position.y = chain_position_robot[1];
+                pose_cs.pose.pose.position.z = chain_position_robot[2]; 
+                pose_cs.pose.pose.orientation.x = q_robot[0];
+                pose_cs.pose.pose.orientation.y = q_robot[1];
+                pose_cs.pose.pose.orientation.z = q_robot[2];
+                pose_cs.pose.pose.orientation.w = q_robot[3];
+                
+                _pub_pose_cs.publish(pose_cs);
+            }
 
     }
 
@@ -200,17 +294,18 @@ private:
 	
 	// ROS node
 	ros::NodeHandle _n;
-	ros::Subscriber _sub_multibeam_scan;
-    	ros::Publisher _pub_pointcloud, _pub_image, _pub_image_filtered;
+	ros::Subscriber _sub_multibeam_scan, _sub_nav_sts, _sub_odometry;
+    ros::Publisher _pub_pointcloud, _pub_image, _pub_image_filtered, _pub_marker, _pub_pose_cs;
 
 	// Others
 	std::string _name;
-    	laser_geometry::LaserProjection _projector;
-    	tf::TransformListener _listener;
+    laser_geometry::LaserProjection _projector;
+    tf::TransformListener _listener;
+    tf::Transform _world2robot;
 
-    	double _max_range, _resolution;
-    	unsigned int _buffer_size;
-    	sensor_msgs::PointCloud2 _accumulated_point_cloud;
+    double _max_range, _resolution, _current_depth, _chain_orientation;
+    unsigned int _buffer_size;
+    sensor_msgs::PointCloud2 _accumulated_point_cloud;
 
 	cv::Mat _image;
 	cv::SimpleBlobDetector::Params _params;
