@@ -12,6 +12,7 @@ from std_srvs.srv import Empty, EmptyRequest
 from cola2_control.srv import StareLandmark, StareLandmarkRequest
 from cola2_control.srv import GotoWithYaw, GotoWithYawRequest
 from auv_msgs.msg import NavSts, BodyVelocityReq, GoalDescriptor
+from visualization_msgs.msg import MarkerArray
 from pose_ekf_slam.msg import Map
 
 
@@ -23,6 +24,9 @@ class ChainFollowVertical:
         self.depth = 0.0
         self.altitude = 1.0
         self.chain_detected = False
+        self.timestamp_links = [0.]*10
+        self.index_link = 0
+        self.index_wp = 0
 
         # Publishers
         self.pub_bvr = rospy.Publisher("/cola2_control/body_velocity_req", BodyVelocityReq, queue_size = 1)
@@ -30,6 +34,7 @@ class ChainFollowVertical:
         # Subscribers
         rospy.Subscriber("/cola2_navigation/nav_sts", NavSts, self.update_nav_sts)
         rospy.Subscriber("/pose_ekf_slam/map", Map, self.update_map)
+        rospy.Subscriber("/link_pose2", MarkerArray, self.update_link_pose) 
                             
         # Init Service Clients
         try:
@@ -104,6 +109,10 @@ class ChainFollowVertical:
             self.pub_bvr.publish(body_velocity_req)
             r.sleep()
 
+    def update_link_pose(self, data):
+        self.timestamp_links[self.index_link%10] = data.markers[-1].header.stamp.to_sec();
+        self.index_link = self.index_link + 1
+
     def update_map(self,data):
         #search for landmark of id chain_pose
         for i in range(len(data.landmark)):
@@ -139,10 +148,28 @@ class ChainFollowVertical:
 
     def inspect_chain(self):
         self.stare(2.0, True)
+        rospy.sleep(10.)
         self.disable_stare_landmark_srv(EmptyRequest())
-        self.stare(2.0, False)
-        self.up_and_down(4.5, 1.0, 1.0)
-        self.disable_stare_landmark_srv(EmptyRequest())
+        if self.confirm_chain_presence():
+            self.stare(2.0, False)
+            self.up_and_down(4.5, 1.0, 1.0)
+            self.disable_stare_landmark_srv(EmptyRequest())
+            return True
+        else:
+            return False
+
+
+    def confirm_chain_presence(self):
+        count = 0
+        now = rospy.Time.now().to_sec()
+        for i in self.timestamp_links:
+            if i + 10 > now :
+                count = count + 1
+        if count > 4 :
+            return True
+        else:
+            return False           
+
 
     def search_chain(self, waypoint_list, wait_time, search_depth):
         
@@ -151,8 +178,6 @@ class ChainFollowVertical:
         req.altitude_mode = False
         req.tolerance = 0.2
         
-        index_wp = 0
-         
         while self.chain_detected == False and index_wp<len(waypoint_list):
             
             # Goto waypoint
@@ -170,21 +195,25 @@ class ChainFollowVertical:
             #Disable keep position
             self.disable_keep_position_srv(EmptyRequest())
             
-            index_wp = index_wp + 1 
+            self.index_wp = self.index_wp + 1 
 
-        if self.chain_detected 
+        if self.chain_detected: 
             print "CHAIN FOUND"
 
         return self.chain_detected
 
     def main_mission(self):
         
-        found = self.search_chain([[1.,1.,0.],[1.,1.,-1.57],[1.,1.,0.]],5.0, 2.5)
+        inspected = False
 
-        if found:
-            self.inspect_chain()
+        while not inspected and self.search_chain([[1.,1.,0.],[1.,1.,-1.57],[1.,1.,0.]],5.0, 2.5):
+        
+            inspected = self.inspect_chain()
+
+        if inspected:
+            print "Mission accomplished!"
         else:
-            print "Chain not found during the search pattern"
+            print "Chain not found"
 
 if __name__ == '__main__':
         
