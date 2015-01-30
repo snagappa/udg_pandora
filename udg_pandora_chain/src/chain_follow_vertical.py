@@ -147,11 +147,11 @@ class ChainFollowVertical:
         self.stare_landmark_srv(req)
 
     def inspect_chain(self):
-        self.stare(2.0, True)
+        self.stare(1.3, True)
         rospy.sleep(10.)
         self.disable_stare_landmark_srv(EmptyRequest())
         if self.confirm_chain_presence():
-            self.stare(2.0, False)
+            self.stare(1.3, False)
             self.up_and_down(4.5, 1.0, 1.0)
             self.disable_stare_landmark_srv(EmptyRequest())
             return True
@@ -162,6 +162,7 @@ class ChainFollowVertical:
     def confirm_chain_presence(self):
         count = 0
         now = rospy.Time.now().to_sec()
+        print "Confirm chain presence timestamps: ", self.timestamp_links
         for i in self.timestamp_links:
             if i + 10 > now :
                 count = count + 1
@@ -178,15 +179,15 @@ class ChainFollowVertical:
         req.altitude_mode = False
         req.tolerance = 0.2
         
-        while self.chain_detected == False and index_wp<len(waypoint_list):
+        while self.chain_detected == False and self.index_wp<len(waypoint_list):
             
             # Goto waypoint
-            req.north_lat = waypoint_list[index_wp][0]
-            req.east_lon = waypoint_list[index_wp][1]
-            req.yaw = waypoint_list[index_wp][2]
-            print "Going to WP: x:", waypoint_list[index_wp][0], ", y: ", waypoint_list[index_wp][1], ", yaw: ", waypoint_list[index_wp][2]
+            req.north_lat = waypoint_list[self.index_wp][0]
+            req.east_lon = waypoint_list[self.index_wp][1]
+            req.yaw = waypoint_list[self.index_wp][2]
+            print "Going to WP: x:", waypoint_list[self.index_wp][0], ", y: ", waypoint_list[self.index_wp][1], ", yaw: ", waypoint_list[self.index_wp][2]
             self.goto_holonomic_srv(req)
-            print "WP ", index_wp, "reached"
+            print "WP ", self.index_wp, "reached"
 
             #Keep position during 5 seconds to allow time for chain detection
             self.enable_keep_position_srv(EmptyRequest())

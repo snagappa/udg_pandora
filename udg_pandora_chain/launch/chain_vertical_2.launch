@@ -1,0 +1,7 @@
+ <launch>
+    <!--node name="image_registration" pkg="mapping" type="sonar_image_register.py" respawn="true"/-->
+    <node name="chain_detection_multibeam" pkg="udg_pandora_chain" type="multibeam_chain_detector"/>
+    <node name="chain_detection_aris" pkg="cola2_detection_dev" type="ChainLinkDetector" respawn="true"/>
+    <node name="stare_chain" pkg="udg_pandora_chain" type="stare_chain.py" />
+    <node name="chain_follow_vertical" pkg="udg_pandora_chain" type="chain_follow_vertical.py" output="screen" />
+</launch>

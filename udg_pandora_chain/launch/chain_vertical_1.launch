@@ -1,0 +1,7 @@
+<launch> 
+
+    <include file="$(find cola2_perception_dev)/launch/multibeam.launch"/>
+    <rosparam command="load" file="$(find cola2_perception_dev)/config/soundmetrics_aris3000.yaml" />
+    <node name="soundmetrics_aris3000" pkg="cola2_perception_dev" type="soundmetrics_aris3000.py" output="screen" respawn="true" />
+
+</launch>
