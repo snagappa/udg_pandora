@@ -1,19 +1,25 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(udg_pandora_misc)
+project(udg_pandora_chain)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  rospy
-  std_msgs
-  geometry_msgs
-  nav_msgs
-  pose_ekf_slam
-  tf
-  tf_conversions
+  auv_msgs
   cola2_lib
-  message_generation
+  cola2_perception_dev
+  geometry_msgs
+  laser_geometry
+  OpenCV
+  cv_bridge
+  pcl_conversions
+  pcl_ros
+  roscpp
+  rospy
+  sensor_msgs
+  std_msgs
+  std_srvs
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -57,11 +63,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate services in the 'srv' folder
-add_service_files(
-  FILES
-# ValveOrientation.srv
-  RegisterImgPair2D.srv
-)
+# add_service_files(
+#   FILES
+#   Service1.srv
+#   Service2.srv
+# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -71,10 +77,10 @@ add_service_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  geometry_msgs
-)
+# generate_messages(
+#   DEPENDENCIES
+#   auv_msgs#   geometry_msgs#   std_msgs#   visualization_msgs
+# )
 
 ###################################
 ## catkin specific configuration ##
@@ -86,18 +92,9 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  CATKIN_DEPENDS
-  rospy
-  std_msgs
-  geometry_msgs
-  nav_msgs
-  pose_ekf_slam
-  tf
-  tf_conversions
-  cola2_lib
 #  INCLUDE_DIRS include
-#  LIBRARIES valve_utils_pandora
-#  CATKIN_DEPENDS roscpp rospy std_msgs
+#  LIBRARIES udg_pandora_chain
+#  CATKIN_DEPENDS auv_msgs cola2_lib cola2_perception_dev geometry_msgs roscpp rospy std_msgs std_srvs visualization_msgs
 #  DEPENDS system_lib
 )
 
@@ -109,25 +106,25 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
-  ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
-# add_library(valve_utils_pandora
-#   src/${PROJECT_NAME}/valve_utils_pandora.cpp
+# add_library(udg_pandora_chain
+#   src/${PROJECT_NAME}/udg_pandora_chain.cpp
 # )
 
 ## Declare a cpp executable
-# add_executable(valve_utils_pandora_node src/valve_utils_pandora_node.cpp)
+add_executable(multibeam_chain_detector src/multibeam_chain_detector.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(valve_utils_pandora_node valve_utils_pandora_generate_messages_cpp)
+# add_dependencies(udg_pandora_chain_node udg_pandora_chain_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(valve_utils_pandora_node
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(multibeam_chain_detector
+   ${OpenCV_LIBRARIES} ${catkin_LIBRARIES}
+ )
 
 #############
 ## Install ##
@@ -144,7 +141,7 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS valve_utils_pandora valve_utils_pandora_node
+# install(TARGETS udg_pandora_chain udg_pandora_chain_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -169,7 +166,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_valve_utils_pandora.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_udg_pandora_chain.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

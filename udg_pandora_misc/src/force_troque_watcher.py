@@ -20,6 +20,7 @@ import numpy as np
 
 # Params
 KILLTIME = 2.0
+STARTTIME = 10.0
 
 SIZ_WINDOW = 10
 
@@ -44,7 +45,9 @@ class froceTorqueWatcher(object):
         th_iit = threading.Thread(target=self.run_force_torque_iit)
         th_iit.daemon = True
         th_iit.start()
-        rospy.sleep(KILLTIME)
+        rospy.loginfo('Sleeping until the node is on')
+        rospy.sleep(STARTTIME)
+        rospy.loginfo('Wake up running the other node')
         th_controller = threading.Thread(target=self.run_force_torque_controll)
         th_controller.daemon = True
         th_controller.start()
@@ -55,10 +58,11 @@ class froceTorqueWatcher(object):
         '''
         Save data in a window of 10.
         '''
-        self.force_list.append(data.wrench.torque.z)
-        if len(self.force_list) > SIZ_WINDOW:
-            self.force_list.pop(0)
-            self.init = True
+        if data.wrench.torque.z != 0.0:
+            self.force_list.append(data.wrench.torque.z)
+            if len(self.force_list) > SIZ_WINDOW:
+                self.force_list.pop(0)
+                self.init = True
 
     def kill_and_reset(self):
         '''
@@ -71,6 +75,8 @@ class froceTorqueWatcher(object):
             # Kill it
             ans = subprocess.call(["rosnode", "kill", "/IITForceTorque"])
             rospy.sleep(KILLTIME)
+            ans = subprocess.call(["rosnode", "kill", "/standalone_nodelet/bond"])
+            rospy.sleep(KILLTIME)
             ans = subprocess.call(["rosnode", "kill", "/force_torque_controller"])
             rospy.sleep(KILLTIME)
             # Wait for it
@@ -79,11 +85,12 @@ class froceTorqueWatcher(object):
             th_iit = threading.Thread(target=self.run_force_torque_iit)
             th_iit.daemon = True
             th_iit.start()
-            rospy.sleep(KILLTIME)
+            rospy.sleep(STARTTIME)
             th_controller = threading.Thread(target=self.run_force_torque_controll)
             th_controller.daemon = True
             th_controller.start()
             self.called = True
+            self.init = False
         except:
             print("Problem trying to kill camera")
 
@@ -92,11 +99,12 @@ class froceTorqueWatcher(object):
             th_iit = threading.Thread(target=self.run_force_torque_iit)
             th_iit.daemon = True
             th_iit.start()
-            rospy.sleep(KILLTIME)
+            rospy.sleep(STARTTIME)
             th_controller = threading.Thread(target=self.run_force_torque_controll)
             th_controller.daemon = True
             th_controller.start()
             self.called = True
+            self.init = False
 
     def run_force_torque_iit(self):
         '''
@@ -125,7 +133,7 @@ class froceTorqueWatcher(object):
         # Check if initialized
         if (self.init and
             np.all(np.asarray(self.force_list)==self.force_list[0])):
-                print("GuppyKiller: Too much time to init...")
+                print("Force Torque Wathcer: All data is equal")
                 self.kill_and_reset()
 
 
