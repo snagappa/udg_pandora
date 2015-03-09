@@ -9,6 +9,9 @@ t = np.arange(0,120,0.2)
 y = np.ones(len(t))*1
 y2 = np.copy(y)
 
+for i in range(len(y)):
+    y[i] += np.random.uniform(-0.5,0.5)
+
 t_obs_up = np.arange(20,40,0.2)
 t_obs_down = np.arange(60,80,0.2)
 

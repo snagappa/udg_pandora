@@ -51,15 +51,30 @@ class LearningDmpParametric(object):
         self.group_index = np.zeros(self.nb_groups)
 
         self.d = []
+        self.wp = []
+        self.Data = []
+        self.sigma_x = []
         for n in range(self.nb_groups):
             self.d.append(np.zeros(shape=(self.groups_samples[n],
                                           self.dof*3,
                                           self.nb_data)))
+            self.wp.append(np.zeros(shape=(
+                self.states,
+                self.dof,
+                self.dof)))
+            self.Data.append(np.zeros(
+                shape=(
+                    self.dof*3,
+                    self.groups_samples[0]*self.nb_data)))
+            self.sigma_x.append(np.zeros(shape=(self.states,
+                                        self.dof,
+                                        self.dof)))
+
         # Data for each one
-        self.Data = [np.zeros(
-            shape=(
-                self.dof*3,
-                self.groups_samples[0]*self.nb_data))]*self.nb_groups
+        # self.Data = [np.zeros(
+        #     shape=(
+        #         self.dof*3,
+        #         self.groups_samples[0]*self.nb_data))]*self.nb_groups
 
         self.avg_dt = np.zeros(self.nb_groups)
 
@@ -68,13 +83,15 @@ class LearningDmpParametric(object):
 
         self.loadDemonstration()
 
-        self.sigma_x = [np.zeros(shape=(self.states,
-                                        self.dof,
-                                        self.dof))]*self.nb_groups
-        self.wp = [np.zeros(shape=(
-            self.states,
-            self.dof,
-            self.dof))]*self.nb_groups
+        # self.sigma_x = [np.zeros(shape=(self.states,
+        #                                 self.dof,
+        #                                 self.dof))]*self.nb_groups
+        # self.wp = [np.zeros(shape=(
+        #     self.states,
+        #     self.dof,
+        #     self.dof))]*self.nb_groups
+
+
         self.mu_x = []
         print 'Loaded demonstrations'
 
@@ -155,7 +172,7 @@ class LearningDmpParametric(object):
             self.d[self.groups[n]][n_group, self.dof*2:self.dof*3, :] = (
                 (aux - self.d[self.groups[n]][n_group, self.dof:self.dof*2, :]) / tranning_dt)
                 #(aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.dt)
-            self.Data[self.groups[n]][:, ((n_group)*self.nb_data):(self.nb_data*(n+1))] = self.d[self.groups[n]][n_group, :, :]
+            self.Data[n][:, ((n_group)*self.nb_data):(self.nb_data*(n+1))] = self.d[self.groups[n]][n_group, :, :]
             # np.set_printoptions(threshold=100000)
             #rospy.loginfo('\n Values in the d data number ' + str(n) + '\n' +
             #                str(self.d[n,:,:]) + '\n' )
@@ -163,6 +180,7 @@ class LearningDmpParametric(object):
             #rospy.loginfo(self.d)
             self.avg_dt[self.groups[n]] += tranning_dt
             self.group_index[self.groups[n]] = n_group + 1.0
+
         #TODO ERROR avg time should be the same in this case
         self.avg_dt = self.avg_dt/self.groups_samples
 
@@ -210,6 +228,8 @@ class LearningDmpParametric(object):
         Y = np.zeros(shape=(self.dof,
                             self.groups_samples[group]*self.nb_data))
         # group
+        #print "Data 0 record " + str(self.Data[0])
+        #print "Data 1 record " + str(self.Data[1])
         for i in range(self.dof):
             Y[i,:] = (self.Data[group][(i+self.dof*2), :]*(1/self.kP) +
                       self.Data[group][i, :] +

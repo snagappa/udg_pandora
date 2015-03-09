@@ -14,7 +14,7 @@ kPmax = 0.1
 alpha = 1.0
 nbStates = 3
 dof_list = [1]
-nbData = 400
+nbData = 200
 demonstration_file = 'fake_trajectory'
 demonstrations = [1,2]
 init_time = [0.0, 0.0]
@@ -50,7 +50,7 @@ reproductor = LearningDmpParamReproductor(
 current_pose = [0.0]
 current_vel = [0.0]
 action = 1.0
-param = 0.0
+param = 1.0
 
 file_trajectory = open('simulated_trajectory_param.csv', 'w')
 time = 0.0
