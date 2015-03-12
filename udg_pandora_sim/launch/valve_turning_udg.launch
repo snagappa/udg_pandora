@@ -4,7 +4,6 @@
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
         <arg name="enableCameraTF" value="true" />
-    <arg name="enableValveNtua" value="false" />
     <arg name="enableValveTracker" value="false" />
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
@@ -13,7 +12,6 @@
  	<include file="$(find cola2_launch)/launch/g500-sim_new.launch">
         	<arg name="enableTeleopArm" value="true" />
         	<arg name="enableJoystick" value="false" />
-                <arg name="enableNtuaControl" value="false" />
         	<arg name="joystickDevice" value="/dev/input/js0"/>
         </include>
 
