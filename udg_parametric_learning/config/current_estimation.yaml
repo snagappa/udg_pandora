@@ -1,3 +1,8 @@
 current_estimation/rate : 10.0
 current_estimation/time_analize : 5.0
 current_estimation/regular_force : []
+current_estimation/stare_landmark_enabled : True
+current_estimation/stare_landmark_id : 'panel_centre'
+current_estimation/stare_landmark_offset : [0.0, 0.0, 1.5, 0.0, 0.0, 0.0]
+current_estimation/stare_landmark_tolerance : 0.3
+current_estimation/stare_landmark_keep_pose : True

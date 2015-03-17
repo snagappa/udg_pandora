@@ -12,12 +12,14 @@ from cola2_lib import cola2_ros_lib
 
 from auv_msgs.msg import BodyForceReq
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Pose
 
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 from std_srvs.srv import Empty, EmptyResponse
 from udg_parametric_learning.srv import StaticCurrent, StaticCurrentResponse
+
+from cola2_control.srv import StareLandmark, StareLandmarkRequest
 
 class CurrentEstimation:
 
@@ -30,6 +32,7 @@ class CurrentEstimation:
         self.time_analize = 20.0
         self.time_window = 10.0
         self.regular_force = []
+        self.stare_landmark_enabled = False
         self.get_config()
         #service
         self.enable_srv = rospy.Service(
@@ -58,14 +61,29 @@ class CurrentEstimation:
             "/current_estimation/current_vector", Twist)
 
         #get clients
-        rospy.wait_for_service('/cola2_control/enable_keep_position_g500')
-        rospy.wait_for_service('/cola2_control/disable_keep_position')
-        self.keep_position_enable = rospy.ServiceProxy(
-            '/cola2_control/enable_keep_position_g500',
-            Empty)
-        self.keep_position_disable = rospy.ServiceProxy(
-            '/cola2_control/disable_keep_position',
-            Empty)
+        if self.stare_landmark_enabled:
+            # TODO Use got to Landmark
+            #rospy.wait_for_service('/cola2_control/goto_landmark')
+            rospy.wait_for_service('/cola2_control/enable_stare_landmark')
+            rospy.wait_for_service('/cola2_control/disable_stare_landmark')
+            # self.keep_position_enable = rospy.ServiceProxy(
+            #     '/cola2_control/goto_landmark',
+            #     StareLandmark)
+            self.keep_position_enable = rospy.ServiceProxy(
+                '/cola2_control/enable_stare_landmark',
+                StareLandmark)
+            self.keep_position_disable = rospy.ServiceProxy(
+                '/cola2_control/disable_stare_landmark',
+                Empty)
+        else:
+            rospy.wait_for_service('/cola2_control/enable_keep_position_g500')
+            rospy.wait_for_service('/cola2_control/disable_keep_position')
+            self.keep_position_enable = rospy.ServiceProxy(
+                '/cola2_control/enable_keep_position_g500',
+                Empty)
+            self.keep_position_disable = rospy.ServiceProxy(
+                '/cola2_control/disable_keep_position',
+                Empty)
 
         if not self.regular_force:
             rospy.loginfo('Computing the regular force')
@@ -79,7 +97,12 @@ class CurrentEstimation:
         '''
         param_dict = {'rate': 'current_estimation/rate',
                       'time_analize': 'current_estimation/time_analize',
-                      'regular_force': 'current_estimation/regular_force'
+                      'regular_force': 'current_estimation/regular_force',
+                      'stare_landmark_enabled': 'current_estimation/stare_landmark_enabled',
+                      'stare_landmark_id': 'current_estimation/stare_landmark_id',
+                      'stare_landmark_offset': 'current_estimation/stare_landmark_offset',
+                      'stare_landmark_tolerance': 'current_estimation/stare_landmark_tolerance',
+                      'stare_landmark_keep_pose': 'current_estimation/stare_landmark_keep_pose'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         rospy.loginfo('Time analize ' + str(self.time_analize))
@@ -107,7 +130,26 @@ class CurrentEstimation:
         '''
         rate = rospy.Rate(self.rate)
         # Call the service
-        self.keep_position_enable.call()
+        if self.stare_landmark_enabled:
+            request = StareLandmarkRequest()
+            request.landmark_id = self.stare_landmark_id
+            # offset type is geometry_msgs/Pose
+            request.offset = Pose()
+            request.offset.position.x = self.stare_landmark_offset[0]
+            request.offset.position.y = self.stare_landmark_offset[1]
+            request.offset.position.z = self.stare_landmark_offset[2]
+            quaternion = quaternion_from_euler(self.stare_landmark_offset[3],
+                                               self.stare_landmark_offset[4],
+                                               self.stare_landmark_offset[5])
+            request.offset.orientation.x = quaternion[0]
+            request.offset.orientation.y = quaternion[1]
+            request.offset.orientation.z = quaternion[2]
+            request.offset.orientation.w = quaternion[3]
+            request.tolerance = self.stare_landmark_tolerance
+            request.keep_pose = self.stare_landmark_keep_pose
+            answer = self.keep_position_enable.call(request)
+        else:
+            self.keep_position_enable.call()
         # take the init time
         init_time = rospy.get_time()
         force_vector = []
@@ -136,7 +178,24 @@ class CurrentEstimation:
         '''
         rate = rospy.Rate(self.rate)
         # Call the service
-        self.keep_position_enable.call()
+        if self.stare_landmark_enabled:
+            request = StareLandmarkRequest()
+            request.landmark_id = self.stare_landmark_id
+            # offset type is geometry_msgs/Pose
+            request.offset = Pose()
+            request.offset.position.x = self.stare_landmark_offset[0]
+            request.offset.position.y = self.stare_landmark_offset[1]
+            request.offset.position.z = self.stare_landmark_offset[2]
+            quaternion = quaternion_from_euler(self.stare_landmark_offset[3:6])
+            request.offset.orientation.x = quaternion[0]
+            request.offset.orientation.y = quaternion[1]
+            request.offset.orientation.z = quaternion[2]
+            request.offset.orientation.w = quaternion[3]
+            request.tolerance = self.stare_landmark_tolerance
+            request.keep_pose = self.stare_landmark_keep_pose
+            answer = self.keep_position_enable.call(request)
+        else:
+            self.keep_position_enable.call()
         # take the init time
         init_time = rospy.get_time()
         force_vector = []
