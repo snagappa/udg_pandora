@@ -560,8 +560,8 @@ class HRecordEnvironment:
             if self.init_element_ee :
                 if self.init_element_auv :
                     # Convert EE to the AUV frame
-                    self.lock_element_ee.aquire()
-                    self.lock_element_auv.aquire()
+                    self.lock_element_ee.acquire()
+                    self.lock_element_auv.acquire()
                     try:
                         base_pose = Pose()
                         quaterninon = tf.transformations.quaternion_from_euler(

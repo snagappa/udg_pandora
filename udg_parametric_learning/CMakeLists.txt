@@ -1,18 +1,18 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(planning_msgs)
+project(udg_parametric_learning)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  roscpp
   rospy
   std_msgs
-  roscpp
-  genmsg
-  diagnostic_msgs
-  message_generation
-  actionlib_msgs
-  actionlib
+  std_srvs
+  geometry_msgs
+  tf
+  tf_conversions
+  cola2_lib
 )
 
 ## System dependencies are found with CMake's conventions
@@ -49,35 +49,31 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  ActionDispatch.msg
-  ActionFeedback.msg
-  CompletePlan.msg
-)
+# add_message_files(
+#   FILES
+#   Message1.msg
+#   Message2.msg
+# )
 
 ## Generate services in the 'srv' folder
- add_service_files(
-   FILES
-   GetAttributesOfInstance.srv
-   GetAttributesOfType.srv
-   GetInstancesOfType.srv
-   GetSubTypes.srv
- )
+add_service_files(
+  FILES
+  StaticCurrent.srv
+)
 
 
 ## Generate actions in the 'action' folder
-add_action_files(
-  FILES
-  SearchForChain.action
-)
+# add_action_files(
+#   FILES
+#   Action1.action
+#   Action2.action
+# )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs
-  diagnostic_msgs
-  actionlib_msgs
+  geometry_msgs
 )
 
 ###################################
@@ -85,13 +81,22 @@ generate_messages(
 ###################################
 ## The catkin_package macro generates cmake config files for your package
 ## Declare things to be passed to dependent projects
+## INCLUDE_DIRS: uncomment this if you package contains header files
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-# INCLUDE_DIRS include
-#  LIBRARIES auv_msgs
-  CATKIN_DEPENDS actionlib_msgs std_msgs message_runtime
+  CATKIN_DEPENDS
+  rospy
+  std_msgs
+  std_srvs
+  geometry_msgs
+  tf
+  tf_conversions
+  cola2_lib
+#  INCLUDE_DIRS include
+#  LIBRARIES udg_parametric_learning
+#  CATKIN_DEPENDS roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
 
@@ -101,22 +106,25 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+# include_directories(include)
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+)
 
 ## Declare a cpp library
-# add_library(auv_msgs
-#   src/${PROJECT_NAME}/auv_msgs.cpp
+# add_library(udg_parametric_learning
+#   src/${PROJECT_NAME}/udg_parametric_learning.cpp
 # )
 
 ## Declare a cpp executable
-# add_executable(auv_msgs_node src/auv_msgs_node.cpp)
+# add_executable(udg_parametric_learning_node src/udg_parametric_learning_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(auv_msgs_node auv_msgs_generate_messages_cpp)
+# add_dependencies(udg_parametric_learning_node udg_parametric_learning_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(auv_msgs_node
+# target_link_libraries(udg_parametric_learning_node
 #   ${catkin_LIBRARIES}
 # )
 
@@ -135,7 +143,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS auv_msgs auv_msgs_node
+# install(TARGETS udg_parametric_learning udg_parametric_learning_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -160,7 +168,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_auv_msgs.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_udg_parametric_learning.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

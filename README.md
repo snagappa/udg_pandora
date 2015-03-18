@@ -13,7 +13,7 @@ Set lib.common.blas.DEBUG to False to disable basic checks on function arguments
 
 ## FOR SCI-KIT-LEARN
 
-    sudo pip install sci-kit-learn
+    sudo pip install scikit-learn
 
 
 # TO RUN CHAIN SIMULATION SCENARIO
@@ -24,4 +24,3 @@ Set lib.common.blas.DEBUG to False to disable basic checks on function arguments
     rosrun udg_pandora_sim sim_link_detector.py
     rosrun udg_pandora_chain chain_planner.py
     rosrun udg_pandora_chain chain_follow.py
-
