@@ -10,7 +10,7 @@
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 
 	<!-- Load G500 components -->
- 	<include file="$(find cola2_launch)/launch/g500-sim.launch">
+ 	<include file="$(find cola2_launch)/launch/g500-sim_new.launch">
         	<arg name="enableTeleopArm" value="true" />
         	<arg name="enableJoystick" value="false" />
                 <arg name="enableNtuaControl" value="false" />
