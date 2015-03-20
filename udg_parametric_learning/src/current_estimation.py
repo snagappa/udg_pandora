@@ -146,7 +146,9 @@ class CurrentEstimation:
             request.offset.orientation.z = quaternion[2]
             request.offset.orientation.w = quaternion[3]
             request.tolerance = self.stare_landmark_tolerance
-            request.keep_pose = self.stare_landmark_keep_pose
+            request.keep_pose = False
+            answer = self.keep_position_enable.call(request)
+            request.keep_pose = True
             answer = self.keep_position_enable.call(request)
         else:
             self.keep_position_enable.call()
@@ -186,13 +188,17 @@ class CurrentEstimation:
             request.offset.position.x = self.stare_landmark_offset[0]
             request.offset.position.y = self.stare_landmark_offset[1]
             request.offset.position.z = self.stare_landmark_offset[2]
-            quaternion = quaternion_from_euler(self.stare_landmark_offset[3:6])
+            quaternion = quaternion_from_euler(self.stare_landmark_offset[3],
+                                               self.stare_landmark_offset[4],
+                                               self.stare_landmark_offset[5])
             request.offset.orientation.x = quaternion[0]
             request.offset.orientation.y = quaternion[1]
             request.offset.orientation.z = quaternion[2]
             request.offset.orientation.w = quaternion[3]
             request.tolerance = self.stare_landmark_tolerance
-            request.keep_pose = self.stare_landmark_keep_pose
+            request.keep_pose = False
+            answer = self.keep_position_enable.call(request)
+            request.keep_pose = True
             answer = self.keep_position_enable.call(request)
         else:
             self.keep_position_enable.call()
