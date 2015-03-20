@@ -124,9 +124,7 @@ class valveTracker():
                          self.updatecovariance,
                          queue_size = 1)
 
-
-
-
+        # WORK AROUND
         rospy.Subscriber("/valve_tracker/valve_0_ass_ori",
                          Float64,
                          self.updateAngleValve0,
@@ -143,7 +141,6 @@ class valveTracker():
                          Float64,
                          self.updateAngleValve3,
                          queue_size = 1)
-                         
 
 
         self.enable_srv = rospy.Service(
@@ -155,8 +152,6 @@ class valveTracker():
             '/valve_tracker/disable_update_valve_orientation',
             Empty,
             self.disable_update_valve_srv)
-
-
 
     def updateAngleValve0(self, data):
         self.assisted_valve_angle[0] = data.data        
@@ -486,8 +481,8 @@ class valveTracker():
                 
                 
                 #WORK AROUND
-                #angle = self.discretize_valve_angle(self.kf_valves_ori[i])
-                angle = self.assisted_valve_angle[i]
+                angle = self.discretize_valve_angle(self.kf_valves_ori[i])
+                #angle = self.assisted_valve_angle[i]
                 
                 
                 
@@ -504,6 +499,7 @@ class valveTracker():
                      res)
                 valve_msg = PoseWithCovarianceStamped()
                 valve_msg.pose.pose.position = self.valve_msg[i].pose.pose.position
+                #rospy.loginfo('Valve ' +str(i) + ' Pose ' + str(self.valve_msg[i].pose.pose.position))
                 valve_msg.pose.pose.orientation.x = quat[0]
                 valve_msg.pose.pose.orientation.y = quat[1]
                 valve_msg.pose.pose.orientation.z = quat[2]
