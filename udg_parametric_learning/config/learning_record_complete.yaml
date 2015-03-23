@@ -1,0 +1,4 @@
+learning/record/complete/filename : 'trajectory_demonstration'
+learning/record/complete/number_sample : 64
+learning/record/complete/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
+learning/record/complete/goal_valve : 2
