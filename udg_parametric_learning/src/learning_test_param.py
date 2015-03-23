@@ -50,7 +50,7 @@ reproductor = LearningDmpParamReproductor(
 current_pose = [0.0]
 current_vel = [0.0]
 action = 1.0
-param = 1.0
+param = 0.5
 
 file_trajectory = open('simulated_trajectory_param.csv', 'w')
 time = 0.0
