@@ -12,7 +12,7 @@ from cola2_lib import cola2_ros_lib
 
 from auv_msgs.msg import BodyForceReq
 
-from geometry_msgs.msg import Twist, Pose
+from geometry_msgs.msg import TwistStamped, Pose
 
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
@@ -58,7 +58,7 @@ class CurrentEstimation:
 
         #publisher
         self.pub_current_estimation = rospy.Publisher(
-            "/current_estimation/current_vector", Twist)
+            "/current_estimation/current_vector", TwistStamped)
 
         #get clients
         if self.stare_landmark_enabled:
@@ -271,13 +271,15 @@ class CurrentEstimation:
                     avg_force = [0.0] * 6
                     for i in range(6):
                         avg_force[i] = np.sum(matrix[:,i]) / counter
-                    msg = Twist()
-                    msg.linear.x = avg_force[0]
-                    msg.linear.y = avg_force[1]
-                    msg.linear.z = avg_force[2]
-                    msg.angular.x = avg_force[3]
-                    msg.angular.y = avg_force[4]
-                    msg.angular.z = avg_force[5]
+                    msg = TwistStamped()
+                    msg.header.stamp = rospy.get_rostime()
+                    msg.header.frame_id = 'girona500'
+                    msg.twist.linear.x = avg_force[0]
+                    msg.twist.linear.y = avg_force[1]
+                    msg.twist.linear.z = avg_force[2]
+                    msg.twist.angular.x = avg_force[3]
+                    msg.twist.angular.y = avg_force[4]
+                    msg.twist.angular.z = avg_force[5]
                     self.pub_current_estimation.publish(msg)
                     rospy.loginfo('Start Publishing')
                 elif initialized:
