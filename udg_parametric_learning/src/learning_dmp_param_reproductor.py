@@ -25,9 +25,11 @@ class LearningDmpParamReproductor(object):
         self.dofs = [None]*self.nb_groups
         self.value_group = [0]*self.nb_groups
         self.get_learned_parameters()
-        self.s = 1.0
+        self.s = np.ones(self.nb_groups)
         self.alpha = alpha
         self.action = 1.0
+        # We compute it every time
+        #self.param_time = [1.0]*self.nb_groups
 
     def get_learned_parameters(self):
         for n in range(self.nb_groups):
@@ -101,23 +103,16 @@ class LearningDmpParamReproductor(object):
         """
         Generates the new position in the current state
         """
-        t = -math.log(self.s)/self.alpha
-        #self.tf
-        # if self.backward :
-        #     t = self.tf + math.log(self.s)/self.alpha
-        # else :
-        #     t = -math.log(self.s)/self.alpha
-        # for each atractor or state obtain the weigh
-        #rospy.loginfo('Time :' + str(t) )
+        #t = -math.log(self.s)/self.alpha
+        t = -np.log(self.s)/self.alpha
         h = [np.zeros(self.states)]*self.nb_groups
         for j in xrange(self.nb_groups):
             for i in xrange(self.states):
-                h[j][i] = self.gaussPDF(t, self.Mu_t[j][i], self.Sigma_t[j][i])
+                h[j][i] = self.gaussPDF(t[j], self.Mu_t[j][i], self.Sigma_t[j][i])
 
             # normalize the value
-            if t > self.Mu_t[j][self.states-1]+(self.Sigma_t[j][self.states-1]*1.2):
+            if t[j] > self.Mu_t[j][self.states-1]+(self.Sigma_t[j][self.states-1]*1.2):
                 print 'The time used in the demonstration is exhausted'
-                #self.enabled = False
                 self.s = 1.0
                 return [[],[]]
             else:
@@ -178,7 +173,18 @@ class LearningDmpParamReproductor(object):
         #NOT needed
         desPos = selected_pose + desVel * self.interval_time
 
-        self.s = self.s - self.alpha*self.s*self.interval_time*action#*1.5
+        # time parameters change according to the influence
+        last_time = np.zeros(self.nb_groups)
+        avg_time = 0.0
+        for j in xrange(self.nb_groups):
+            avg_time += self.Mu_t[j][-1]*influence[j]
+            last_time[j] = self.Mu_t[j][-1]
+        param_time = avg_time / last_time
+        print 'Param time ' + str(param_time)
+        print ' Avg Time ' + str(avg_time) + ' Last time ' +str(last_time)
+
+        #This computes directly all the vector
+        self.s = self.s - self.alpha*self.s*self.interval_time*action*param_time
 
         return [desPos, desVel]
 
