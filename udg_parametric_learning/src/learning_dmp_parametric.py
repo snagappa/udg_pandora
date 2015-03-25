@@ -12,7 +12,7 @@ class LearningDmpParametric(object):
     """
 
     def __init__(self, kP, kV, kP_min, kP_max, alpha, states, dof_list, nb_data,
-                 file_name, samples, init_time, end_time, param_values, output_file_name):
+                 file_name, samples, init_time, end_time, param_values, param_samples,  output_file_name):
         """
         Initialize the class
         """
@@ -47,7 +47,9 @@ class LearningDmpParametric(object):
         self.nb_groups = 2
         #TODO ERROR -> com es que hi ha dos copa el mate
         self.groups_values = param_values
-        self.groups_samples = [1,1]
+        #TODO this should be extracted form the list
+        #self.groups_samples = [1,1]
+        self.groups_samples = param_samples
         self.group_index = np.zeros(self.nb_groups)
 
         self.d = []
@@ -65,7 +67,7 @@ class LearningDmpParametric(object):
             self.Data.append(np.zeros(
                 shape=(
                     self.dof*3,
-                    self.groups_samples[0]*self.nb_data)))
+                    self.groups_samples[n]*self.nb_data)))
             self.sigma_x.append(np.zeros(shape=(self.states,
                                         self.dof,
                                         self.dof)))
@@ -147,8 +149,9 @@ class LearningDmpParametric(object):
 #            rospy.loginfo("range "+ str(range(nbDataTmp)))
             f = interpolate.interp1d(range(nbDataTmp+1), vars.T, kind='cubic')
             yy = f(xx)
-            n_group = int(self.group_index[self.groups[n]])
-            self.d[self.groups[n]][n_group, 0:self.dof, :] = yy
+            #print 'Groups ' + str(self.groups) + ' iterator ' + str(n)
+            n_group = int(self.group_index[self.groups_values[n]])
+            self.d[self.groups_values[n]][n_group, 0:self.dof, :] = yy
             #Velocities generated from the interpolation
             #d(n).Data(velId,:) = ([d(n).Data(posId,2:end) d(n).Data(posId,end)]
             #                     - d(n).Data(posId,:)) ./ m.dt;
@@ -162,29 +165,29 @@ class LearningDmpParametric(object):
                            - first_time.astype(np.float)) / self.nb_data
 
             #self.d[n, self.nbVar:self.nbVar*2, :] = ((aux - yy) / self.dt)
-            self.d[self.groups[n]][n_group, self.dof:self.dof*2, :] = ((aux - yy) / tranning_dt)
+            self.d[self.groups_values[n]][n_group, self.dof:self.dof*2, :] = ((aux - yy) / tranning_dt)
 
             #Accelerations generated from the interpolation
             #d(n).Data(accId,:) = ([d(n).Data(velId,2:end) d(n).Data(velId,end)]
             #                       - d(n).Data(velId,:)) ./ m.dt;
-            aux[:, 0:-1] = self.d[self.groups[n]][n_group, self.dof:self.dof*2, 1:]
-            aux[:, -1] = self.d[self.groups[n]][n_group, self.dof:self.dof*2, -1]
-            self.d[self.groups[n]][n_group, self.dof*2:self.dof*3, :] = (
-                (aux - self.d[self.groups[n]][n_group, self.dof:self.dof*2, :]) / tranning_dt)
+            aux[:, 0:-1] = self.d[self.groups_values[n]][n_group, self.dof:self.dof*2, 1:]
+            aux[:, -1] = self.d[self.groups_values[n]][n_group, self.dof:self.dof*2, -1]
+            self.d[self.groups_values[n]][n_group, self.dof*2:self.dof*3, :] = (
+                (aux - self.d[self.groups_values[n]][n_group, self.dof:self.dof*2, :]) / tranning_dt)
                 #(aux - self.d[n, self.nbVar:self.nbVar*2, :]) / self.dt)
-            self.Data[n][:, ((n_group)*self.nb_data):(self.nb_data*(n+1))] = self.d[self.groups[n]][n_group, :, :]
+            self.Data[self.groups_values[n]][:, ((n_group)*self.nb_data):(self.nb_data*(n_group+1))] = self.d[self.groups_values[n]][n_group, :, :]
             # np.set_printoptions(threshold=100000)
             #rospy.loginfo('\n Values in the d data number ' + str(n) + '\n' +
             #                str(self.d[n,:,:]) + '\n' )
             #            p = raw_input('wait')
             #rospy.loginfo(self.d)
-            self.avg_dt[self.groups[n]] += tranning_dt
-            self.group_index[self.groups[n]] = n_group + 1.0
+            self.avg_dt[self.groups_values[n]] += tranning_dt
+            self.group_index[self.groups_values[n]] = n_group + 1.0
 
         #TODO ERROR avg time should be the same in this case
         self.avg_dt = self.avg_dt/self.groups_samples
 
-        for n in range(self.nb_samples):
+        for n in range(self.nb_groups):
             self.mu_t.append(np.linspace(0, self.nb_data*self.avg_dt[n], self.states))
             # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
             #                       [self.nbStates, 1, 1])
