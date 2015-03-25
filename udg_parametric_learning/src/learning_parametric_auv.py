@@ -2,12 +2,12 @@
 
 from learning_dmp_parametric import LearningDmpParametric
 
-kP = [-99.0, -99.0 ]
-kV = [-99.0, -99.0 ]
-kPmax = [1,1]
-kPmin = [0.1, 0.1]
+kP = [[-99.0,-99.0], [-99.0,-99.0]]
+kV = [[-99.0,-99.0], [-99.0, -99.0]]
+kPmax = [[3.0,10.0],[3.0,10.0]]
+kPmin = [[0.1, 0.1], [0.1, 0.1]]
 alpha = 1.0
-nbStates = [10,10]
+nbStates = [[5,10],[5,10]]
 #dof_list = [1]
 nbData = 400
 demonstration_file = '../parametric_data/trajectory_demonstration'
@@ -16,7 +16,9 @@ init_time = [1427198369.784869, 1427198536.944197,1427207200.301873,1427209602.3
 end_time = [1427198445.570745, 1427198613.754822,1427207306.514012,1427209708.369823]
 param_value = [0,0,1,1]
 param_samples = [2,2]
-export_filename = ['learned_data_complete_individual_short_auv_x', 'learned_data_complete_individual_short_auv_z']
+export_filename = [
+    '../parametric_data/learned_data_complete_individual_short_auv_x',
+    '../parametric_data/learned_data_complete_individual_short_auv_z']
 #, 'learned_data_complete_individual_short_ee_x.txt', 'learned_data_complete_individual_short_ee_z.txt']
 
 # AUV X Y Yaw

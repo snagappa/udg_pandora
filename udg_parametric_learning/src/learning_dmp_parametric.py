@@ -16,11 +16,11 @@ class LearningDmpParametric(object):
         """
         Initialize the class
         """
-        self.kP = kP
-        self.kV = kV
-        self.kP_min = kP_min
-        self.kP_max = kP_max
-        if self.kP == -99.0 and self.kV == -99.0:
+        self.kP = np.asarray(kP)
+        self.kV = np.asarray(kV)
+        self.kP_min = np.asarray(kP_min)
+        self.kP_max = np.asarray(kP_max)
+        if self.kP[0] == -99.0 and self.kV[0] == -99.0:
             self.kP = self.kP_min + (self.kP_max - self.kP_min)/2.0
             self.kV = 2.0*np.sqrt(self.kP)
         self.nb_data = nb_data
@@ -61,14 +61,14 @@ class LearningDmpParametric(object):
                                           self.dof*3,
                                           self.nb_data)))
             self.wp.append(np.zeros(shape=(
-                self.states,
+                self.states[n],
                 self.dof,
                 self.dof)))
             self.Data.append(np.zeros(
                 shape=(
                     self.dof*3,
                     self.groups_samples[n]*self.nb_data)))
-            self.sigma_x.append(np.zeros(shape=(self.states,
+            self.sigma_x.append(np.zeros(shape=(self.states[n],
                                         self.dof,
                                         self.dof)))
 
@@ -188,11 +188,11 @@ class LearningDmpParametric(object):
         self.avg_dt = self.avg_dt/self.groups_samples
 
         for n in range(self.nb_groups):
-            self.mu_t.append(np.linspace(0, self.nb_data*self.avg_dt[n], self.states))
+            self.mu_t.append(np.linspace(0, self.nb_data*self.avg_dt[n], self.states[n]))
             # self.Sigma_t = np.tile((self.nbData*self.dt/self.nbStates)*0.8,
             #                       [self.nbStates, 1, 1])
-            self.sigma_t.append(np.tile((self.nb_data*self.avg_dt[n]/self.states),
-                                      [self.states, 1, 1]))
+            self.sigma_t.append(np.tile((self.nb_data*self.avg_dt[n]/self.states[n]),
+                                        [self.states[n], 1, 1]))
 
     def trainningDMP(self):
         # Learn individual data
@@ -206,15 +206,15 @@ class LearningDmpParametric(object):
         #compute weights
         s = 1
         #Initialization of decay term
-        H = np.zeros(shape=(self.nb_data, self.states))
-        h = np.zeros(shape=(self.states))
+        H = np.zeros(shape=(self.nb_data, self.states[group]))
+        h = np.zeros(shape=(self.states[group]))
 
         for n in range(self.nb_data):
 #Update of decay term
             s = s + (-self.alpha*s)*self.avg_dt[group]
             #s = s + (-self.alpha*s)*self.dt
             t = -math.log(s)/self.alpha
-            for i in range(self.states):
+            for i in range(self.states[group]):
 #Probability to be in a given state
                 h[i] = self.gaussPDF(t, self.mu_t[group][i], self.sigma_t[group][i, 0, 0])
 #Normalization
@@ -234,9 +234,9 @@ class LearningDmpParametric(object):
         #print "Data 0 record " + str(self.Data[0])
         #print "Data 1 record " + str(self.Data[1])
         for i in range(self.dof):
-            Y[i,:] = (self.Data[group][(i+self.dof*2), :]*(1/self.kP) +
+            Y[i,:] = (self.Data[group][(i+self.dof*2), :]*(1/self.kP[group]) +
                       self.Data[group][i, :] +
-                      self.Data[group][(i+self.dof), :]*(self.kV/self.kP))
+                      self.Data[group][(i+self.dof), :]*(self.kV[group]/self.kP[group]))
 
         # Y = (self.Data[self.nb_var*2:self.nb_var*3, :]*(1/self.kP) +
         #      self.Data[0:self.nb_var, :] +
@@ -262,7 +262,7 @@ class LearningDmpParametric(object):
 #        rospy.loginfo('Values of Y \n' + str(Y) + '\n' )
 #        casa = raw_input('Check Reshape')
 
-        for i in range(self.states):
+        for i in range(self.states[group]):
             a = Y-np.tile(self.mu_x[group][:, i].reshape(len(self.mu_x[group][:, i]), 1),
                           (1, self.nb_data*self.groups_samples[group]))
             b = np.diag(self.H[:, i])
@@ -275,10 +275,10 @@ class LearningDmpParametric(object):
 #        rospy.loginfo('Values of Sigma_x \n ' + str(self.Sigma_x) + '\n')
 
         #Rescale Wp to stay within the [kPmin,kPmax] range
-        V = np.zeros(shape=(self.states, self.dof, self.dof))
-        lambda_var = np.zeros(shape=(self.dof, self.states))
+        V = np.zeros(shape=(self.states[group], self.dof, self.dof))
+        lambda_var = np.zeros(shape=(self.dof, self.states[group]))
 #        rospy.loginfo( 'Values of Wp \n' + str(self.Wp) + '\n' )
-        for i in range(self.states):
+        for i in range(self.states[group]):
 #Eigencomponents decomposition
             [Dtmp, V[i, :, :]] = np.linalg.eig(self.wp[group][i, :, :])
             lambda_var[:, i] = Dtmp
@@ -288,12 +288,12 @@ class LearningDmpParametric(object):
         lambda_min = np.min(lambda_var)
         lambda_max = np.max(lambda_var)
 
-        for i in range(self.states):
+        for i in range(self.states[group]):
         #Full covariance stiffness matrix derived from residuals estimation
         #Rescale each eigenvalue such that they lie in the range [kPmin,kPmax]
-            Dtmp = np.diag((self.kP_max-self.kP_min) *
+            Dtmp = np.diag((self.kP_max[group]-self.kP_min[group]) *
                            (lambda_var[:, i]-lambda_min) /
-                           (lambda_max-lambda_min) + self.kP_min)
+                           (lambda_max-lambda_min) + self.kP_min[group])
 #Reconstruction from the modified eigencomponents
             # self.Wp[i, :, :] = np.dot(V[i, :, :],
             #                           np.dot(Dtmp, np.linalg.inv(V[i, :, :])))
@@ -361,11 +361,11 @@ class LearningDmpParametric(object):
         file = open(self.output_file_name + '_' + str(group) + '.txt', 'w')
 
         file.write('kV\n')
-        file.write(str(self.kV)+' ')
+        file.write(str(self.kV[group])+' ')
         file.write('\n\n')
 
         file.write('kP\n')
-        file.write(str(self.kP)+' ')
+        file.write(str(self.kP[group])+' ')
         file.write('\n\n')
 
         file.write('Mu_t\n')
@@ -405,7 +405,7 @@ class LearningDmpParametric(object):
 
         #Added the value of the parameter
         file.write('ParamValue\n')
-        file.write(str(self.groups_values[group]))
+        file.write(str(self.groups[group]))
         file.write('\n\n')
 
         file.close()
