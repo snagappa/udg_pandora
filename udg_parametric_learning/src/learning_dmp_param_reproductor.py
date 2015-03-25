@@ -15,7 +15,7 @@ class LearningDmpParamReproductor(object):
         self.interval_time = interval_time
         self.dof = dof
         self.nb_groups = nb_groups
-        self.states = 0
+        self.states = [0]*self.nb_groups
         self.kV = [0]*self.nb_groups
         self.kP = [0]*self.nb_groups
         self.Mu_t = [None]*self.nb_groups
@@ -57,29 +57,29 @@ class LearningDmpParamReproductor(object):
             elif logfile[i] == 'Mu_t':
                 i += 1
                 aux = logfile[i].split(' ')
-                self.states = len(aux)
-                self.Mu_t[group] = np.zeros(self.states)
-                for j in xrange(self.states):
+                self.states[group] = len(aux)
+                self.Mu_t[group] = np.zeros(self.states[group])
+                for j in xrange(self.states[group]):
                     self.Mu_t[group][j] = float(aux[j])
             elif logfile[i] == 'Sigma_t':
                 i += 1
-                self.Sigma_t[group] = np.zeros(self.states)
-                for j in xrange(self.states):
+                self.Sigma_t[group] = np.zeros(self.states[group])
+                for j in xrange(self.states[group]):
                     self.Sigma_t[group][j] = float(logfile[i])
                     i += 2
             elif logfile[i] == 'mu_x':
                 i += 1
-                self.Mu_x[group] = np.zeros(shape=(self.dof, self.states))
+                self.Mu_x[group] = np.zeros(shape=(self.dof, self.states[group]))
                 for k in xrange(self.dof):
                     aux = logfile[i].split(' ')
-                    for j in xrange(self.states):
+                    for j in xrange(self.states[group]):
                         self.Mu_x[group][k, j] = float(aux[j])
                     i += 1
             elif logfile[i] == 'Wp':
                 i += 1
                 self.Wp[group] = np.zeros(
-                    shape=(self.states, self.dof, self.dof))
-                for z in xrange(self.states):
+                    shape=(self.states[group], self.dof, self.dof))
+                for z in xrange(self.states[group]):
                     for k in xrange(self.dof):
                         aux = logfile[i].split(' ')
                         for j in xrange(self.dof):
@@ -106,13 +106,15 @@ class LearningDmpParamReproductor(object):
         #t = -math.log(self.s)/self.alpha
         t = -np.log(self.s)/self.alpha
         print 'Time ' + str(t)
-        h = [np.zeros(self.states)]*self.nb_groups
+        h = [None]*self.nb_groups
+        #h = [np.zeros(self.states)]*self.nb_groups
         for j in xrange(self.nb_groups):
-            for i in xrange(self.states):
+            h[j] = np.zeros(self.states[j])
+            for i in xrange(self.states[j]):
                 h[j][i] = self.gaussPDF(t[j], self.Mu_t[j][i], self.Sigma_t[j][i])
 
             # normalize the value
-            if t[j] > self.Mu_t[j][self.states-1]+(self.Sigma_t[j][self.states-1]*1.2):
+            if t[j] > self.Mu_t[j][self.states[j]-1]+(self.Sigma_t[j][self.states[j]-1]*1.2):
                 print 'The time used in the demonstration is exhausted'
                 self.s = 1.0
                 return [[],[]]
@@ -142,7 +144,7 @@ class LearningDmpParamReproductor(object):
         param_wp = np.zeros(shape=(self.dof, self.dof))
         param_vel = np.zeros(self.dof)
         for j in xrange(self.nb_groups):
-            for i in xrange(self.states):
+            for i in xrange(self.states[j]):
                 currTar[j] = currTar[j] + self.Mu_x[j][:, i]*h[j][i]
                 currWp[j] = currWp[j] + self.Wp[j][i, :, :]*h[j][i]
             param_tar = param_tar + currTar[j]*influence[j]

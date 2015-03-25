@@ -1,0 +1,28 @@
+learning/reproductor/complete/parameters_long : ['learned_data_complete_individual_long_auv_z', 'learned_data_complete_individual_long_auv_x']
+#, 'learned_data_complete_individual_long_ee_z.txt', 'learned_data_complete_individual_long_ee_x.txt']
+learning/reproductor/complete/parameters_short : ['learned_data_complete_individual_short_auv_z', 'learned_data_complete_individual_short_auv_x']
+#, 'learned_data_complete_individual_short_ee_z.txt', 'learned_data_complete_individual_short_ee_x.txt']
+# by Default short
+#learning/reproductor/complete/parameters : learned_data_complete.txt
+learning/reproductor/complete/alpha : 1.0
+learning/reproductor/complete/s : 1
+learning/reproductor/complete/nbVar : 10
+#learning/reproductor/complete/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
+learning/reproductor/complete/landmark_id : /visual_detector
+learning/reproductor/complete/interval_time : 0.2 #10Hz
+learning/reproductor/complete/simulation : 1
+learning/reproductor/complete/nbDataRepro : 400 
+learning/reproductor/complete/exportFile : 'trajectory_played'
+#learning/reproductor/complete/exportFile : trajectoryPlayed.csv
+learning/reproductor/complete/frame_id_goal : 'valve1'
+#en el mon Valve2 x:0.11 y:0.0 z:-0.2 
+learning/reproductor/complete/poseGoal_x : 0.0
+learning/reproductor/complete/poseGoal_y : 0.2
+learning/reproductor/complete/poseGoal_z : 0.11
+learning/reproductor/complete/goal_valve : 2
+#default parameter for
+learning/reproductor/complete/learning_param_id : 0
+learning/reproductor/complete/force_torque_enable : False
+# learning/reproductor/complete/gaussian_factor : 1.2 -> 8 states
+# Not implemented, need to be added at some point
+learning/reproductor/complete/gaussian_factor : 0.6
