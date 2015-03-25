@@ -56,8 +56,8 @@ if __name__ == '__main__':
     demos_group_2 = load_trajectory(
         '../parametric_data/trajectory_demonstration', [3,7])
 
-    # traj = load_trajectory(
-    #     'simulated_trajectory_param',[])
+    traj = load_trajectory(
+        '../parametric_data/trajectory_played_sim',[])
 
     #Plot values
     plt.ion()
@@ -82,6 +82,16 @@ if __name__ == '__main__':
         axis[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,3], color='r')
         #plot time, yaw
         axis[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,4], color='r')
+
+    for i in xrange(len(traj)):
+        #plot time, x
+        axis[0].plot(traj[i][:,0] - traj[i][1,0], traj[i][:,1], color='g')
+        #plot time, y
+        axis[1].plot(traj[i][:,0] - traj[i][1,0], traj[i][:,2], color='g')
+        #plot time, z
+        axis[2].plot(traj[i][:,0] - traj[i][1,0], traj[i][:,3], color='g')
+        #plot time, yaw
+        axis[3].plot(traj[i][:,0] - traj[i][1,0], traj[i][:,4], color='g')
 
     # for i in xrange(len(traj)):
     #     plt.plot(traj[i][:,0] - traj[i][1,0], traj[i][:,1], color='r')
