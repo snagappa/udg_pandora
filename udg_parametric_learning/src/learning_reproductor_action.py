@@ -572,16 +572,20 @@ class learningReproductorAct:
         @type req: Empty
         '''
         if not self.action_in_process :
-            rospy.wait_for_service('/current_estimator/static_estimation')
-            static_estimation_srv = rospy.ServiceProxy(
-                '/current_estimator/static_estimation',
-                StaticCurrent)
-            response = static_estimation_srv.call()
+            #TODO Uncomment this lines
+            # rospy.wait_for_service('/current_estimator/static_estimation')
+            # static_estimation_srv = rospy.ServiceProxy(
+            #     '/current_estimator/static_estimation',
+            #     StaticCurrent)
+            # response = static_estimation_srv.call()
 
-            x = current_estimation[0]
-            y = current_estimation[1]
-            z = current_estimation[2]
-            self.param = np.linalg.norm([x,y,z])
+            # x = current_estimation[0]
+            # y = current_estimation[1]
+            # z = current_estimation[2]
+            # #self.param = np.linalg.norm([x,y,z])
+            # self.param = y
+
+            self.param = 1.0
 
             self.enabled = True
             rospy.loginfo('%s Enabled', self.name)
@@ -613,43 +617,47 @@ class learningReproductorAct:
         rate = rospy.Rate(1.0/self.interval_time)
         #Find the parameters to load
         #TODO Fix what hapend with the action
-        path = roslib.packages.get_pkg_subdir('learning_pandora',
-                                              'learning_data',
+        path = roslib.packages.get_pkg_subdir('udg_parametric_learning',
+                                              'parametric_data',
                                               False)
         # choose the file of the list in the learning directory
         # build the path and the file name
-        file_path = path + '/' + self.reproductor_parameters[0]
+        nb_groups = 2
+        #file_path = path + '/' + self.reproductor_parameters[0]
         dmp_z = LearningDmpParamReproductor(
-            self.name + '_z',
-            file_path,
+            self.reproductor_parameters[0],
+            path,
             #self.nbVar,
             1,
             self.alpha,
-            self.interval_time)
-        file_path = path + '/' + self.reproductor_parameters[1]
+            self.interval_time,
+            nb_groups)
+        #rospy.loginfo('Loadded file ' + str())
+        #file_path = path + '/' + self.reproductor_parameters[1]
         dmp_x_y_yaw = LearningDmpParamReproductor(
-            self.name + '_x_y_yaw',
-            file_path,
+            self.reproductor_parameters[1],
+            path,
             #self.nbVar,
             3,
             self.alpha,
-            self.interval_time)
-        file_path = path + '/' + self.reproductor_parameters[2]
-        dmp_arm_z = LearningDmpParamReproductor(
-            self.name + '_z',
-            file_path,
-            #self.nbVar,
-            1,
-            self.alpha,
-            self.interval_time)
-        file_path = path + '/' + self.reproductor_parameters[3]
-        dmp_arm_x_y_yaw = LearningDmpParamReproductor(
-            self.name + '_x_y_yaw',
-            file_path,
-            #self.nbVar,
-            3,
-            self.alpha,
-            self.interval_time)
+            self.interval_time,
+            nb_groups)
+        # file_path = path + '/' + self.reproductor_parameters[2]
+        # dmp_arm_z = LearningDmpParamReproductor(
+        #     self.name + '_z',
+        #     file_path,
+        #     #self.nbVar,
+        #     1,
+        #     self.alpha,
+        #     self.interval_time)
+        # file_path = path + '/' + self.reproductor_parameters[3]
+        # dmp_arm_x_y_yaw = LearningDmpParamReproductor(
+        #     self.name + '_x_y_yaw',
+        #     file_path,
+        #     #self.nbVar,
+        #     3,
+        #     self.alpha,
+        #     self.interval_time)
         time = 0
         # Ask for the parameter value
 
@@ -726,6 +734,9 @@ class learningReproductorAct:
                             self.currPos, self.currVel, self.action, self.param)
                         [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
                             self.currPos, self.currVel, self.action, self.param)
+                        #TODO: Uncomment
+                        des_pose_arm_z = [0.0]
+                        des_pose_arm_x_y_yaw = [0.0, 0.0, 0.0]
                         # [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
                         #     self.currPos, self.currVel, self.action, self.param)
                         # [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
@@ -798,34 +809,34 @@ class learningReproductorAct:
                                               False)
         # choose the file of the list in the learning directory
         # build the path and the file name
-        file_path = path + '/' + self.reproductor_parameters[0]
+        #file_path = path + '/' + self.reproductor_parameters[0]
         dmp_z = LearningDmpParamReproductor(
-            self.name + '_z',
-            file_path,
+            self.reproductor_parameters[0],
+            path,
             1,
             self.alpha,
             self.interval_time)
-        file_path = path + '/' + self.reproductor_parameters[1]
+        #file_path = path + '/' + self.reproductor_parameters[1]
         dmp_x_y_yaw = LearningDmpParamReproductor(
-            self.name + '_x_y_yaw',
-            file_path,
+            self.reproductor_parameters[1],
+            path,
             3,
             self.alpha,
             self.interval_time)
-        file_path = path + '/' + self.reproductor_parameters[2]
-        dmp_arm_z = LearningDmpParamReproductor(
-            self.name + '_z',
-            file_path,
-            1,
-            self.alpha,
-            self.interval_time)
-        file_path = path + '/' + self.reproductor_parameters[3]
-        dmp_arm_x_y_yaw = LearningDmpParamReproductor(
-            self.name + '_x_y_yaw',
-            file_path,
-            3,
-            self.alpha,
-            self.interval_time)
+        # file_path = path + '/' + self.reproductor_parameters[2]
+        # dmp_arm_z = LearningDmpParamReproductor(
+        #     self.name + '_z',
+        #     file_path,
+        #     1,
+        #     self.alpha,
+        #     self.interval_time)
+        # file_path = path + '/' + self.reproductor_parameters[3]
+        # dmp_arm_x_y_yaw = LearningDmpParamReproductor(
+        #     self.name + '_x_y_yaw',
+        #     file_path,
+        #     3,
+        #     self.alpha,
+        #     self.interval_time)
         #Restartin position data aboid multiple loop while waiting to call the action
         self.dataRollReceived = False
         self.dataReceivedArm = 0
@@ -1573,12 +1584,12 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "learning_pandora", "learning_reproductor_action_v3.yaml")
+            "udg_parametric_learning", "learning_reproductor_action.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])
         else:
-            rospy.logerr("Could not locate learning_reproductor_complete.yaml")
+            rospy.logerr("Could not locate learning_reproductor_action.yaml")
 
         rospy.init_node('learning_reproductor_action')
         learning_reproductor = learningReproductorAct(rospy.get_name())

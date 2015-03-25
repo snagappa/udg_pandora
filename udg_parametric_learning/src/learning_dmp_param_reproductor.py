@@ -11,7 +11,7 @@ class LearningDmpParamReproductor(object):
 
     def __init__(self, file_name, file_directory, dof, alpha, interval_time, nb_groups ):
         #self.file_name = name
-        self.file_name = file_directory+'/'+file_name
+        self.file_name = file_directory + '/' + file_name
         self.interval_time = interval_time
         self.dof = dof
         self.nb_groups = nb_groups
@@ -120,11 +120,14 @@ class LearningDmpParamReproductor(object):
 
         # Generate parameters influence
         # First we compute the distance between the parameter and the demonstrations
+        print 'Param ' + str(param)
+        print 'Value group ' + str(self.value_group[:])
         differences = np.abs(np.array(self.value_group[:]) - param)
         # we search for the limits
         #max_param = differences.max()
         #min_param = differences.min()
         total = differences.sum()
+        print 'Differences ' + str(differences.sum())
         influence = 1- (differences / total)
         influence = influence / influence.sum()
 
@@ -179,9 +182,12 @@ class LearningDmpParamReproductor(object):
         for j in xrange(self.nb_groups):
             avg_time += self.Mu_t[j][-1]*influence[j]
             last_time[j] = self.Mu_t[j][-1]
+            print ' Last ' + str(self.Mu_t[j][-1])
+            print ' Influence ' + str(influence[j])
+            print ' Avg ' + str(avg_time)
         param_time = avg_time / last_time
-        print 'Param time ' + str(param_time)
-        print ' Avg Time ' + str(avg_time) + ' Last time ' +str(last_time)
+        #print 'Param time ' + str(param_time)
+        #print ' Avg Time ' + str(avg_time) + ' Last time ' +str(last_time)
 
         #This computes directly all the vector
         self.s = self.s - self.alpha*self.s*self.interval_time*action*param_time
