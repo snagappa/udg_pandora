@@ -104,7 +104,6 @@ class learningReproductorAct:
         self.dataGoalPoseReceived = False
         self.dataGoalOriReceived = False
         self.dataRobotReceived = False
-        self.dataRollReceived = False
         self.dataComputed = 0
         #Simulation parameter
         self.currPosSim = np.zeros(self.nbVar)
@@ -119,8 +118,6 @@ class learningReproductorAct:
         #Work Around to be removed
         self.desPos = np.zeros(self.nbVar)
         self.desVel = np.zeros(self.nbVar)
-
-        self.unnormalized_roll = 0.0
 
         self.force_vector = np.zeros(6)
         self.force_vector_old = np.zeros(6)
@@ -404,7 +401,7 @@ class learningReproductorAct:
         """
         self.lock.acquire()
         try:
-            if self.dataGoalReceived and self.dataRollReceived :
+            if self.dataGoalReceived:
                 endeffectorPose = np.array([data.pose.position.x,
                                             data.pose.position.y,
                                             data.pose.position.z,
@@ -744,12 +741,14 @@ class learningReproductorAct:
                         if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
                             and len(des_pose_arm_z) != 0
                             and len(des_pose_arm_x_y_yaw) != 0 ):
-                            self.currPos[0:2] = des_pose_x_y_yaw[0:2]
-                            self.currVel[0:2] = des_vel_x_y_yaw[0:2]
+                            # self.currPos[0:2] = des_pose_x_y_yaw[0:2]
+                            # self.currVel[0:2] = des_vel_x_y_yaw[0:2]
+                            self.currPos[1] = des_pose_x_y_yaw[0]
+                            self.currVel[1] = des_vel_x_y_yaw[0]
                             self.currPos[2] = des_pose_z
                             self.currVel[2] = des_vel_z
-                            self.currPos[3] = des_pose_x_y_yaw[2]
-                            self.currVel[3] = des_vel_x_y_yaw[2]
+                            # self.currPos[3] = des_pose_x_y_yaw[2]
+                            # self.currVel[3] = des_vel_x_y_yaw[2]
                             # ARM
                             # self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
                             # self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
@@ -838,7 +837,6 @@ class learningReproductorAct:
         #     self.alpha,
         #     self.interval_time)
         #Restartin position data aboid multiple loop while waiting to call the action
-        self.dataRollReceived = False
         self.dataReceivedArm = 0
         self.dataReceived = 0
 

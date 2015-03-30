@@ -4,10 +4,10 @@ from learning_dmp_parametric import LearningDmpParametric
 
 kP = [[-99.0,-99.0], [-99.0,-99.0]]
 kV = [[-99.0,-99.0], [-99.0, -99.0]]
-kPmax = [[3.0,10.0],[3.0,10.0]]
-kPmin = [[0.1, 0.1], [0.1, 0.1]]
+kPmax = [[30.0,25.0],[20.0,10.0]]
+kPmin = [[10.0, 10.0], [1.0, 0.1]]
 alpha = 1.0
-nbStates = [[5,10],[5,10]]
+nbStates = [[10,19],[20,10]]
 #dof_list = [1]
 nbData = 400
 demonstration_file = '../parametric_data/trajectory_demonstration'
