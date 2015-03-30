@@ -471,7 +471,7 @@ if __name__ == '__main__':
         #Load the configuration file
         import subprocess
         config_file_list = roslib.packages.find_resource(
-            "learning_pandora", "learning_record_complete.yaml")
+            "udg_parametric_learning", "learning_record_complete.yaml")
         if len(config_file_list):
             config_file = config_file_list[0]
             subprocess.call(["rosparam", "load", config_file])

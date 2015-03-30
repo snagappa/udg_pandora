@@ -145,17 +145,20 @@ class CurrentEstimation:
             request.offset.orientation.y = quaternion[1]
             request.offset.orientation.z = quaternion[2]
             request.offset.orientation.w = quaternion[3]
+            rospy.loginfo('Stare the landmark')
             request.tolerance = self.stare_landmark_tolerance
             request.keep_pose = False
             answer = self.keep_position_enable.call(request)
             request.keep_pose = True
             answer = self.keep_position_enable.call(request)
+            rospy.sleep(5.0)
         else:
             self.keep_position_enable.call()
         # take the init time
         init_time = rospy.get_time()
         force_vector = []
         counter = 0.0
+        rospy.loginfo('Computing the regular Force')
         while not rospy.is_shutdown() and (rospy.get_time() - init_time) <= self.time_analize :
             force_vector.append(self.current_force.wrench.force.x)
             force_vector.append(self.current_force.wrench.force.y)
@@ -164,7 +167,7 @@ class CurrentEstimation:
             force_vector.append(self.current_force.wrench.torque.y)
             force_vector.append(self.current_force.wrench.torque.z)
             counter += 1.0
-            rospy.loginfo('Time ' + str(rospy.get_time() - init_time) + ' Time_analize ' + str(self.time_analize))
+            #rospy.loginfo('Time ' + str(rospy.get_time() - init_time) + ' Time_analize ' + str(self.time_analize))
             rate.sleep()
         self.keep_position_disable.call()
         matrix = np.reshape(force_vector, (counter,6))
@@ -172,6 +175,7 @@ class CurrentEstimation:
         for i in range(6):
             avg_force[i] = np.sum(matrix[:,i]) / counter
         self.regular_force = avg_force
+        rospy.loginfo('Regular Force ' + str(avg_force))
 
     def compute_static_current_srv(self, req):
         '''
@@ -197,9 +201,12 @@ class CurrentEstimation:
             request.offset.orientation.w = quaternion[3]
             request.tolerance = self.stare_landmark_tolerance
             request.keep_pose = False
+            rospy.loginfo('Stare the landmark')
             answer = self.keep_position_enable.call(request)
             request.keep_pose = True
+            rospy.loginfo('Computing Force')
             answer = self.keep_position_enable.call(request)
+            rospy.sleep(5.0)
         else:
             self.keep_position_enable.call()
         # take the init time
@@ -221,6 +228,7 @@ class CurrentEstimation:
             force_vector.append(
                 self.current_force.wrench.torque.z-self.regular_force[5])
             counter += 1.0
+            rospy.loginfo('Current Force ' + str(self.current_force.wrench.force))
             rate.sleep()
         self.keep_position_disable.call()
         matrix = np.reshape(force_vector, (counter,6))
