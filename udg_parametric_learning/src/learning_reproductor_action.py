@@ -107,7 +107,7 @@ class learningReproductorAct:
         self.dataComputed = 0
         #Simulation parameter
         self.currPosSim = np.zeros(self.nbVar)
-        self.currPosSim[0] = 0.0
+        self.currPosSim[0] = 1.0
         self.currPosSim[1] = 0.0
         self.currPosSim[2] = 2.0
         self.currPosSim[3] = 0.2
@@ -582,7 +582,7 @@ class learningReproductorAct:
             # #self.param = np.linalg.norm([x,y,z])
             # self.param = y
 
-            self.param = 1.0
+            self.param = 0.0
 
             self.enabled = True
             rospy.loginfo('%s Enabled', self.name)
@@ -636,6 +636,7 @@ class learningReproductorAct:
             path,
             #self.nbVar,
             3,
+            #1,
             self.alpha,
             self.interval_time,
             nb_groups)
@@ -689,12 +690,14 @@ class learningReproductorAct:
                                 and len(des_pose_arm_x_y_yaw) != 0):
                                 # self.desPos[0:4] = des_pose[0:4]
                                 # self.desVel[0:4] = des_vel[0:4]
-                                self.desPos[0:2] = des_pose_x_y_yaw[0:2]
-                                self.desVel[0:2] = des_vel_x_y_yaw[0:2]
-                                self.desPos[2] = des_pose_z
-                                self.desVel[2] = des_vel_z
-                                self.desPos[3] = des_pose_x_y_yaw[2]
-                                self.desVel[3] = des_vel_x_y_yaw[2]
+                                # self.desPos[0:2] = des_pose_x_y_yaw[0:2]
+                                # self.desVel[0:2] = des_vel_x_y_yaw[0:2]
+                                self.desPos[1] = des_pose_x_y_yaw[1]
+                                self.desVel[1] = des_vel_x_y_yaw[1]
+                                # self.desPos[2] = des_pose_z
+                                # self.desVel[2] = des_vel_z
+                                # self.desPos[3] = des_pose_x_y_yaw[2]
+                                # self.desVel[3] = des_vel_x_y_yaw[2]
                                 # ARM
                                 # self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
                                 # self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
@@ -727,10 +730,14 @@ class learningReproductorAct:
                             self.currPos = self.currPosSim
                         else:
                             time += self.interval_time
+
                         [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
                             self.currPos, self.currVel, self.action, self.param)
+                        # rospy.loginfo('Des_pose z ' + str(des_pose_z))
                         [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
                             self.currPos, self.currVel, self.action, self.param)
+                        # rospy.loginfo('Des_pose XYYAW ' + str(des_pose_x_y_yaw))
+                        # rospy.loginfo('Curr pose ' + str(self.currPos))
                         #TODO: Uncomment
                         des_pose_arm_z = [0.0]
                         des_pose_arm_x_y_yaw = [0.0, 0.0, 0.0]
@@ -741,14 +748,16 @@ class learningReproductorAct:
                         if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
                             and len(des_pose_arm_z) != 0
                             and len(des_pose_arm_x_y_yaw) != 0 ):
-                            # self.currPos[0:2] = des_pose_x_y_yaw[0:2]
-                            # self.currVel[0:2] = des_vel_x_y_yaw[0:2]
-                            self.currPos[1] = des_pose_x_y_yaw[0]
-                            self.currVel[1] = des_vel_x_y_yaw[0]
+                            self.currPos[0:2] = des_pose_x_y_yaw[0:2]
+                            self.currVel[0:2] = des_vel_x_y_yaw[0:2]
+                            # self.currPos[0] = des_pose_x_y_yaw[0]
+                            # self.currVel[0] = des_vel_x_y_yaw[0]
+                            # self.currPos[1] = des_pose_x_y_yaw[1]
+                            # self.currVel[1] = des_vel_x_y_yaw[1]
                             self.currPos[2] = des_pose_z
                             self.currVel[2] = des_vel_z
-                            # self.currPos[3] = des_pose_x_y_yaw[2]
-                            # self.currVel[3] = des_vel_x_y_yaw[2]
+                            self.currPos[3] = des_pose_x_y_yaw[2]
+                            self.currVel[3] = des_vel_x_y_yaw[2]
                             # ARM
                             # self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
                             # self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
@@ -780,6 +789,7 @@ class learningReproductorAct:
             # rospy.sleep(self.interval_time)
 
     def valve_turning_act(self, goal):
+        pass
         """
         This function is call when a action is requested. The action function
         iterates until the DMP finish the execution or is preempted.
@@ -1129,125 +1139,6 @@ class learningReproductorAct:
 
         self.action_in_process = False
         self.valve_turning_action.set_succeeded(result)
-
-    def simulatedNewPose(self):
-        #rospy.loginfo('S : ' + str(self.s))
-        t = -math.log(self.s)/self.alpha
-        # for each atractor or state obtain the weigh
-        #rospy.loginfo('Time :' + str(t) )
-        h = np.zeros(self.numStates)
-        for i in xrange(self.numStates):
-            h[i] = self.gaussPDF(t, self.Mu_t[i], self.Sigma_t[i])
-        # normalize the value
-        #rospy.loginfo('Vavlues on h ' + str(h))
-        #rospy.loginfo('H Real ' + str(h.tolist()))
-
-        #rospy.loginfo('T value '  + str(t) + ' >= ' + str(self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2)))
-        if t > self.Mu_t[self.numStates-1]+(self.Sigma_t[self.numStates-1]*1.2):
-            rospy.loginfo('Ultimate end condition at time ' + str (t))
-            self.enabled = False
-            self.s = self.initial_s
-            self.pub_auv_finish.publish(True)
-            return True
-        else:
-            self.h_value = h[self.numStates-1]
-            h = h / np.sum(h)
-
-        # if self.h_value > h[self.numStates-1]:
-        #     rospy.loginfo('New end condition at time ' + str (t))
-        #     self.enabled = False
-        #     self.s = self.initial_s
-        #     self.pub_auv_finish.publish(True)
-        #     return True
-        # else:
-        #     self.h_value = h[self.numStates-1]
-        #     h = h / np.sum(h)
-
-        # if t > 120 :
-        #     rospy.loginfo('Forced end at time ' + str (t))
-        #     self.enabled = False
-        #     self.s = self.initial_s
-        #     self.pub_auv_finish.publish(True)
-        #     return True
-        # else:
-        #     self.h_value = h[self.numStates-1]
-        #     h = h / np.sum(h)
-
-
-        # if np.sum(h) <= 0.0001:
-        #     rospy.loginfo('The time used in the demonstration is exhausted')
-        #     self.enabled = False
-        #     self.s = self.initial_s
-        #     self.pub_auv_finish.publish(True)
-        #     return True
-        # else:
-        #     h = h / np.sum(h)
-
-        #init to vectors
-        currTar = np.zeros(self.nbVar)
-        currWp = np.zeros(shape=(self.nbVar, self.nbVar))
-
-        #For each actuator, State, Acumulate the position using weigh
-        #CurrTar = The center of the GMM * weight of the state
-        #CurrWp = Sigma of the GMM * weight of the State
-
-        rospy.loginfo('H Norm ' + str(h.tolist()))
-
-        for i in xrange(self.numStates):
-            currTar = currTar + self.Mu_x[:, i]*h[i]
-            currWp = currWp + self.Wp[i, :, :]*h[i]
-
-        #rospy.loginfo( 'CurrWp \n' + currWp )
-        #rospy.loginfo( 'CurrWp \n' + currWp )
-        # rospy.loginfo('Kv ' + str(self.kV.tolist()))
-        # rospy.loginfo('Curr Vel' + str(self.currVel.tolist()))
-        # rospy.loginfo('Res ' + str((self.kV*self.currVel).tolist()))
-        #rospy.loginfo('Curr Tar ' + str(currTar[0:3].tolist()))
-        self.currAcc = ((np.dot(
-            currWp, (currTar - self.currPosSim))) - (self.kV*self.currVel))
-
-        #rospy.loginfo('Curr Diff ' + str((currTar - self.currPosSim)[0:3].tolist()))
-        #rospy.loginfo('Curr Wp ' + str(currWp[0:3, 0:3]))
-        #rospy.loginfo('Curr Dot ' + str((np.dot(
-        #    currWp, (currTar - self.currPosSim)))[0:3].tolist()))
-        #rospy.loginfo('Curr Acc ' + str(self.currAcc[0:3].tolist()))
-        self.currVel = self.currVel + (self.currAcc * self.interval_time)
-        self.desPos = self.currPosSim + (self.currVel * self.interval_time)
-        rospy.loginfo('Des Vel ' + str(self.currVel[0:3].tolist()))
-        #rospy.loginfo('Pos ' +str(self.desPos[0]) + ' ' +str(self.desPos[1]) + ' ' +str(self.desPos[2]))
-        des_pose_msg = PoseStamped()
-        des_pose_msg.header.stamp = rospy.get_rostime()
-        des_pose_msg.header.frame_id = "valve2"
-        des_pose_msg.pose.position.x = self.desPos[0]
-        des_pose_msg.pose.position.y = self.desPos[1]
-        des_pose_msg.pose.position.z = self.desPos[2]
-        des_pose_msg.pose.orientation.x = 0
-        des_pose_msg.pose.orientation.y = 0
-        des_pose_msg.pose.orientation.z = 0
-        des_pose_msg.pose.orientation.w = 1
-
-        self.pub_arm_des_pose.publish(des_pose_msg)
-
-        s = (repr(self.desPos[0]) + " " +
-             repr(self.desPos[1]) + " " +
-             repr(self.desPos[2]) + " " +
-             repr(self.desPos[3]) + " " +
-             repr(self.desPos[4]) + " " +
-             repr(self.desPos[5]) + " " +
-             repr(self.desPos[6]) + " " +
-             repr(self.desPos[7]) + " " +
-             repr(self.desPos[8]) + " " +
-             repr(self.desPos[9]) + " " +
-             repr(rospy.get_time()) + " "+
-             repr(t) + "\n")
-        self.file_export.write(s)
-
-        # why the interval time is here ????
-        #self.s = self.s + (-self.alpha*self.s)*self.interval_time*self.action
-        self.s = self.s + (-self.alpha*self.s)*self.interval_time
-        #rospy.loginfo('S - Salpah : ' + str(self.s) + '- ' + str(self.alpha*self.s*self.interval_time))
-        self.currNbDataRepro = self.currNbDataRepro+1
-        self.currPosSim = self.desPos
 
     def generateNewPose(self):
         t = -math.log(self.s)/self.alpha

@@ -22,7 +22,7 @@ class LearningDmpParamReproductor(object):
         self.Sigma_t = [None]*self.nb_groups
         self.Mu_x = [None]*self.nb_groups
         self.Wp = [None]*self.nb_groups
-        self.dofs = [None]*self.nb_groups
+        self.dofs = []
         self.value_group = [0]*self.nb_groups
         self.get_learned_parameters()
         self.s = np.ones(self.nb_groups)
@@ -90,9 +90,9 @@ class LearningDmpParamReproductor(object):
                 i += 1
                 aux = logfile[i].split(' ')
                 length = len(aux)
-                self.dofs[group] = np.zeros(length, dtype=np.int32)
+                self.dofs = np.zeros(length, dtype=np.int32)
                 for j in xrange(length):
-                    self.dofs[group][j] = int(aux[j])
+                    self.dofs[j] = int(aux[j])
             elif logfile[i] == 'ParamValue':
                 i += 1
                 self.value_group[group] = float(logfile[i])
@@ -105,7 +105,7 @@ class LearningDmpParamReproductor(object):
         """
         #t = -math.log(self.s)/self.alpha
         t = -np.log(self.s)/self.alpha
-        print 'Time ' + str(t)
+        #print 'Time ' + str(t)
         h = [None]*self.nb_groups
         #h = [np.zeros(self.states)]*self.nb_groups
         for j in xrange(self.nb_groups):
@@ -114,7 +114,7 @@ class LearningDmpParamReproductor(object):
                 h[j][i] = self.gaussPDF(t[j], self.Mu_t[j][i], self.Sigma_t[j][i])
 
             # normalize the value
-            if t[j] > self.Mu_t[j][self.states[j]-1]+(self.Sigma_t[j][self.states[j]-1]*1.2):
+            if t[j] > self.Mu_t[j][-1]+(self.Sigma_t[j][-1]*2.0):
                 print 'The time used in the demonstration is exhausted'
                 self.s = 1.0
                 return [[],[]]
@@ -146,6 +146,7 @@ class LearningDmpParamReproductor(object):
         for j in xrange(self.nb_groups):
             for i in xrange(self.states[j]):
                 currTar[j] = currTar[j] + self.Mu_x[j][:, i]*h[j][i]
+                #currWp[j] = currWp[j] + (np.identity(self.dof)*np.diagonal(self.Wp[j][i, :, :]))*h[j][i]
                 currWp[j] = currWp[j] + self.Wp[j][i, :, :]*h[j][i]
             param_tar = param_tar + currTar[j]*influence[j]
             param_wp = param_wp + currWp[j]*influence[j]
@@ -168,8 +169,11 @@ class LearningDmpParamReproductor(object):
         #diff[3] = cola2_lib.normalizeAngle(diff[3])
 
         #rospy.loginfo('Kv ' + str(self.kV.tolist()))
+        # desAcc = np.dot(
+        #     param_wp, diff) - np.dot(param_vel, selected_vel)
         desAcc = np.dot(
-            param_wp, diff) - np.dot(param_vel, selected_vel)
+            param_wp, diff) -(param_vel*selected_vel)
+
         # action is a scalar value to evaluate the safety
         #rospy.loginfo('Des Acc' + str(self.desAcc))
 

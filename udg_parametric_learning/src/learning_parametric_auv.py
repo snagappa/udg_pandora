@@ -4,10 +4,12 @@ from learning_dmp_parametric import LearningDmpParametric
 
 kP = [[-99.0,-99.0], [-99.0,-99.0]]
 kV = [[-99.0,-99.0], [-99.0, -99.0]]
-kPmax = [[30.0,25.0],[20.0,10.0]]
-kPmin = [[10.0, 10.0], [1.0, 0.1]]
+# kPmax = [[30.0,25.0],[20.0,10.0]]
+# kPmin = [[10.0, 10.0], [1.0, 0.1]]
+kPmax = [[20.0,10.0],[20.0,10.0]]
+kPmin = [[1.0, 0.1], [1.0, 0.1]]
 alpha = 1.0
-nbStates = [[10,19],[20,10]]
+nbStates = [[10,20],[10,20]]
 #dof_list = [1]
 nbData = 400
 demonstration_file = '../parametric_data/trajectory_demonstration'
@@ -23,6 +25,7 @@ export_filename = [
 
 # AUV X Y Yaw
 dof_list = [1,1,0,1,0,0,0,0,0,0]
+#dof_list = [0,1,0,0,0,0,0,0,0,0]
 dmp_1 = LearningDmpParametric(kP[0], kV[0], kPmin[0], kPmax[0],
                               alpha, nbStates[0], dof_list,
                               nbData, demonstration_file,
