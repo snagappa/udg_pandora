@@ -570,19 +570,20 @@ class learningReproductorAct:
         '''
         if not self.action_in_process :
             #TODO Uncomment this lines
-            # rospy.wait_for_service('/current_estimator/static_estimation')
-            # static_estimation_srv = rospy.ServiceProxy(
-            #     '/current_estimator/static_estimation',
-            #     StaticCurrent)
-            # response = static_estimation_srv.call()
+            if not self.simulation:
+                rospy.wait_for_service('/current_estimator/static_estimation')
+                static_estimation_srv = rospy.ServiceProxy(
+                    '/current_estimator/static_estimation',
+                    StaticCurrent)
+                response = static_estimation_srv.call()
 
-            # x = current_estimation[0]
-            # y = current_estimation[1]
-            # z = current_estimation[2]
-            # #self.param = np.linalg.norm([x,y,z])
-            # self.param = y
+                x = response.current_estimation[0]
+                y = response.current_estimation[1]
+                z = response.current_estimation[2]
+            #self.param = np.linalg.norm([x,y,z])
+                self.param = y
 
-            self.param = 0.0
+            self.param = 1.0
 
             self.enabled = True
             rospy.loginfo('%s Enabled', self.name)
@@ -640,22 +641,24 @@ class learningReproductorAct:
             self.alpha,
             self.interval_time,
             nb_groups)
-        # file_path = path + '/' + self.reproductor_parameters[2]
-        # dmp_arm_z = LearningDmpParamReproductor(
-        #     self.name + '_z',
-        #     file_path,
-        #     #self.nbVar,
-        #     1,
-        #     self.alpha,
-        #     self.interval_time)
-        # file_path = path + '/' + self.reproductor_parameters[3]
-        # dmp_arm_x_y_yaw = LearningDmpParamReproductor(
-        #     self.name + '_x_y_yaw',
-        #     file_path,
-        #     #self.nbVar,
-        #     3,
-        #     self.alpha,
-        #     self.interval_time)
+
+        # ARM
+        dmp_arm_z = LearningDmpParamReproductor(
+            self.reproductor_parameters[2],
+            path,
+            1,
+            self.alpha,
+            self.interval_time,
+            nb_groups)
+        dmp_arm_x_y_yaw = LearningDmpParamReproductor(
+            self.reproductor_parameters[3],
+            path,
+            3,
+            #1,
+            self.alpha,
+            self.interval_time,
+            nb_groups)
+
         time = 0
         # Ask for the parameter value
 
@@ -679,25 +682,23 @@ class learningReproductorAct:
                             [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
                                 self.currPos, self.currVel,
                                 self.action, self.param)
-                            # [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                            #     self.currPos, self.currVel,
-                            #     self.action, self.param)
-                            # [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                            #     self.currPos, self.currVel,
-                            #     self.action, self.param)
+                            [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                                self.currPos, self.currVel,
+                                self.action, self.param)
+                            [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                                self.currPos, self.currVel,
+                                self.action, self.param)
                             if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
                                 and len(des_pose_arm_z) != 0
                                 and len(des_pose_arm_x_y_yaw) != 0):
-                                # self.desPos[0:4] = des_pose[0:4]
-                                # self.desVel[0:4] = des_vel[0:4]
-                                # self.desPos[0:2] = des_pose_x_y_yaw[0:2]
-                                # self.desVel[0:2] = des_vel_x_y_yaw[0:2]
+                                self.desPos[0:2] = des_pose_x_y_yaw[0:2]
+                                self.desVel[0:2] = des_vel_x_y_yaw[0:2]
                                 self.desPos[1] = des_pose_x_y_yaw[1]
                                 self.desVel[1] = des_vel_x_y_yaw[1]
-                                # self.desPos[2] = des_pose_z
-                                # self.desVel[2] = des_vel_z
-                                # self.desPos[3] = des_pose_x_y_yaw[2]
-                                # self.desVel[3] = des_vel_x_y_yaw[2]
+                                self.desPos[2] = des_pose_z
+                                self.desVel[2] = des_vel_z
+                                self.desPos[3] = des_pose_x_y_yaw[2]
+                                self.desVel[3] = des_vel_x_y_yaw[2]
                                 # ARM
                                 # self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
                                 # self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
@@ -738,13 +739,10 @@ class learningReproductorAct:
                             self.currPos, self.currVel, self.action, self.param)
                         # rospy.loginfo('Des_pose XYYAW ' + str(des_pose_x_y_yaw))
                         # rospy.loginfo('Curr pose ' + str(self.currPos))
-                        #TODO: Uncomment
-                        des_pose_arm_z = [0.0]
-                        des_pose_arm_x_y_yaw = [0.0, 0.0, 0.0]
-                        # [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                        #     self.currPos, self.currVel, self.action, self.param)
-                        # [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                        #     self.currPos, self.currVel, self.action, self.param)
+                        [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                            self.currPos, self.currVel, self.action, self.param)
+                        [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                            self.currPos, self.currVel, self.action, self.param)
                         if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
                             and len(des_pose_arm_z) != 0
                             and len(des_pose_arm_x_y_yaw) != 0 ):
@@ -789,7 +787,6 @@ class learningReproductorAct:
             # rospy.sleep(self.interval_time)
 
     def valve_turning_act(self, goal):
-        pass
         """
         This function is call when a action is requested. The action function
         iterates until the DMP finish the execution or is preempted.
