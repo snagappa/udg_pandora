@@ -470,8 +470,8 @@ figure()
 
 subplot(4,2,1)
 hold on ;
-title('Demos','FontSize',20);
-xlabel( 'Time (s)', 'FontSize',20)
+%title('Demos','FontSize',20);
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
@@ -489,13 +489,14 @@ for n=1:nbDemos_2
 end
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,2),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.1 0.7])
 hold off;
 
 % Y
 subplot(4,2,3)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
@@ -506,13 +507,15 @@ for n=1:nbDemos_2
     plot(demos_2(n).data(:,1), demos_2(n).data(:,3),'LineWidth', 2.0,'color',[0,0,0]) ;
 end
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,3),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.3 0.3])
 
 hold off;
 
 % Z
 subplot(4,2,5)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
@@ -523,7 +526,8 @@ for n=1:nbDemos_2
     plot(demos_2(n).data(:,1), demos_2(n).data(:,4),'LineWidth', 2.0,'color',[0,0,0]) ;
 end
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,4),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 0.8 2.5])
 hold off;
 
 % Yaw
@@ -540,14 +544,15 @@ for n=1:nbDemos_2
     plot(demos_2(n).data(:,1), demos_2(n).data(:,5),'LineWidth', 2.0,'color',[0,0,0]) ;
 end
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,5),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.8 0.1])
 hold off;
 
 % End-effector
 % X
 subplot(4,2,2)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
@@ -558,12 +563,14 @@ for n=1:nbDemos_2
     plot(demos_2(n).data(:,1), demos_2(n).data(:,6),'LineWidth', 2.0,'color',[0,0,0]) ;
 end
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,6),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.5 0.1])
 hold off;
 
 % Y
 subplot(4,2,4)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
@@ -574,12 +581,14 @@ for n=1:nbDemos_2
     plot(demos_2(n).data(:,1), demos_2(n).data(:,7),'LineWidth', 2.0,'color',[0,0,0]) ;
 end
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,7),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -1.0 0.1])
 hold off;
 
 % Z
 subplot(4,2,6)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
@@ -590,6 +599,8 @@ for n=1:nbDemos_2
 end
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,8),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.2 1.5])
 hold off;
 
 % Roll
@@ -605,14 +616,16 @@ for n=1:nbDemos_2
     plot(demos_2(n).data(:,1), demos_2(n).data(:,11),'LineWidth', 2.0,'color',[0,0,0]) ;
 end
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,11),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.9 0.5])
 hold off;
 
 
 subplot(4,2,1)
 hold on ;
-title('Demos','FontSize',20);
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'X (m)', 'FontSize',20)
+%title('Demos','FontSize',20);
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
 % listDemos = [70, 71,72,20,30];
@@ -635,8 +648,8 @@ hold off;
 % Y
 subplot(4,2,3)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Y (m)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,3), max_limit_1(:,3),'LineStyle', '--', 'LineWidth',5.0,'color',[0.4,0.6,1]) ;
@@ -652,8 +665,8 @@ hold off;
 % Z
 subplot(4,2,5)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Z (m)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,4), max_limit_1(:,4),'LineStyle', '--', 'LineWidth',5.0,'color',[0.4,0.6,1]) ;
@@ -669,8 +682,8 @@ hold off;
 % Yaw
 subplot(4,2,7)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Yaw (rad)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'Yaw (rad)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,5), max_limit_1(:,5),'LineStyle', '--', 'LineWidth',5.0,'color',[0.4,0.6,1]) ;
@@ -687,8 +700,8 @@ hold off;
 % X
 subplot(4,2,2)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'X (m)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,6), max_limit_1(:,6),'LineStyle', '--', 'LineWidth',5.0,'color',[0.4,0.6,1]) ;
@@ -703,8 +716,8 @@ hold off;
 % Y
 subplot(4,2,4)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Y (m)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,7), max_limit_1(:,7),'LineStyle', '--', 'LineWidth',6.0,'color',[0.4,0.6,1]) ;
@@ -719,8 +732,8 @@ hold off;
 % Z
 subplot(4,2,6)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Z (m)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,8), max_limit_1(:,8),'LineStyle', '--', 'LineWidth',6.0,'color',[0.4,0.6,1]) ;
@@ -735,8 +748,8 @@ hold off;
 % Roll
 subplot(4,2,8)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
-ylabel( 'Roll (rad)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
+%ylabel( 'Roll (rad)', 'FontSize',20)
 grid on;
 
 plot(max_time_limit_1(:,11), max_limit_1(:,11),'LineStyle', '--', 'LineWidth',6.0,'color',[0.4,0.6,1]) ;
@@ -757,12 +770,11 @@ hold off;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% Second %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure()
-
-
+%set(gca, 'FontSize', 18)
 subplot(4,2,1)
 hold on ;
-title('Results','FontSize',20);
-xlabel( 'Time (s)', 'FontSize',20)
+%title('Results','FontSize',20);
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
@@ -776,13 +788,14 @@ plot(min_time_limit_2(:,2), min_limit_2(:,2),'LineStyle', '--', 'LineWidth',5.0,
 
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,2),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.1 0.7])
 hold off;
 
 % Y
 subplot(4,2,3)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
@@ -790,13 +803,14 @@ plot(max_time_limit_2(:,3), max_limit_2(:,3),'LineStyle', '--', 'LineWidth',5.0,
 plot(min_time_limit_2(:,3), min_limit_2(:,3),'LineStyle', '--', 'LineWidth',5.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,3),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.3 0.3])
 hold off;
 
 % Z
 subplot(4,2,5)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
@@ -804,7 +818,8 @@ plot(max_time_limit_2(:,4), max_limit_2(:,4),'LineStyle', '--', 'LineWidth',5.0,
 plot(min_time_limit_2(:,4), min_limit_2(:,4),'LineStyle', '--', 'LineWidth',5.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,4),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 0.8 2.5])
 hold off;
 
 % Yaw
@@ -818,14 +833,15 @@ plot(max_time_limit_2(:,5), max_limit_2(:,5),'LineStyle', '--', 'LineWidth',5.0,
 plot(min_time_limit_2(:,5), min_limit_2(:,5),'LineStyle', '--', 'LineWidth',5.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,5),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
-
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.8 0.1])
 hold off;
 
 % End-effector
 % X
 subplot(4,2,2)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
@@ -833,12 +849,14 @@ plot(max_time_limit_2(:,6), max_limit_2(:,6),'LineStyle', '--', 'LineWidth',5.0,
 plot(min_time_limit_2(:,6), min_limit_2(:,6),'LineStyle', '--', 'LineWidth',5.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,6),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.5 0.1])
 hold off;
 
 % Y
 subplot(4,2,4)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
@@ -846,12 +864,14 @@ plot(max_time_limit_2(:,7), max_limit_2(:,7),'LineStyle', '--', 'LineWidth',6.0,
 plot(min_time_limit_2(:,7), min_limit_2(:,7),'LineStyle', '--', 'LineWidth',6.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,7),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -1.0 0.1])
 hold off;
 
 % Z
 subplot(4,2,6)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
@@ -859,12 +879,14 @@ plot(max_time_limit_2(:,8), max_limit_2(:,8),'LineStyle', '--', 'LineWidth',6.0,
 plot(min_time_limit_2(:,8), min_limit_2(:,8),'LineStyle', '--', 'LineWidth',6.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,8),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.2 1.5])
 hold off;
 
 % Roll
 subplot(4,2,8)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Roll (rad)', 'FontSize',20)
 grid on;
 
@@ -872,12 +894,14 @@ plot(max_time_limit_2(:,11), max_limit_2(:,11),'LineStyle', '--', 'LineWidth',6.
 plot(min_time_limit_2(:,11), min_limit_2(:,11),'LineStyle', '--', 'LineWidth',6.0,'color',[0.2,0.4,0.2]) ;
 
 plot(avg_traj_goal_2(:,1), avg_traj_goal_2(:,11),'LineStyle', '--', 'LineWidth',2.0,'color',[0,0.8,0]) ;
+set(gca, 'FontSize', 16)
+axis([0.0 110 -0.9 0.5])
 hold off;
 
 
 subplot(4,2,1)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
@@ -901,7 +925,7 @@ hold off;
 % Y
 subplot(4,2,3)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
@@ -918,7 +942,7 @@ hold off;
 % Z
 subplot(4,2,5)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
@@ -935,7 +959,7 @@ hold off;
 % Yaw
 subplot(4,2,7)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Yaw (rad)', 'FontSize',20)
 grid on;
 
@@ -953,7 +977,7 @@ hold off;
 % X
 subplot(4,2,2)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'X (m)', 'FontSize',20)
 grid on;
 
@@ -970,7 +994,7 @@ hold off;
 % Y
 subplot(4,2,4)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Y (m)', 'FontSize',20)
 grid on;
 
@@ -987,7 +1011,7 @@ hold off;
 % Z
 subplot(4,2,6)
 hold on ;
-xlabel( 'Time (s)', 'FontSize',20)
+%xlabel( 'Time (s)', 'FontSize',20)
 ylabel( 'Z (m)', 'FontSize',20)
 grid on;
 
