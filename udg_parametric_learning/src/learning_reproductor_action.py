@@ -810,60 +810,70 @@ class learningReproductorAct:
         rospy.loginfo('Start Action enable')
 
         #Load the learned data for the desired behaviour
-        path = roslib.packages.get_pkg_subdir('learning_pandora',
-                                              'learning_data',
+        path = roslib.packages.get_pkg_subdir('udg_parametric_learning',
+                                              'parametric_data',
                                               False)
         # choose the file of the list in the learning directory
         # build the path and the file name
         #file_path = path + '/' + self.reproductor_parameters[0]
+        nb_groups = 2
         dmp_z = LearningDmpParamReproductor(
             self.reproductor_parameters[0],
             path,
             1,
             self.alpha,
-            self.interval_time)
+            self.interval_time,
+            nb_groups)
         #file_path = path + '/' + self.reproductor_parameters[1]
         dmp_x_y_yaw = LearningDmpParamReproductor(
             self.reproductor_parameters[1],
             path,
             3,
             self.alpha,
-            self.interval_time)
-        # file_path = path + '/' + self.reproductor_parameters[2]
-        # dmp_arm_z = LearningDmpParamReproductor(
-        #     self.name + '_z',
-        #     file_path,
-        #     1,
-        #     self.alpha,
-        #     self.interval_time)
-        # file_path = path + '/' + self.reproductor_parameters[3]
-        # dmp_arm_x_y_yaw = LearningDmpParamReproductor(
-        #     self.name + '_x_y_yaw',
-        #     file_path,
-        #     3,
-        #     self.alpha,
-        #     self.interval_time)
+            self.interval_time,
+            nb_groups)
+        dmp_arm_z = LearningDmpParamReproductor(
+            self.reproductor_parameters[2],
+            path,
+            1,
+            self.alpha,
+            self.interval_time,
+            nb_groups)
+        #file_path = path + '/' + self.reproductor_parameters[3]
+        dmp_arm_x_y_yaw = LearningDmpParamReproductor(
+            self.reproductor_parameters[3],
+            path,
+            3,
+            self.alpha,
+            self.interval_time,
+            nb_groups)
+
         #Restartin position data aboid multiple loop while waiting to call the action
         self.dataReceivedArm = 0
         self.dataReceived = 0
 
         # Asking for the estimation of the current before starting
-        rospy.wait_for_service('/current_estimator/static_estimation')
-        current_estimation_srv = rospy.ServiceProxy(
-            '/current_estimator/static_estimation',
-            StareLandmark)
-
         rospy.loginfo('Asking for the Current Estimation')
-        resp = current_estimation_srv.call()
-        self.param = np.linalg.norm(resp.current_estimation[0:3])
-        rospy.loginfo('Starting Valve turning task')
-
-        # Asking for the estimation of the
         rospy.wait_for_service('/current_estimator/static_estimation')
-        current_estimation_srv = rospy.ServiceProxy(
+        static_estimation_srv = rospy.ServiceProxy(
             '/current_estimator/static_estimation',
-            StareLandmark)
+            StaticCurrent)
+        response = static_estimation_srv.call()
 
+        x = response.current_estimation[0]
+        y = response.current_estimation[1]
+        z = response.current_estimation[2]
+        #self.param = np.linalg.norm([x,y,z])
+        self.param = 0.0
+
+        rospy.loginfo('Disabling valve update')
+        rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation')
+        disable_valve_update_srv = rospy.ServiceProxy(
+            '/valve_tracker/disable_update_valve_orientation',
+            Empty)
+        disable_valve_update_srv.call()
+
+        rospy.loginfo('Starting Valve turning task')
 
         rate = rospy.Rate(1.0/self.interval_time)
         success = False
@@ -1068,6 +1078,14 @@ class learningReproductorAct:
                 fold_arm_srv = rospy.ServiceProxy('/cola2_control/setJointPose',
                                                   JointPose)
                 value = fold_arm_srv([0.0, 50.0, -30.0, 0.0, 0.0])
+
+                rospy.loginfo('Enabling valve update')
+                rospy.wait_for_service('/valve_tracker/enable_update_valve_orientation')
+                enable_valve_update_srv = rospy.ServiceProxy(
+                    '/valve_tracker/enable_update_valve_orientation',
+                    Empty)
+                enable_valve_update_srv.call()
+
 
                 for i in range(40):
                     #rospy.loginfo('Going backward')
