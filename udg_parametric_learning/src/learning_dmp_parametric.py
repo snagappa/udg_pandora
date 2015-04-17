@@ -39,7 +39,7 @@ class LearningDmpParametric(object):
         if self.nb_samples == len(param_values):
             self.param_value = param_values
         else:
-            rospy.loginfo('Each Demonstration need to have the same lenght')
+            print 'Each Demonstration need to have the same lenght'
 
         # TODO Make groups using a K-Mean or GMM method
         # Check the library scikit-learn
