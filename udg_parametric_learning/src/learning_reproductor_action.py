@@ -700,12 +700,12 @@ class learningReproductorAct:
                                 self.desPos[3] = des_pose_x_y_yaw[2]
                                 self.desVel[3] = des_vel_x_y_yaw[2]
                                 # ARM
-                                # self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
-                                # self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
-                                # self.desPos[6] = des_pose_arm_z
-                                # self.desVel[6] = des_vel_arm_z
-                                # self.desPos[9] = des_pose_arm_x_y_yaw[2]
-                                # self.desVel[9] = des_vel_arm_x_y_yaw[2]
+                                self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                                self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                                self.desPos[6] = des_pose_arm_z
+                                self.desVel[6] = des_vel_arm_z
+                                self.desPos[9] = des_pose_arm_x_y_yaw[2]
+                                self.desVel[9] = des_vel_arm_x_y_yaw[2]
                                 #Desired Pose Reza, Removed
                                 # desPose_msg = PoseStamped()
                                 # desPose_msg.header.stamp = rospy.get_rostime()
@@ -757,12 +757,12 @@ class learningReproductorAct:
                             self.currPos[3] = des_pose_x_y_yaw[2]
                             self.currVel[3] = des_vel_x_y_yaw[2]
                             # ARM
-                            # self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
-                            # self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
-                            # self.currPos[6] = des_pose_arm_z
-                            # self.currVel[6] = des_vel_arm_z
-                            # self.currPos[9] = des_pose_arm_x_y_yaw[2]
-                            # self.currVel[9] = des_vel_arm_x_y_yaw[2]
+                            self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                            self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                            self.currPos[6] = des_pose_arm_z
+                            self.currVel[6] = des_vel_arm_z
+                            self.currPos[9] = des_pose_arm_x_y_yaw[2]
+                            self.currVel[9] = des_vel_arm_x_y_yaw[2]
                             s = (repr(time) + " " +
                                  repr(self.currPos[0]) + " " +
                                  repr(self.currPos[1]) + " " +
@@ -1373,83 +1373,83 @@ class learningReproductorAct:
         ##############################################
         # Compute the Arm velocity
         ##############################################
-# Test COMMENT
-        # joyCommand = Joy()
-        # # joyCommand.axes.append(vel_arm[0]*60.0)
-        # # joyCommand.axes.append(vel_arm[1]*60.0)
-        # # joyCommand.axes.append(vel_arm[2]*60.0)
-        # # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
-        # # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
-        # # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
-        # # rospy.loginfo('******************************************************')
-        # x_arm = (vel_arm[0]-vel_auv[0])
-        # y_arm = (vel_arm[1]-vel_auv[1])
-        # z_arm = (vel_arm[2]-vel_auv[2])
-        # # if np.abs(x_arm) > np.abs(y_arm) :
-        # #     if np.abs(x_arm) > np.abs(z_arm) :
-        # #         y_arm = y_arm/2.0
-        # #         z_arm = z_arm/2.0
-        # #     else :
-        # #         x_arm = z_arm/2.0
-        # #         y_arm = y_arm/2.0
-        # # else:
-        # #     if np.abs(y_arm) > np.abs(z_arm) :
-        # #         y_arm = y_arm/2.0
-        # #         z_arm = z_arm/2.0
-        # #     else :
-        # #         x_arm = x_arm/2.0
-        # #         y_arm = y_arm/2.0
+        joyCommand = Joy()
+        # joyCommand.axes.append(vel_arm[0]*60.0)
+        # joyCommand.axes.append(vel_arm[1]*60.0)
+        # joyCommand.axes.append(vel_arm[2]*60.0)
+        # rospy.loginfo('Vel Arm X ' + str(vel_arm[0]) + ' - ' + str(vel_auv[0]) + ' = ' + str(vel_arm[0]-vel_auv[0]))
+        # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
+        # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
+        # rospy.loginfo('******************************************************')
+        x_arm = (vel_arm[0]-vel_auv[0])
+        y_arm = (vel_arm[1]-vel_auv[1])
+        z_arm = (vel_arm[2]-vel_auv[2])
+        # if np.abs(x_arm) > np.abs(y_arm) :
+        #     if np.abs(x_arm) > np.abs(z_arm) :
+        #         y_arm = y_arm/2.0
+        #         z_arm = z_arm/2.0
+        #     else :
+        #         x_arm = z_arm/2.0
+        #         y_arm = y_arm/2.0
+        # else:
+        #     if np.abs(y_arm) > np.abs(z_arm) :
+        #         y_arm = y_arm/2.0
+        #         z_arm = z_arm/2.0
+        #     else :
+        #         x_arm = x_arm/2.0
+        #         y_arm = y_arm/2.0
 
-        # # rospy.loginfo('Original ' + str(vel_arm[0]) + ' ' +
-        # #               str(vel_arm[1]) + ' ' + str(vel_arm[2]))
-        # # x_arm = vel_arm[0] * 60
-        # # y_arm = vel_arm[1] * 60
-        # # z_arm = vel_arm[2] * 60
-        # x_arm = vel_arm[0]
-        # y_arm = vel_arm[1]
-        # z_arm = vel_arm[2]
-        # # rospy.loginfo('Vel Arm ' + str(x_arm) + ' ' +
-        # #               str(y_arm) + ' ' + str(z_arm))
-        # # rospy.loginfo('******************************************************')
-        # if not np.isnan(x_arm):
-        #     if(abs(x_arm) <= 8.0):
-        #         vel_com.twist.linear.x = x_arm #/50.0
-        #     else:
-        #         vel_com.twist.linear.x = np.sign(x_arm)*8.0
-        #     joyCommand.axes.append(x_arm)
-        # else:
-        #     rospy.loginfo('NAN NAN NAN NAN NAN')
-        #     joyCommand.axes.append(0.0)
-        # if not np.isnan(y_arm):
-        #     if(abs(y_arm) <= 8.0):
-        #         vel_com.twist.linear.y = y_arm #/50.0
-        #     else:
-        #         vel_com.twist.linear.y = np.sign(y_arm)*8.0
-        #     joyCommand.axes.append(y_arm)
-        # else:
-        #     joyCommand.axes.append(0.0)
-        # if not np.isnan(z_arm):
-        #     if(abs(z_arm) <= 8.0):
-        #         vel_com.twist.linear.z = z_arm #/50.0
-        #     else:
-        #         vel_com.twist.linear.z = np.sign(z_arm)*8.0
-        #     joyCommand.axes.append(z_arm)
-        # else:
-        #     joyCommand.axes.append(0.0)
-        # if not np.isnan(self.desVel[7]):
-        #     joyCommand.axes.append(self.desVel[7])
-        # else:
-        #     joyCommand.axes.append(0.0)
-        # if not np.isnan(self.desVel[8]):
-        #     joyCommand.axes.append(self.desVel[8])
-        # else:
-        #     joyCommand.axes.append(0.0)
-        # if not np.isnan(self.desVel[9]):
-        #     joyCommand.axes.append(-1.0*self.desVel[9])
-        # else:
-        #     joyCommand.axes.append(0.0)
+        # rospy.loginfo('Original ' + str(vel_arm[0]) + ' ' +
+        #               str(vel_arm[1]) + ' ' + str(vel_arm[2]))
+        # x_arm = vel_arm[0] * 60
+        # y_arm = vel_arm[1] * 60
+        # z_arm = vel_arm[2] * 60
+        x_arm = vel_arm[0]
+        y_arm = vel_arm[1]
+        z_arm = vel_arm[2]
+        # rospy.loginfo('Vel Arm ' + str(x_arm) + ' ' +
+        #               str(y_arm) + ' ' + str(z_arm))
+        # rospy.loginfo('******************************************************')
+        if not np.isnan(x_arm):
+            if(abs(x_arm) <= 8.0):
+                vel_com.twist.linear.x = x_arm #/50.0
+            else:
+                vel_com.twist.linear.x = np.sign(x_arm)*8.0
+            joyCommand.axes.append(x_arm)
+        else:
+            rospy.loginfo('NAN NAN NAN NAN NAN')
+            joyCommand.axes.append(0.0)
+        if not np.isnan(y_arm):
+            if(abs(y_arm) <= 8.0):
+                vel_com.twist.linear.y = y_arm #/50.0
+            else:
+                vel_com.twist.linear.y = np.sign(y_arm)*8.0
+            joyCommand.axes.append(y_arm)
+        else:
+            joyCommand.axes.append(0.0)
+        if not np.isnan(z_arm):
+            if(abs(z_arm) <= 8.0):
+                vel_com.twist.linear.z = z_arm #/50.0
+            else:
+                vel_com.twist.linear.z = np.sign(z_arm)*8.0
+            joyCommand.axes.append(z_arm)
+        else:
+            joyCommand.axes.append(0.0)
+        if not np.isnan(self.desVel[7]):
+            joyCommand.axes.append(self.desVel[7])
+        else:
+            joyCommand.axes.append(0.0)
+        if not np.isnan(self.desVel[8]):
+            joyCommand.axes.append(self.desVel[8])
+        else:
+            joyCommand.axes.append(0.0)
+        if not np.isnan(self.desVel[9]):
+            joyCommand.axes.append(-1.0*self.desVel[9])
+            #joyCommand.axes.append(0.0)
+        else:
+            joyCommand.axes.append(0.0)
 
-        # self.pub_arm_command.publish(joyCommand)
+        self.pub_arm_command.publish(joyCommand)
 
         s = (repr(rospy.get_time()) + " " +
              repr(self.currPos[0]) + " " +
