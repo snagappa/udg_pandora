@@ -864,7 +864,8 @@ class learningReproductorAct:
         y = response.current_estimation[1]
         z = response.current_estimation[2]
         #self.param = np.linalg.norm([x,y,z])
-        self.param = 0.0
+        # FAST PARAM 
+        self.param = 1.0
 
         rospy.loginfo('Disabling valve update')
         rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation')
@@ -1022,8 +1023,13 @@ class learningReproductorAct:
             # rospy.wait_for_service('/cola2_control/disable_push')
             try:
 
-
-                push_srv = push_srv([30.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                #WORK AROUND: REALLY BIG
+                # param equal 1 is 45 and 0 is 0
+                # update this with the real orientation between the auv and the panel
+                angle_force = 55.0 * self.param
+                force_x = np.cos(angle_force)*30.0
+                force_y = np.sin(angle_force)*30.0
+                push_srv = push_srv([force_x, force_y, 0.0, 0.0, 0.0, 0.0])
                 error_code = 0
                 rospy.loginfo('Pushing the valve ')
                 rospy.sleep(3.0)
