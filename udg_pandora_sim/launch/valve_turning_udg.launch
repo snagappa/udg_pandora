@@ -4,15 +4,18 @@
   	<arg name="enableLandmarks" value="false"/>
 	<arg name="enableRViz" value="false" />
         <arg name="enableCameraTF" value="true" />
-    <arg name="enableValveTracker" value="false" />
+        <arg name="enableSafety" default="true"/>
+        <arg name="enableValveTracker" value="false" />
+        <arg name="webGui" default="true"/>
 
 	<!-- Launch file for UDG - Valve Turning Scenario -->
 
 	<!-- Load G500 components -->
- 	<include file="$(find cola2_launch)/launch/g500-sim_new.launch">
-        	<arg name="enableTeleopArm" value="true" />
-        	<arg name="enableJoystick" value="false" />
-        	<arg name="joystickDevice" value="/dev/input/js0"/>
+ 	<include file="$(find cola2_launch)/launch/g500_core-sim.launch">
+            <arg name="enableSafety" value="$(arg enableSafety)" />
+            <arg name="enableTeleopArm" value="true" />
+            <arg name="enableJoystick" value="true" />
+            <arg name="joystickDevice" value="/dev/input/js0"/>
         </include>
 
 
@@ -58,6 +61,19 @@
         <group if="$(arg enableCameraTF)">
             <node pkg="tf" type="static_transform_publisher" name="g500_to_bumblebee2" args="0.45 -0.06 -0.12 1.57 0.0 1.4 girona500 /g500/stereo_front 200" />
         </group>
+
+    <!-- Run web GUI -->
+    <group if="$(arg webGui)">
+        <rosparam command="load" file="$(find cola2_navigation)/config/map_nav.yaml"/>
+        <node name="nav_sts_throttle" pkg="topic_tools" type="throttle" args="messages /cola2_navigation/nav_sts 4.0 /cola2_navigation/nav_sts_hz"/>
+        <node name="merged_wwr_throttle" pkg="topic_tools" type="throttle" args="messages /cola2_control/merged_world_waypoint_req 2.0 /cola2_control/merged_world_waypoint_req_hz"/>
+        <node name="merged_bvr_throttle" pkg="topic_tools" type="throttle" args="messages /cola2_control/merged_body_velocity_req 2.0 /cola2_control/merged_body_velocity_req_hz"/>
+        <node name="merged_bfr_throttle" pkg="topic_tools" type="throttle" args="messages /cola2_control/merged_body_force_req 2.0 /cola2_control/merged_body_force_req_hz"/>
+
+        <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch"/>
+        <node pkg="cola2_navigation" type="navsts_to_pose2d.py" name="navsts_to_pose2d"/>
+    </group>
+
 
 	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
     '(/cola2_navigation/(.)*)|(/cola2_control/(.)*)|(/pose_ekf_slam/(.)*)|(/ar_pose_markers)|(/stereo_front/left/image_raw)|(/stereo_front/left/camera_info)|(/tf)' --split --size 2048 -o /home/$(env LOGNAME)/sim" />
