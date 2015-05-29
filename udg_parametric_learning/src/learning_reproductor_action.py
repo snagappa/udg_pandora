@@ -64,6 +64,9 @@ from tf.transformations import euler_from_quaternion
 #from learning_dmp_reproductor import LearningDmpReproductor
 from learning_dmp_param_reproductor import LearningDmpParamReproductor
 
+from cola2_sim.msg import CsipE5ArmState
+#from cola2_arm_dev.msg import CsipE5ArmState
+
 #import warnings
 
 #value to show all the numbers in a matrix
@@ -100,6 +103,7 @@ class learningReproductorAct:
         self.desAcc = np.zeros(self.nbVar)
         self.dataReceived = 0
         self.dataReceivedArm = 0
+        self.limit_reach = False
         self.dataGoalReceived = False
         self.dataGoalPoseReceived = False
         self.dataGoalOriReceived = False
@@ -181,6 +185,11 @@ class learningReproductorAct:
         rospy.Subscriber('/current_estimation/current_vector',
                          TwistStamped,
                          self.update_current,
+                         queue_size = 1)
+
+        rospy.Subscriber('/csip_e5_arm/arm_state',
+                         CsipE5ArmState,
+                         self.update_arm_state,
                          queue_size = 1)
 
         rospy.loginfo('Configuration ' + str(name) + ' Loaded ')
@@ -561,6 +570,16 @@ class learningReproductorAct:
 
         self.param = np.linalg.norm([x,y,z])
 
+    def update_arm_state(self, arm_state_msg):
+        '''
+        Receive the arm_state and check if some of the 3 first joints are in the
+        limit, the roll is excluded.
+        '''
+        if any(arm_state_msg.joint_limit[0:3]):
+            self.limit_reach = True
+        else:
+            self.limit_reach = False
+
     def enable_fun_srv(self, req):
         '''
         Service to enable the action when there is not other action in progress
@@ -864,7 +883,7 @@ class learningReproductorAct:
         y = response.current_estimation[1]
         z = response.current_estimation[2]
         #self.param = np.linalg.norm([x,y,z])
-        # FAST PARAM 
+        # FAST PARAM
         self.param = 1.0
 
         rospy.loginfo('Disabling valve update')
@@ -908,10 +927,13 @@ class learningReproductorAct:
                         self.desPos[3] = des_pose_x_y_yaw[2]
                         self.desVel[3] = des_vel_x_y_yaw[2]
                         # ARM
+                        # Now the difference is performed outsite instead of in
+                        # the pulihsCommands function
                         self.desPos[4:6] = des_pose_arm_x_y_yaw[0:2]
-                        self.desVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                        self.desVel[4:6] = (des_vel_arm_x_y_yaw[0:2]
+                                            - des_vel_x_y_yaw[0:2])
                         self.desPos[6] = des_pose_arm_z
-                        self.desVel[6] = des_vel_arm_z
+                        self.desVel[6] = des_vel_arm_z -des_vel_z
                         self.desPos[9] = des_pose_arm_x_y_yaw[2]
                         self.desVel[9] = des_vel_arm_x_y_yaw[2]
                         desPose_msg = PoseStamped()
@@ -1258,6 +1280,12 @@ class learningReproductorAct:
              self.desVel[2],
              0])
 
+        if self.limit_reach:
+            vel_panel[0] += self.desVel[4]
+            vel_panel[1] += self.desVel[5]
+            vel_panel[2] += self.desVel[6]
+
+
         # rospy.loginfo('Current Roll ' + str(self.currPos[9]))
         # rospy.loginfo('Des Roll ' + str(self.desPos[9]))
         # rospy.loginfo('Command ' + str(-2.0*self.desVel[9]))
@@ -1405,9 +1433,12 @@ class learningReproductorAct:
         # rospy.loginfo('Vel Arm Y ' + str(vel_arm[1]) + ' - ' + str(vel_auv[1]) + ' = ' + str(vel_arm[1]-vel_auv[1]))
         # rospy.loginfo('Vel Arm Z ' + str(vel_arm[2]) + ' - ' + str(vel_auv[2]) + ' = ' + str(vel_arm[2]-vel_auv[2]))
         # rospy.loginfo('******************************************************')
-        x_arm = (vel_arm[0]-vel_auv[0])
-        y_arm = (vel_arm[1]-vel_auv[1])
-        z_arm = (vel_arm[2]-vel_auv[2])
+
+        # COMMENT: Now this is done out-site the function
+        # x_arm = (vel_arm[0]-vel_auv[0])
+        # y_arm = (vel_arm[1]-vel_auv[1])
+        # z_arm = (vel_arm[2]-vel_auv[2])
+
         # if np.abs(x_arm) > np.abs(y_arm) :
         #     if np.abs(x_arm) > np.abs(z_arm) :
         #         y_arm = y_arm/2.0
