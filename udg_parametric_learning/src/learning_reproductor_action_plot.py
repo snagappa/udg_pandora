@@ -67,6 +67,8 @@ from learning_dmp_param_reproductor import LearningDmpParamReproductor
 from cola2_sim.msg import CsipE5ArmState
 #from cola2_arm_dev.msg import CsipE5ArmState
 
+import matplotlib.pyplot as plt
+
 #import warnings
 
 #value to show all the numbers in a matrix
@@ -586,6 +588,50 @@ class learningReproductorAct:
         else:
             self.limit_reach = False
 
+    def load_trajectory(self, file_name, samples):
+        """
+        Load Trajectory from the last point to the beginning
+        """
+        print 'Loading Trajectory ' + file_name + ' ' +  str(samples) + ' :'
+        demonstrations = []
+        if len(samples) != 0:
+            for n in xrange(len(samples)):
+            #print 'Loading Demonstration ' + file_name + "_" + str(ni)
+                ni = samples[n]
+                if type(file_name) is str:
+                    logfile = open(file_name + "_" + str(ni) + ".csv",
+                                   "r").readlines()
+                else:
+                #The file name is a list of elements
+                    logfile = open(file_name[n] + "_" + str(ni) + ".csv",
+                                   "r").readlines()
+                # vars = np.zeros((1, self.nbVar))
+                # Added the time to the var
+                data_demo = np.array([[]])
+                for line in logfile:
+                    if len(data_demo[0]) == 0:
+                        data_demo = np.array([line.split()], dtype=np.float64)
+                    else:
+                        data_demo = np.append(
+                            data_demo,
+                            np.array([line.split()], dtype=np.float64),
+                            axis=0)
+                demonstrations.append(data_demo)
+        else:
+            logfile = open(file_name + ".csv", "r").readlines()
+            data_demo = np.array([[]])
+            for line in logfile:
+                if len(data_demo[0]) == 0:
+                    data_demo = np.array([line.split()], dtype=np.float64)
+                else:
+                    data_demo = np.append(
+                        data_demo,
+                        np.array([line.split()], dtype=np.float64),
+                        axis=0)
+            demonstrations.append(data_demo)
+        return demonstrations
+
+
     def enable_fun_srv(self, req):
         '''
         Service to enable the action when there is not other action in progress
@@ -636,6 +682,8 @@ class learningReproductorAct:
         Main function which runs the main operations except for the actions
         which are executed in its own function.
         '''
+
+
 #        pub = rospy.Publisher('arm', )
         rate = rospy.Rate(1.0/self.interval_time)
         #Find the parameters to load
@@ -818,6 +866,40 @@ class learningReproductorAct:
         @param goal: This param contains the id of the desired valve
         @type goal: ValveTurningAction
         """
+        demos_group_2 = self.load_trajectory(
+            '../parametric_data/trajectory_demonstration', [67,69,70])
+        plt.ion()
+        f_auv, axis_auv = plt.subplots(4, sharex=True)
+        f_auv.suptitle("AUV")
+        for i in xrange(len(demos_group_2)):
+            axis_auv[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,1], color='r')
+            axis_auv[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,2], color='r')
+            axis_auv[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,3], color='r')
+            axis_auv[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,4], color='r')
+        line_x_auv, = axis_auv[0].plot([], [], color='b')
+        line_y_auv, = axis_auv[1].plot([], [], color='b')
+        line_z_auv, = axis_auv[2].plot([], [], color='b')
+        line_yaw_auv, = axis_auv[3].plot([], [], color='b')
+ 
+        #plt.show()
+        plt.draw()
+        f_ee, axis_ee = plt.subplots(4, sharex=True)
+        f_ee.suptitle("End-effector")
+        for i in xrange(len(demos_group_2)):
+            axis_ee[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,5], color='r')
+            axis_ee[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,6], color='r')
+            axis_ee[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,7], color='r')
+            axis_ee[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,10], color='r')
+
+        line_x_ee, = axis_ee[0].plot([], [], color='b')
+        line_y_ee, = axis_ee[1].plot([], [], color='b')
+        line_z_ee, = axis_ee[2].plot([], [], color='b')
+        line_roll_ee, = axis_ee[3].plot([], [], color='b')
+        
+        #plt.show()
+        plt.draw()
+        #plt.ioff()
+
         self.goal_valve = goal.valve_id
         self.sub_valve.unregister()
         self.sub_valve = rospy.Subscriber(('/valve_tracker/valve'+
@@ -908,6 +990,8 @@ class learningReproductorAct:
         self.action_in_process = True
         push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
                                       PushWithAUV)
+        plot_init_time = rospy.get_time()
+        count_plot = 0
         while not success and not preempted: #and self.force_big_update == 0:
             if self.dataReceived > 1 and self.dataReceivedArm > 1:
                 if not self.simulation:
@@ -954,6 +1038,41 @@ class learningReproductorAct:
                         desPose_msg.pose.orientation.w = 1
                         self.pub_arm_des_pose.publish(desPose_msg)
                         self.publishCommands()
+                        # Printing new pose
+                        plot_time = rospy.get_time() - plot_init_time
+                        line_x_auv.set_xdata(np.append(line_x_auv.get_xdata(), plot_time))
+                        line_x_auv.set_ydata(np.append(line_x_auv.get_ydata(), self.currPos[0]))
+
+                        line_y_auv.set_xdata(np.append(line_y_auv.get_xdata(), plot_time))
+                        line_y_auv.set_ydata(np.append(line_y_auv.get_ydata(), self.currPos[1]))
+
+                        line_z_auv.set_xdata(np.append(line_z_auv.get_xdata(), plot_time))
+                        line_z_auv.set_ydata(np.append(line_z_auv.get_ydata(), self.currPos[2]))
+
+                        line_yaw_auv.set_xdata(np.append(line_yaw_auv.get_xdata(), plot_time))
+                        line_yaw_auv.set_ydata(np.append(line_yaw_auv.get_ydata(), self.currPos[3]))
+
+                        line_x_ee.set_xdata(np.append(line_x_ee.get_xdata(), plot_time))
+                        line_x_ee.set_ydata(np.append(line_x_ee.get_ydata(), self.currPos[4]))
+
+                        line_y_ee.set_xdata(np.append(line_y_ee.get_xdata(), plot_time))
+                        line_y_ee.set_ydata(np.append(line_y_ee.get_ydata(), self.currPos[5]))
+
+                        line_z_ee.set_xdata(np.append(line_z_ee.get_xdata(), plot_time))
+                        line_z_ee.set_ydata(np.append(line_z_ee.get_ydata(), self.currPos[6]))
+
+                        line_roll_ee.set_xdata(np.append(line_roll_ee.get_xdata(), plot_time))
+                        line_roll_ee.set_ydata(np.append(line_roll_ee.get_ydata(), self.currPos[9]))
+
+                        if count_plot >= 20:
+                            rospy.loginfo('Drawing')
+                            f_auv.canvas.draw()
+                            f_ee.canvas.draw()
+                            count_plot = 0
+                        else:
+                            rospy.loginfo('Counting' + str(count_plot))
+                            count_plot = count_plot + 1
+
                         success = False
                     else:
                         success = True
@@ -962,7 +1081,7 @@ class learningReproductorAct:
                         self.lock_force.acquire()
                         try:
                             # rospy.loginfo('Force in Z ' + str(np.abs(self.force_vector[2] - self.force_vector_old[2])) + ' Force ' + str(self.force_vector[2]))
-                            rospy.loginfo('Action value ' + str(self.action))
+                            # rospy.loginfo('Action value ' + str(self.action))
                             if (np.abs(self.force_vector[2] - self.force_vector_old[2]) >= 1.0 and
                                 self.force_vector[2] < -3.0):
                                 #self.force_big_update = 1
@@ -1012,6 +1131,7 @@ class learningReproductorAct:
                              repr(self.currPos[8]) + " " +
                              repr(self.currPos[9]) + "\n")
                         self.file_export.write(s)
+                        
                         success = False
                     else:
                         rospy.loginfo('Learning has finished ')
@@ -1036,6 +1156,7 @@ class learningReproductorAct:
                 rate.sleep()
         #Finished or aborted
         result = ValveTurningResult()
+        plt.ioff()
         if preempted:
             result.valve_turned = False
             self.valve_turning_action.set_preempted()
@@ -1058,7 +1179,7 @@ class learningReproductorAct:
                 #force_x = np.cos(angle_force)*30.0
                 #force_y = np.sin(angle_force)*30.0
                 #push_srv = push_srv([force_x, force_y, 0.0, 0.0, 0.0, 0.0])
-                push_srv = push_srv([10, 30, 0.0, 0.0, 0.0, 0.0])
+                push_srv = push_srv([5.0, 30.0, 0.0, 0.0, 0.0, 0.0])
                 error_code = 0
                 rospy.loginfo('Pushing the valve ')
                 rospy.sleep(3.0)
@@ -1189,6 +1310,10 @@ class learningReproductorAct:
 
         self.action_in_process = False
         self.valve_turning_action.set_succeeded(result)
+
+    def update_plot(self, line, value, time):
+        line.set_x_data(np.append(line.get_x_data(), current_time-init_time))
+        
 
     def generateNewPose(self):
         t = -math.log(self.s)/self.alpha
@@ -1503,10 +1628,10 @@ class learningReproductorAct:
 
 
 
-        if self.limit_reach:
-            vel_com.twist.linear.x += joyCommand.axes[0]
-            vel_com.twist.linear.y += joyCommand.axes[1]
-            vel_com.twist.linear.z += joyCommand.axes[2]
+        #if self.limit_reach:
+            #vel_com.twist.linear.x += joyCommand.axes[0]
+            #vel_com.twist.linear.y += joyCommand.axes[1]
+            #vel_com.twist.linear.z += joyCommand.axes[2]
             # force_movement_auv = 0.15
             # force_movement_ee = 0.15
             # rospy.loginfo('Vel AUV origin ' + str(vel_com.twist.linear.x) + ', ' + str(vel_com.twist.linear.y) + ', ' + str(vel_com.twist.linear.z) )

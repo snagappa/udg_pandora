@@ -3,6 +3,6 @@ current_estimation/time_analize : 15.0
 current_estimation/regular_force : [0.0, -1.9, 23.0, 0.0, -7.0, 1.7]
 current_estimation/stare_landmark_enabled : True
 current_estimation/stare_landmark_id : '/visual_detector'
-current_estimation/stare_landmark_offset : [0.0, 0.0, 2.0, 0.0, 1.57, 0.0]
+current_estimation/stare_landmark_offset : [0.0, 0.2, 1.7, 0.0, 1.57, 0.0]
 current_estimation/stare_landmark_tolerance : 0.2
 current_estimation/stare_landmark_keep_pose : False
