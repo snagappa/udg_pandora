@@ -8,7 +8,7 @@ learning/reproductor/complete/nbVar : 10
 #learning/reproductor/complete/landmark_id : /pose_ekf_slam/landmark_update/panel_centre
 learning/reproductor/complete/landmark_id : /visual_detector
 learning/reproductor/complete/interval_time : 0.2 #10Hz
-learning/reproductor/complete/simulation : 0
+learning/reproductor/complete/simulation : 1
 learning/reproductor/complete/nbDataRepro : 400 
 learning/reproductor/complete/exportFile : 'trajectory_played'
 #learning/reproductor/complete/exportFile : trajectoryPlayed.csv
@@ -24,3 +24,4 @@ learning/reproductor/complete/force_torque_enable : True
 # learning/reproductor/complete/gaussian_factor : 1.2 -> 8 states
 # Not implemented, need to be added at some point
 learning/reproductor/complete/gaussian_factor : 0.6
+learning/reproductor/complete/plot_trajectory : True 

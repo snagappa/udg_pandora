@@ -149,6 +149,8 @@ class learningReproductorAct:
 
         self.param = 0.0
 
+        self.init_plot = False
+
         if self.simulation:
             self.file_export = open(self.exportFile+'_sim.csv', 'w')
         else:
@@ -242,7 +244,8 @@ class learningReproductorAct:
                       'learning_param_id': 'learning/reproductor/complete/learning_param_id',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori',
-                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable'
+                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable',
+                      'plot_trajectory': '/learning/reproductor/complete/plot_trajectory'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         self.reproductor_parameters = self.reproductor_parameters_short
@@ -866,39 +869,36 @@ class learningReproductorAct:
         @param goal: This param contains the id of the desired valve
         @type goal: ValveTurningAction
         """
-        demos_group_2 = self.load_trajectory(
-            '../parametric_data/trajectory_demonstration', [67,69,70])
-        plt.ion()
-        f_auv, axis_auv = plt.subplots(4, sharex=True)
-        f_auv.suptitle("AUV")
-        for i in xrange(len(demos_group_2)):
-            axis_auv[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,1], color='r')
-            axis_auv[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,2], color='r')
-            axis_auv[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,3], color='r')
-            axis_auv[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,4], color='r')
-        line_x_auv, = axis_auv[0].plot([], [], color='b')
-        line_y_auv, = axis_auv[1].plot([], [], color='b')
-        line_z_auv, = axis_auv[2].plot([], [], color='b')
-        line_yaw_auv, = axis_auv[3].plot([], [], color='b')
- 
-        #plt.show()
-        plt.draw()
-        f_ee, axis_ee = plt.subplots(4, sharex=True)
-        f_ee.suptitle("End-effector")
-        for i in xrange(len(demos_group_2)):
-            axis_ee[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,5], color='r')
-            axis_ee[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,6], color='r')
-            axis_ee[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,7], color='r')
-            axis_ee[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,10], color='r')
+        # if self.plot_trajectory:
+        #     demos_group_2 = self.load_trajectory(
+        #         '../parametric_data/trajectory_demonstration', [67,69,70])
+        #     plt.ion()
+        #     self.f_auv, axis_auv = plt.subplots(4, sharex=True)
+        #     self.f_auv.suptitle("AUV")
+        #     for i in xrange(len(demos_group_2)):
+        #         axis_auv[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,1], color='r')
+        #         axis_auv[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,2], color='r')
+        #         axis_auv[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,3], color='r')
+        #         axis_auv[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,4], color='r')
+        #     line_x_auv, = axis_auv[0].plot([], [], color='b')
+        #     line_y_auv, = axis_auv[1].plot([], [], color='b')
+        #     line_z_auv, = axis_auv[2].plot([], [], color='b')
+        #     line_yaw_auv, = axis_auv[3].plot([], [], color='b')
 
-        line_x_ee, = axis_ee[0].plot([], [], color='b')
-        line_y_ee, = axis_ee[1].plot([], [], color='b')
-        line_z_ee, = axis_ee[2].plot([], [], color='b')
-        line_roll_ee, = axis_ee[3].plot([], [], color='b')
-        
-        #plt.show()
-        plt.draw()
-        #plt.ioff()
+        #     plt.draw()
+        #     self.f_ee, axis_ee = plt.subplots(4, sharex=True)
+        #     self.f_ee.suptitle("End-effector")
+        #     for i in xrange(len(demos_group_2)):
+        #         axis_ee[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,5], color='r')
+        #         axis_ee[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,6], color='r')
+        #         axis_ee[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,7], color='r')
+        #         axis_ee[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,10], color='r')
+
+        #     line_x_ee, = axis_ee[0].plot([], [], color='b')
+        #     line_y_ee, = axis_ee[1].plot([], [], color='b')
+        #     line_z_ee, = axis_ee[2].plot([], [], color='b')
+        #     line_roll_ee, = axis_ee[3].plot([], [], color='b')
+        #     plt.draw()
 
         self.goal_valve = goal.valve_id
         self.sub_valve.unregister()
@@ -960,26 +960,26 @@ class learningReproductorAct:
         self.dataReceived = 0
 
         # Asking for the estimation of the current before starting
-        rospy.loginfo('Asking for the Current Estimation')
-        rospy.wait_for_service('/current_estimator/static_estimation')
-        static_estimation_srv = rospy.ServiceProxy(
-            '/current_estimator/static_estimation',
-            StaticCurrent)
-        response = static_estimation_srv.call()
+        # rospy.loginfo('Asking for the Current Estimation')
+        # rospy.wait_for_service('/current_estimator/static_estimation')
+        # static_estimation_srv = rospy.ServiceProxy(
+        #     '/current_estimator/static_estimation',
+        #     StaticCurrent)
+        # response = static_estimation_srv.call()
 
-        x = response.current_estimation[0]
-        y = response.current_estimation[1]
-        z = response.current_estimation[2]
-        self.param = np.linalg.norm([x,y,z])
+        # x = response.current_estimation[0]
+        # y = response.current_estimation[1]
+        # z = response.current_estimation[2]
+        # self.param = np.linalg.norm([x,y,z])
         # FAST PARAM
         self.param = 1.0
 
         rospy.loginfo('Disabling valve update')
-        rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation')
-        disable_valve_update_srv = rospy.ServiceProxy(
-            '/valve_tracker/disable_update_valve_orientation',
-            Empty)
-        disable_valve_update_srv.call()
+        # rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation')
+        # disable_valve_update_srv = rospy.ServiceProxy(
+        #     '/valve_tracker/disable_update_valve_orientation',
+        #     Empty)
+        # disable_valve_update_srv.call()
 
         rospy.loginfo('Starting Valve turning task')
 
@@ -990,11 +990,14 @@ class learningReproductorAct:
         self.action_in_process = True
         push_srv = rospy.ServiceProxy('/cola2_control/push_desired_froce',
                                       PushWithAUV)
+        time = 0.0
+        if self.plot_trajectory:
+            rospy.loginfo('Init plot')
+            plot_timer = rospy.Timer(rospy.Duration(0.25), self.callback_plot_trajectory)
         plot_init_time = rospy.get_time()
-        count_plot = 0
         while not success and not preempted: #and self.force_big_update == 0:
-            if self.dataReceived > 1 and self.dataReceivedArm > 1:
-                if not self.simulation:
+            if not self.simulation:
+                if self.dataReceived > 1 and self.dataReceivedArm > 1:
                     #success = self.generateNewPose()
                     #rospy.loginfo('Current Alignment ' + str(self.currPos[9]) )
                     [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
@@ -1039,44 +1042,9 @@ class learningReproductorAct:
                         self.pub_arm_des_pose.publish(desPose_msg)
                         self.publishCommands()
                         # Printing new pose
-                        plot_time = rospy.get_time() - plot_init_time
-                        line_x_auv.set_xdata(np.append(line_x_auv.get_xdata(), plot_time))
-                        line_x_auv.set_ydata(np.append(line_x_auv.get_ydata(), self.currPos[0]))
-
-                        line_y_auv.set_xdata(np.append(line_y_auv.get_xdata(), plot_time))
-                        line_y_auv.set_ydata(np.append(line_y_auv.get_ydata(), self.currPos[1]))
-
-                        line_z_auv.set_xdata(np.append(line_z_auv.get_xdata(), plot_time))
-                        line_z_auv.set_ydata(np.append(line_z_auv.get_ydata(), self.currPos[2]))
-
-                        line_yaw_auv.set_xdata(np.append(line_yaw_auv.get_xdata(), plot_time))
-                        line_yaw_auv.set_ydata(np.append(line_yaw_auv.get_ydata(), self.currPos[3]))
-
-                        line_x_ee.set_xdata(np.append(line_x_ee.get_xdata(), plot_time))
-                        line_x_ee.set_ydata(np.append(line_x_ee.get_ydata(), self.currPos[4]))
-
-                        line_y_ee.set_xdata(np.append(line_y_ee.get_xdata(), plot_time))
-                        line_y_ee.set_ydata(np.append(line_y_ee.get_ydata(), self.currPos[5]))
-
-                        line_z_ee.set_xdata(np.append(line_z_ee.get_xdata(), plot_time))
-                        line_z_ee.set_ydata(np.append(line_z_ee.get_ydata(), self.currPos[6]))
-
-                        line_roll_ee.set_xdata(np.append(line_roll_ee.get_xdata(), plot_time))
-                        line_roll_ee.set_ydata(np.append(line_roll_ee.get_ydata(), self.currPos[9]))
-
-                        if count_plot >= 20:
-                            rospy.loginfo('Drawing')
-                            f_auv.canvas.draw()
-                            f_ee.canvas.draw()
-                            count_plot = 0
-                        else:
-                            rospy.loginfo('Counting' + str(count_plot))
-                            count_plot = count_plot + 1
-
                         success = False
                     else:
                         success = True
-
                     if self.force_torque_enable and success == False:
                         self.lock_force.acquire()
                         try:
@@ -1088,58 +1056,82 @@ class learningReproductorAct:
                                 success = True
                         finally:
                             self.lock_force.release()
-                else :
-                    #success = self.simulatedNewPose()
-                    if time == 0 :
-                        time = rospy.get_time()
-                        self.currPos = self.currPosSim
-                    else:
-                        time += self.interval_time
-                    [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
-                        self.currPos, self.currVel, self.action)
-                    [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel, self.action)
-                    [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
-                        self.currPos, self.currVel, self.action)
-                    [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
-                        self.currPos, self.currVel, self.action)
-                    if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
-                        and len(des_pose_arm_z) != 0
-                        and len(des_pose_arm_x_y_yaw) != 0 ):
-                        self.currPos[0:2] = des_pose_x_y_yaw[0:2]
-                        self.currVel[0:2] = des_vel_x_y_yaw[0:2]
-                        self.currPos[2] = des_pose_z
-                        self.currVel[2] = des_vel_z
-                        self.currPos[3] = des_pose_x_y_yaw[2]
-                        self.currVel[3] = des_vel_x_y_yaw[2]
-                        # ARM
-                        self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
-                        self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
-                        self.currPos[6] = des_pose_arm_z
-                        self.currVel[6] = des_vel_arm_z
-                        self.currPos[9] = des_pose_arm_x_y_yaw[2]
-                        self.currVel[9] = des_vel_arm_x_y_yaw[2]
-                        s = (repr(time) + " " +
-                             repr(self.currPos[0]) + " " +
-                             repr(self.currPos[1]) + " " +
-                             repr(self.currPos[2]) + " " +
-                             repr(self.currPos[3]) + " " +
-                             repr(self.currPos[4]) + " " +
-                             repr(self.currPos[5]) + " " +
-                             repr(self.currPos[6]) + " " +
-                             repr(self.currPos[7]) + " " +
-                             repr(self.currPos[8]) + " " +
-                             repr(self.currPos[9]) + "\n")
-                        self.file_export.write(s)
-                        
-                        success = False
-                    else:
-                        rospy.loginfo('Learning has finished ')
-                        #self.lock.release()
-                        self.file_export.close()
-                        success = True
-            else:
-                rospy.loginfo('Waiting to initialize all the data')
+                else:
+                    rospy.loginfo('Waiting to initialize all the data')
+            else :
+                #success = self.simulatedNewPose()
+                if time == 0 :
+                    time = rospy.get_time()
+                    self.currPos = self.currPosSim
+                else:
+                    time += self.interval_time
+                [des_pose_z, des_vel_z] = dmp_z.generateNewPose(
+                    self.currPos, self.currVel, self.action, self.param)
+                [des_pose_x_y_yaw, des_vel_x_y_yaw] = dmp_x_y_yaw.generateNewPose(
+                    self.currPos, self.currVel, self.action, self.param)
+                [des_pose_arm_z, des_vel_arm_z] = dmp_arm_z.generateNewPose(
+                    self.currPos, self.currVel, self.action, self.param)
+                [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
+                    self.currPos, self.currVel, self.action, self.param)
+                if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                    and len(des_pose_arm_z) != 0
+                    and len(des_pose_arm_x_y_yaw) != 0 ):
+                    self.currPos[0:2] = des_pose_x_y_yaw[0:2]
+                    self.currVel[0:2] = des_vel_x_y_yaw[0:2]
+                    self.currPos[2] = des_pose_z
+                    self.currVel[2] = des_vel_z
+                    self.currPos[3] = des_pose_x_y_yaw[2]
+                    self.currVel[3] = des_vel_x_y_yaw[2]
+                    # ARM
+                    self.currPos[4:6] = des_pose_arm_x_y_yaw[0:2]
+                    self.currVel[4:6] = des_vel_arm_x_y_yaw[0:2]
+                    self.currPos[6] = des_pose_arm_z
+                    self.currVel[6] = des_vel_arm_z
+                    self.currPos[9] = des_pose_arm_x_y_yaw[2]
+                    self.currVel[9] = des_vel_arm_x_y_yaw[2]
+                    s = (repr(time) + " " +
+                         repr(self.currPos[0]) + " " +
+                         repr(self.currPos[1]) + " " +
+                         repr(self.currPos[2]) + " " +
+                         repr(self.currPos[3]) + " " +
+                         repr(self.currPos[4]) + " " +
+                         repr(self.currPos[5]) + " " +
+                         repr(self.currPos[6]) + " " +
+                         repr(self.currPos[7]) + " " +
+                         repr(self.currPos[8]) + " " +
+                         repr(self.currPos[9]) + "\n")
+                    self.file_export.write(s)
+                    success = False
+                else:
+                    rospy.loginfo('Learning has finished ')
+                    #self.lock.release()
+                    self.file_export.close()
+                    success = True
+            if self.plot_trajectory and self.init_plot:
+                    plot_time = rospy.get_time() - plot_init_time
+                    self.line_x_auv.set_xdata(np.append(self.line_x_auv.get_xdata(), plot_time))
+                    self.line_x_auv.set_ydata(np.append(self.line_x_auv.get_ydata(), self.currPos[0]))
+                    ####################
+                    self.line_y_auv.set_xdata(np.append(self.line_y_auv.get_xdata(), plot_time))
+                    self.line_y_auv.set_ydata(np.append(self.line_y_auv.get_ydata(), self.currPos[1]))
+                    ####################
+                    self.line_z_auv.set_xdata(np.append(self.line_z_auv.get_xdata(), plot_time))
+                    self.line_z_auv.set_ydata(np.append(self.line_z_auv.get_ydata(), self.currPos[2]))
+                    ####################
+                    self.line_yaw_auv.set_xdata(np.append(self.line_yaw_auv.get_xdata(), plot_time))
+                    self.line_yaw_auv.set_ydata(np.append(self.line_yaw_auv.get_ydata(), self.currPos[3]))
+                    ####################
+                    self.line_x_ee.set_xdata(np.append(self.line_x_ee.get_xdata(), plot_time))
+                    self.line_x_ee.set_ydata(np.append(self.line_x_ee.get_ydata(), self.currPos[4]))
+                    ####################
+                    self.line_y_ee.set_xdata(np.append(self.line_y_ee.get_xdata(), plot_time))
+                    self.line_y_ee.set_ydata(np.append(self.line_y_ee.get_ydata(), self.currPos[5]))
+                    ####################
+                    self.line_z_ee.set_xdata(np.append(self.line_z_ee.get_xdata(), plot_time))
+                    self.line_z_ee.set_ydata(np.append(self.line_z_ee.get_ydata(), self.currPos[6]))
+                    ####################
+                    self.line_roll_ee.set_xdata(np.append(self.line_roll_ee.get_xdata(), plot_time))
+                    self.line_roll_ee.set_ydata(np.append(self.line_roll_ee.get_ydata(), self.currPos[9]))
             if self.valve_turning_action.is_preempt_requested():
                 rospy.loginfo('%s: Preempted Valve Turning', self.name)
                 preempted = True
@@ -1156,7 +1148,10 @@ class learningReproductorAct:
                 rate.sleep()
         #Finished or aborted
         result = ValveTurningResult()
-        plt.ioff()
+        if self.plot_trajectory:
+            plot_timer.shutdown()
+            self.init_plot = False
+
         if preempted:
             result.valve_turned = False
             self.valve_turning_action.set_preempted()
@@ -1310,10 +1305,6 @@ class learningReproductorAct:
 
         self.action_in_process = False
         self.valve_turning_action.set_succeeded(result)
-
-    def update_plot(self, line, value, time):
-        line.set_x_data(np.append(line.get_x_data(), current_time-init_time))
-        
 
     def generateNewPose(self):
         t = -math.log(self.s)/self.alpha
@@ -1674,6 +1665,45 @@ class learningReproductorAct:
              repr(self.currPos[9]) + "\n")
              #repr(t) + "\n")
         self.file_export.write(s)
+
+    def callback_plot_trajectory(self, event):
+        '''
+        Redraw the figure to not pause the execution of the main thread
+        '''
+        if not self.init_plot:
+            demos_group_2 = self.load_trajectory(
+                '../parametric_data/trajectory_demonstration', [67,69,70])
+            plt.ion()
+            self.f_auv, self.axis_auv = plt.subplots(4, sharex=True)
+            self.f_auv.suptitle("AUV")
+            for i in xrange(len(demos_group_2)):
+                self.axis_auv[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,1], color='r')
+                self.axis_auv[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,2], color='r')
+                self.axis_auv[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,3], color='r')
+                self.axis_auv[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,4], color='r')
+            self.line_x_auv, = self.axis_auv[0].plot([], [], color='b')
+            self.line_y_auv, = self.axis_auv[1].plot([], [], color='b')
+            self.line_z_auv, = self.axis_auv[2].plot([], [], color='b')
+            self.line_yaw_auv, = self.axis_auv[3].plot([], [], color='b')
+
+            self.f_auv.canvas.draw()
+            self.f_ee, self.axis_ee = plt.subplots(4, sharex=True)
+            self.f_ee.suptitle("End-effector")
+            for i in xrange(len(demos_group_2)):
+                self.axis_ee[0].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,5], color='r')
+                self.axis_ee[1].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,6], color='r')
+                self.axis_ee[2].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,7], color='r')
+                self.axis_ee[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,10], color='r')
+
+            self.line_x_ee, = self.axis_ee[0].plot([], [], color='b')
+            self.line_y_ee, = self.axis_ee[1].plot([], [], color='b')
+            self.line_z_ee, = self.axis_ee[2].plot([], [], color='b')
+            self.line_roll_ee, = self.axis_ee[3].plot([], [], color='b')
+            self.f_ee.canvas.draw()
+            self.init_plot = True
+        else:
+            self.f_auv.canvas.draw()
+            self.f_ee.canvas.draw()
 
 if __name__ == '__main__':
     try:
