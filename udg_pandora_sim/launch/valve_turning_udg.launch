@@ -74,8 +74,9 @@
         <node pkg="cola2_navigation" type="navsts_to_pose2d.py" name="navsts_to_pose2d"/>
     </group>
 
+    <node pkg="tf" type="static_transform_publisher" name="rviz_to_world" args="0.0 0.0 0.0 0.0 0.0 3.14159 /rviz /world 100" />
 
-	<node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
+    <node if="$(arg enableLog)" name="bag_record" output="screen" pkg="rosbag" type="record" args="-e
     '(/cola2_navigation/(.)*)|(/cola2_control/(.)*)|(/pose_ekf_slam/(.)*)|(/ar_pose_markers)|(/stereo_front/left/image_raw)|(/stereo_front/left/camera_info)|(/tf)' --split --size 2048 -o /home/$(env LOGNAME)/sim" />
 
 </launch>
