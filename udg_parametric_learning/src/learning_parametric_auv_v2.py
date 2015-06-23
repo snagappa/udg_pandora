@@ -16,9 +16,12 @@ alpha = 1.0
 nbStates = [[8,5], [8,5], [11,11],[8,11],[11,11]]
 #dof_list = [1]
 nbData = 400
-demonstration_file = '../parametric_data/trajectory_demonstration'
+demonstration_file = '../parametric_data_sim/trajectory_demonstration'
 
-demonstrations = [0,1,3,67,69,70]
+#simulated
+demonstrations = [5,6,7,25,26,28]
+
+#demonstrations = [0,1,3,67,69,70]
 #demonstrations = [0,1,3,56,57]
 #demonstrations = [0,1,3,51,52,56,57,59]
 #demonstrations = [0,1,3,15,16,20]
@@ -26,8 +29,12 @@ demonstrations = [0,1,3,67,69,70]
 #demonstrations = [0,1,3,40,41,42,43,44,45]
 #demonstrations = [0,1,3,104,106,107,108]
 
-init_time = [1428588977.298196, 1428589173.029574, 1428589584.775652, 1433741578.183353, 1433741942.58769, 1433742150.881254 ]
-end_time = [1428589069.662532, 1428589252.004525, 1433689305.183917, 1433741643.712743, 1433742002.950293, 1433742218.165047 ]
+init_time = [1434962597.50585, 1434962794.037284, 1434966707.264509, 1434971938.211919, 1434972577.803946, 1434979757.257036]
+end_time = [1434962679.036367, 1434962873.211061, 1434966790.126919, 1434972046.963203, 1434972694.669737, 1434979855.982225]
+
+#Real
+# init_time = [1428588977.298196, 1428589173.029574, 1428589584.775652, 1433741578.183353, 1433741942.58769, 1433742150.881254 ]
+# end_time = [1428589069.662532, 1428589252.004525, 1433689305.183917, 1433741643.712743, 1433742002.950293, 1433742218.165047 ]
 
 # init_time = [1428588977.298196, 1428589173.029574, 1428589584.775652, 1433690148.742736, 1433690344.067108]
 # end_time = [1428589069.662532, 1428589252.004525, 1433689305.183917, 1433690210.873194, 1433690395.627754]
@@ -50,11 +57,11 @@ param_samples = [3,3]
 # param_samples = [3,6]
 
 export_filename = [
-    '../parametric_data/learned_data_complete_individual_short_auv_x',
-    '../parametric_data/learned_data_complete_individual_short_auv_y',
-    '../parametric_data/learned_data_complete_individual_short_auv_z',
-    '../parametric_data/learned_data_complete_individual_short_ee_x',
-    '../parametric_data/learned_data_complete_individual_short_ee_z']
+    '../parametric_data_sim/learned_data_complete_individual_short_auv_x',
+    '../parametric_data_sim/learned_data_complete_individual_short_auv_y',
+    '../parametric_data_sim/learned_data_complete_individual_short_auv_z',
+    '../parametric_data_sim/learned_data_complete_individual_short_ee_x',
+    '../parametric_data_sim/learned_data_complete_individual_short_ee_z']
 
 # AUV X Y Yaw
 dof_list = [1,0,0,1,0,0,0,0,0,0]

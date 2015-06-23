@@ -643,21 +643,20 @@ class learningReproductorAct:
         @type req: Empty
         '''
         if not self.action_in_process :
+            if not self.simulation:
+                rospy.wait_for_service('/current_estimator/static_estimation')
+                static_estimation_srv = rospy.ServiceProxy(
+                    '/current_estimator/static_estimation',
+                    StaticCurrent)
+                response = static_estimation_srv.call()
             #TODO Uncomment this lines
-            # if not self.simulation:
-            #     rospy.wait_for_service('/current_estimator/static_estimation')
-            #     static_estimation_srv = rospy.ServiceProxy(
-            #         '/current_estimator/static_estimation',
-            #         StaticCurrent)
-            #     response = static_estimation_srv.call()
-
             #     x = response.current_estimation[0]
             #     y = response.current_estimation[1]
             #     z = response.current_estimation[2]
             # #self.param = np.linalg.norm([x,y,z])
             #     self.param = y
 
-            self.param = 1.0
+            self.param = 0.0
 
             self.enabled = True
             rospy.loginfo('%s Enabled', self.name)
@@ -692,7 +691,7 @@ class learningReproductorAct:
         #Find the parameters to load
         #TODO Fix what hapend with the action
         path = roslib.packages.get_pkg_subdir('udg_parametric_learning',
-                                              'parametric_data',
+                                              'parametric_data_sim',
                                               False)
         # choose the file of the list in the learning directory
         # build the path and the file name
@@ -777,7 +776,7 @@ class learningReproductorAct:
                             [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                                 self.currPos, self.currVel,
                                 self.action, self.param)
-                            if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                            if (len(des_pose_z) != 0 and len(des_pose_x_yaw) != 0
                                 and len(des_pose_arm_z) != 0
                                 and len(des_pose_arm_x_y_yaw) != 0):
                                 self.currPos[0] = des_pose_x_yaw[0]
@@ -836,7 +835,7 @@ class learningReproductorAct:
                             self.currPos, self.currVel, self.action, self.param)
                         [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                             self.currPos, self.currVel, self.action, self.param)
-                        if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                        if (len(des_pose_z) != 0 and len(des_pose_x_yaw) != 0
                             and len(des_pose_arm_z) != 0
                             and len(des_pose_arm_x_y_yaw) != 0 ):
                             self.currPos[0] = des_pose_x_yaw[0]
@@ -933,7 +932,7 @@ class learningReproductorAct:
 
         #Load the learned data for the desired behaviour
         path = roslib.packages.get_pkg_subdir('udg_parametric_learning',
-                                              'parametric_data',
+                                              'parametric_data_sim',
                                               False)
         # choose the file of the list in the learning directory
         # build the path and the file name
@@ -982,19 +981,19 @@ class learningReproductorAct:
         self.dataReceived = 0
 
         # Asking for the estimation of the current before starting
-        # rospy.loginfo('Asking for the Current Estimation')
-        # rospy.wait_for_service('/current_estimator/static_estimation')
-        # static_estimation_srv = rospy.ServiceProxy(
-        #     '/current_estimator/static_estimation',
-        #     StaticCurrent)
-        # response = static_estimation_srv.call()
+        rospy.loginfo('Asking for the Current Estimation')
+        rospy.wait_for_service('/current_estimator/static_estimation')
+        static_estimation_srv = rospy.ServiceProxy(
+            '/current_estimator/static_estimation',
+            StaticCurrent)
+        response = static_estimation_srv.call()
 
         # x = response.current_estimation[0]
         # y = response.current_estimation[1]
         # z = response.current_estimation[2]
         # self.param = np.linalg.norm([x,y,z])
         # FAST PARAM
-        self.param = 1.0
+        self.param = 0.0
 
         rospy.loginfo('Disabling valve update')
         # rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation')
@@ -1032,19 +1031,19 @@ class learningReproductorAct:
                         self.currPos, self.currVel, self.action, self.param)
                     [des_pose_arm_x_y_yaw, des_vel_arm_x_y_yaw] = dmp_arm_x_y_yaw.generateNewPose(
                         self.currPos, self.currVel, self.action, self.param)
-                    if (len(des_pose_z) != 0 and len(des_pose_x_y_yaw) != 0
+                    if (len(des_pose_z) != 0 and len(des_pose_x_yaw) != 0
                         and len(des_pose_arm_z) != 0
                         and len(des_pose_arm_x_y_yaw) != 0 ):
                         # self.desPos[0:4] = des_pose[0:4]
                         # self.desVel[0:4] = des_vel[0:4]
-                        self.currPos[0] = des_pose_x_yaw[0]
-                        self.currVel[0] = des_vel_x_yaw[0]
-                        self.currPos[1] = des_pose_y
-                        self.currVel[1] = des_vel_y
-                        self.currPos[2] = des_pose_z
-                        self.currVel[2] = des_vel_z
-                        self.currPos[3] = des_pose_x_yaw[1]
-                        self.currVel[3] = des_vel_x_yaw[1]
+                        self.desPos[0] = des_pose_x_yaw[0]
+                        self.desVel[0] = des_vel_x_yaw[0]
+                        self.desPos[1] = des_pose_y
+                        self.desVel[1] = des_vel_y
+                        self.desPos[2] = des_pose_z
+                        self.desVel[2] = des_vel_z
+                        self.desPos[3] = des_pose_x_yaw[1]
+                        self.desVel[3] = des_vel_x_yaw[1]
                         # ARM
                         # Now the difference is performed outsite instead of in
                         # the pulihsCommands function
@@ -1207,11 +1206,11 @@ class learningReproductorAct:
                 #force_x = np.cos(angle_force)*30.0
                 #force_y = np.sin(angle_force)*30.0
                 #push_srv = push_srv([force_x, force_y, 0.0, 0.0, 0.0, 0.0])
-                push_srv = push_srv([5.0, 30.0, 0.0, 0.0, 0.0, 0.0])
+                # NOT NEED IN THE UWSIM
+                # push_srv = push_srv([5.0, 30.0, 0.0, 0.0, 0.0, 0.0])
                 error_code = 0
-                rospy.loginfo('Pushing the valve ')
-                rospy.sleep(3.0)
-
+                # rospy.loginfo('Pushing the valve ')
+                # rospy.sleep(3.0)
                 turn_srv = rospy.ServiceProxy('/cola2_control/turnDesiredRadians',
                                                TurnDesiredDegrees)
                 rospy.loginfo('desired increment ' + str(goal.desired_increment))
@@ -1269,7 +1268,6 @@ class learningReproductorAct:
                     '/valve_tracker/enable_update_valve_orientation',
                     Empty)
                 enable_valve_update_srv.call()
-
 
                 for i in range(40):
                     #rospy.loginfo('Going backward')
@@ -1650,8 +1648,6 @@ class learningReproductorAct:
         else:
             joyCommand.axes.append(0.0)
 
-
-
         #if self.limit_reach:
             #vel_com.twist.linear.x += joyCommand.axes[0]
             #vel_com.twist.linear.y += joyCommand.axes[1]
@@ -1681,7 +1677,6 @@ class learningReproductorAct:
             # rospy.loginfo('Vel EE Modified ' + str(joyCommand.axes[0]) + ', ' + str(joyCommand.axes[1]) + ', ' + str(joyCommand.axes[2]) )
             # rospy.loginfo('******************************************************')
 
-
         self.pub_auv_vel.publish(vel_com)
         self.pub_arm_command.publish(joyCommand)
 
@@ -1704,8 +1699,12 @@ class learningReproductorAct:
         Redraw the figure to not pause the execution of the main thread
         '''
         if not self.init_plot:
+
             demos_group_2 = self.load_trajectory(
-                '../parametric_data/trajectory_demonstration', [67,69,70])
+                '../parametric_data_sim/trajectory_demonstration', [5,6,7])
+            # demos_group_2 = self.load_trajectory(
+            #     '../parametric_data_sim/trajectory_demonstration', [25,26,28])
+
             plt.ion()
             self.f_auv, self.axis_auv = plt.subplots(4, sharex=True)
             self.f_auv.suptitle("AUV")
@@ -1735,7 +1734,23 @@ class learningReproductorAct:
             self.f_ee.canvas.draw()
             self.init_plot = True
         else:
+            self.axis_auv[0].relim()
+            self.axis_auv[0].autoscale_view()
+            self.axis_auv[1].relim()
+            self.axis_auv[1].autoscale_view()
+            self.axis_auv[2].relim()
+            self.axis_auv[2].autoscale_view()
+            self.axis_auv[3].relim()
+            self.axis_auv[3].autoscale_view()
             self.f_auv.canvas.draw()
+            self.axis_ee[0].relim()
+            self.axis_ee[0].autoscale_view()
+            self.axis_ee[1].relim()
+            self.axis_ee[1].autoscale_view()
+            self.axis_ee[2].relim()
+            self.axis_ee[2].autoscale_view()
+            self.axis_ee[3].relim()
+            self.axis_ee[3].autoscale_view()
             self.f_ee.canvas.draw()
 
 if __name__ == '__main__':
