@@ -166,8 +166,8 @@ class LearningDmpParamReproductor(object):
             selected_pose = current_pose
             selected_vel = current_vel
         diff = param_tar-selected_pose
-        if len(diff) == 2:
-            diff[2] = cola2_lib.normalizeAngle(diff[2])
+        # if len(diff) == 2:
+        #     diff[2] = cola2_lib.normalizeAngle(diff[2])
 
         #rospy.loginfo('Kv ' + str(self.kV.tolist()))
         # desAcc = np.dot(

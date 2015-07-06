@@ -240,7 +240,8 @@ class learningReproductorAct:
                       'learning_param_id': 'learning/reproductor/complete/learning_param_id',
                       'base_pose': '/arm_controller/base_pose',
                       'base_ori': '/arm_controller/base_ori',
-                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable'
+                      'force_torque_enable': '/learning/reproductor/complete/force_torque_enable',
+                      'plot_trajectory': 'learning/reproductor/complete/plot_trajectory'
                       }
         cola2_ros_lib.getRosParams(self, param_dict)
         self.reproductor_parameters = self.reproductor_parameters_short

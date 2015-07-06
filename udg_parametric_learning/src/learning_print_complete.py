@@ -52,15 +52,15 @@ def load_trajectory(file_name, samples):
 
 if __name__ == '__main__':
     demos_group_1 = load_trajectory(
-        '../parametric_data/trajectory_demonstration', [0,1])
+        '../parametric_data_sim/trajectory_demonstration', [5,6,7])
     demos_group_2 = load_trajectory(
-        '../parametric_data/trajectory_demonstration', [3,7])
+        '../parametric_data_sim/trajectory_demonstration', [25,26,28] )
 
-    traj_sim = load_trajectory(
-        '../parametric_data/trajectory_played_sim',[0,1,5])
+    # traj_sim = load_trajectory(
+    #     './trajectory_played_sim',[])
 
-    # traj_real = load_trajectory(
-    #     '../parametric_data/trajectory_played_real',[])
+    traj_real = load_trajectory(
+        './trajectory_played_real',[])
 
 
     #Plot values
@@ -87,25 +87,25 @@ if __name__ == '__main__':
         #plot time, yaw
         axis[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,4], color='r')
 
-    for i in xrange(len(traj_sim)):
-        #plot time, x
-        axis[0].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,1], color='g')
-        #plot time, y
-        axis[1].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,2], color='g')
-        #plot time, z
-        axis[2].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,3], color='g')
-        #plot time, yaw
-        axis[3].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,4], color='g')
-
-    # for i in xrange(len(traj_real)):
+    # for i in xrange(len(traj_sim)):
     #     #plot time, x
-    #     axis[0].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,1], color='g')
+    #     axis[0].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,1], color='g')
     #     #plot time, y
-    #     axis[1].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,2], color='g')
+    #     axis[1].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,2], color='g')
     #     #plot time, z
-    #     axis[2].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,3], color='g')
+    #     axis[2].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,3], color='g')
     #     #plot time, yaw
-    #     axis[3].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,4], color='g')
+    #     axis[3].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,4], color='g')
+
+    for i in xrange(len(traj_real)):
+        #plot time, x
+        axis[0].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,1], color='g')
+        #plot time, y
+        axis[1].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,2], color='g')
+        #plot time, z
+        axis[2].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,3], color='g')
+        #plot time, yaw
+        axis[3].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,4], color='g')
 
 
     plt.show()
@@ -133,29 +133,28 @@ if __name__ == '__main__':
         #plot time, yaw
         axis[3].plot(demos_group_2[i][:,0] - demos_group_2[i][1,0], demos_group_2[i][:,10], color='r')
 
-    for i in xrange(len(traj_sim)):
-        #plot time, x
-        axis[0].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,5], color='g')
-        #plot time, y
-        axis[1].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,6], color='g')
-        #plot time, z
-        axis[2].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,7], color='g')
-        #plot time, yaw
-        axis[3].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,10], color='g')
-
-    # for i in xrange(len(traj_real)):
+    # for i in xrange(len(traj_sim)):
     #     #plot time, x
-    #     axis[0].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,5], color='g')
+    #     axis[0].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,5], color='g')
     #     #plot time, y
-    #     axis[1].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,6], color='g')
+    #     axis[1].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,6], color='g')
     #     #plot time, z
-    #     axis[2].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,7], color='g')
+    #     axis[2].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,7], color='g')
     #     #plot time, yaw
-    #     axis[3].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,10], color='g')
+    #     axis[3].plot(traj_sim[i][:,0] - traj_sim[i][1,0], traj_sim[i][:,10], color='g')
+
+    for i in xrange(len(traj_real)):
+        #plot time, x
+        axis[0].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,5], color='g')
+        #plot time, y
+        axis[1].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,6], color='g')
+        #plot time, z
+        axis[2].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,7], color='g')
+        #plot time, yaw
+        axis[3].plot(traj_real[i][:,0] - traj_real[i][1,0], traj_real[i][:,10], color='g')
 
 
     # for i in xrange(len(traj)):
     #     plt.plot(traj[i][:,0] - traj[i][1,0], traj[i][:,1], color='r')
     plt.ioff()
     plt.show()
-

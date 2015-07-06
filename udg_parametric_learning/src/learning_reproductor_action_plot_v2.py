@@ -993,7 +993,7 @@ class learningReproductorAct:
         # z = response.current_estimation[2]
         # self.param = np.linalg.norm([x,y,z])
         # FAST PARAM
-        self.param = 0.0
+        self.param = 1.0
 
         rospy.loginfo('Disabling valve update')
         # rospy.wait_for_service('/valve_tracker/disable_update_valve_orientation')
@@ -1699,7 +1699,6 @@ class learningReproductorAct:
         Redraw the figure to not pause the execution of the main thread
         '''
         if not self.init_plot:
-
             demos_group_2 = self.load_trajectory(
                 '../parametric_data_sim/trajectory_demonstration', [5,6,7])
             # demos_group_2 = self.load_trajectory(
