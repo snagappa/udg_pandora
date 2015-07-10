@@ -1,14 +1,20 @@
 <launch>
 
-	<arg name="recordImageRectColor" value="true"/>
-	<arg name="recordImageRaw" value="true"/>
-	<arg name="bag_path" value="/home/cirs/"/>
+	<arg name="recordImageRectColor" value="false"/>
+	<arg name="recordImageRaw" value="false"/>
+        <arg name="recordImageSim" value="true" />
+	<arg name="bag_path" value="/home/arnau/Desktop/Bags-sim-parametric/"/>
+        <arg name="bag_sim" value="true" />
+        <arg name="bag_real" value="false" />
 
-	<node name="bag_record" output="screen" pkg="rosbag" type="record" args=" /tf /tf_static /force_torque_controller/wrench_stamped /force_torque_iit/wrench_stamped -e '/valve_tracker/valve(.*)|/cola2_control/(.*)|/pose_ekf_slam/(.*)|/csip_e5_arm/(.*)|/arm/(.*)'  --split --size 1024 -o $(arg bag_path)g500_valve " />
+	<node if="$(arg bag_real)" name="bag_record" output="screen" pkg="rosbag" type="record" args=" /tf /tf_static /force_torque_controller/wrench_stamped /force_torque_iit/wrench_stamped -e '/valve_tracker/valve(.*)|/cola2_control/(.*)|/pose_ekf_slam/(.*)|/csip_e5_arm/(.*)|/arm/(.*)'  --split --size 1024 -o $(arg bag_path)g500_valve " />
 
-	<node if="$(arg recordImageRectColor)" name="camera_rect_color" output="screen" pkg="rosbag" type="record" args="/stereo_camera/left/image_rect_color /camera/image_rect_color --split --size 2048 -o $(arg bag_path)g500_valve_image" /> 
+	<node if="$(arg bag_sim)" name="bag_record" output="screen" pkg="rosbag" type="record" args=" /tf /tf_static -e '/valve_tracker/valve(.*)|/cola2_control/(.*)|/pose_ekf_slam/(.*)|/csip_e5_arm/(.*)|/arm/(.*)'  --split --size 1024 -o $(arg bag_path)g500_valve " />
+
+	<node if="$(arg recordImageRectColor)" name="camera_rect_color" output="screen" pkg="rosbag" type="record" args="/stereo_camera/left/image_rect_color /camera/image_rect_color --split --size 2048 -o $(arg bag_path)g500_valve_image" />
 
 	<node if="$(arg recordImageRaw)" name="camera_raw" output="screen" pkg="rosbag" type="record" args="/stereo_camera/left/camera_info /stereo_camera/left/image_raw /camera/image_raw /camera/camera_info --split --size 2048 -o $(arg bag_path)g500_valve_image_raw" />
 
+	<node if="$(arg recordImageSim)" name="camera_rect_color" output="screen" pkg="rosbag" type="record" args="/g500/stereo_front/left/image_rect_color /g500/hand_camera/image_raw --split --size 2048 -o $(arg bag_path)g500_valve_image" />
 
 </launch>
